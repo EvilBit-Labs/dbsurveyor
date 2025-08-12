@@ -90,3 +90,8 @@ site/
 # Coverage reports
 target/llvm-cov/
 *.profdata
+
+# Python virtual environments
+.venv/
+venv/
+env/
