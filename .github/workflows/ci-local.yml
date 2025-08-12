@@ -1,4 +1,6 @@
 name: CI (Local Testing)
+permissions:
+  contents: read
 
 on:
   push:
