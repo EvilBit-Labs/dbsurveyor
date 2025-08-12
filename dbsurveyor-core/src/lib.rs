@@ -287,4 +287,194 @@ mod tests {
     fn test_format_version() {
         assert_eq!(SURVEY_FORMAT_VERSION, "1.0");
     }
+
+    #[test]
+    fn test_database_survey_creation() {
+        let db_info = DatabaseInfo {
+            engine: "mysql".to_string(),
+            version: None,
+            host: "example.com".to_string(),
+            database_name: "myapp".to_string(),
+            connection_info: ConnectionMetadata {
+                connected_successfully: true,
+                connected_at: Utc::now(),
+                connection_latency_ms: Some(150),
+                warnings: vec!["Test warning".to_string()],
+            },
+        };
+
+        let survey = DatabaseSurvey::new(db_info);
+
+        assert_eq!(survey.format_version, "1.0");
+        assert_eq!(survey.database.engine, "mysql");
+        assert_eq!(survey.database.database_name, "myapp");
+        assert_eq!(survey.database.host, "example.com");
+        assert!(survey.database.version.is_none());
+        assert!(survey.schemas.is_empty());
+        assert_eq!(survey.metadata.format_version, "1.0");
+    }
+
+    #[test]
+    fn test_survey_metadata_default() {
+        let metadata = SurveyMetadata::default();
+
+        assert_eq!(metadata.format_version, "1.0");
+        assert_eq!(metadata.database_type, "unknown");
+        assert_eq!(metadata.stats.schema_count, 0);
+        assert_eq!(metadata.stats.table_count, 0);
+        assert_eq!(metadata.stats.column_count, 0);
+        assert_eq!(metadata.stats.collection_duration_ms, 0);
+    }
+
+    #[test]
+    fn test_connection_metadata_default() {
+        let conn_meta = ConnectionMetadata::default();
+
+        assert!(!conn_meta.connected_successfully);
+        assert!(conn_meta.connection_latency_ms.is_none());
+        assert!(conn_meta.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_survey_error_display() {
+        let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "File not found");
+        let survey_error = SurveyError::Io(io_error);
+        let error_string = format!("{survey_error}");
+        assert!(error_string.contains("IO error"));
+        assert!(error_string.contains("File not found"));
+
+        // Test serialization error using a simpler approach
+        let result: Result<String, _> = serde_json::from_str("{invalid json");
+        if let Err(json_error) = result {
+            let survey_error = SurveyError::Serialization(json_error);
+            let error_string = format!("{survey_error}");
+            assert!(error_string.contains("Serialization error"));
+        }
+
+        let generic_error = anyhow::anyhow!("Generic test error");
+        let survey_error = SurveyError::Generic(generic_error);
+        let error_string = format!("{survey_error}");
+        assert!(error_string.contains("Generic error"));
+        assert!(error_string.contains("Generic test error"));
+    }
+
+    #[test]
+    fn test_complex_database_structures() {
+        let mut survey = DatabaseSurvey::new(DatabaseInfo {
+            engine: "postgresql".to_string(),
+            version: Some("14.1".to_string()),
+            host: "db.example.com".to_string(),
+            database_name: "production".to_string(),
+            connection_info: ConnectionMetadata {
+                connected_successfully: true,
+                connected_at: Utc::now(),
+                connection_latency_ms: Some(25),
+                warnings: vec![],
+            },
+        });
+
+        // Add a schema with table, view, and function
+        survey.schemas.push(SchemaInfo {
+            name: "public".to_string(),
+            tables: vec![TableInfo {
+                name: "users".to_string(),
+                schema: "public".to_string(),
+                columns: vec![ColumnInfo {
+                    name: "id".to_string(),
+                    data_type: "integer".to_string(),
+                    is_nullable: false,
+                    default_value: Some("nextval('users_id_seq'::regclass)".to_string()),
+                    character_maximum_length: None,
+                    numeric_precision: Some(32),
+                    numeric_scale: Some(0),
+                }],
+                indexes: vec![IndexInfo {
+                    name: "users_pkey".to_string(),
+                    columns: vec!["id".to_string()],
+                    is_unique: true,
+                    is_primary: true,
+                    index_type: "btree".to_string(),
+                }],
+                constraints: vec![ConstraintInfo {
+                    name: "users_pkey".to_string(),
+                    constraint_type: "PRIMARY KEY".to_string(),
+                    columns: vec!["id".to_string()],
+                    referenced_table: None,
+                    referenced_columns: None,
+                }],
+                row_count: Some(1000),
+                size_bytes: Some(65536),
+            }],
+            views: vec![ViewInfo {
+                name: "active_users".to_string(),
+                schema: "public".to_string(),
+                definition: Some("SELECT * FROM users WHERE active = true".to_string()),
+                columns: vec![ColumnInfo {
+                    name: "id".to_string(),
+                    data_type: "integer".to_string(),
+                    is_nullable: false,
+                    default_value: None,
+                    character_maximum_length: None,
+                    numeric_precision: Some(32),
+                    numeric_scale: Some(0),
+                }],
+            }],
+            functions: vec![FunctionInfo {
+                name: "get_user_count".to_string(),
+                schema: "public".to_string(),
+                return_type: Some("integer".to_string()),
+                language: Some("sql".to_string()),
+                definition: Some("SELECT count(*) FROM users".to_string()),
+            }],
+        });
+
+        // Update metadata to reflect the collection
+        survey.metadata.stats.schema_count = 1;
+        survey.metadata.stats.table_count = 1;
+        survey.metadata.stats.column_count = 1;
+        survey.metadata.stats.collection_duration_ms = 500;
+
+        // Test serialization of complex structure
+        let json = serde_json::to_string_pretty(&survey);
+        assert!(json.is_ok());
+
+        if let Ok(json_str) = json {
+            assert!(json_str.contains("\"name\": \"users\""));
+            assert!(json_str.contains("\"name\": \"active_users\""));
+            assert!(json_str.contains("\"name\": \"get_user_count\""));
+
+            // Test deserialization
+            let deserialized: Result<DatabaseSurvey, _> = serde_json::from_str(&json_str);
+            assert!(deserialized.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_survey_metadata_clone() {
+        let original = SurveyMetadata::default();
+        let cloned = original.clone();
+
+        assert_eq!(original.format_version, cloned.format_version);
+        assert_eq!(original.database_type, cloned.database_type);
+        assert_eq!(original.stats.schema_count, cloned.stats.schema_count);
+    }
+
+    #[test]
+    fn test_collection_stats_clone() {
+        let original = CollectionStats {
+            schema_count: 5,
+            table_count: 25,
+            column_count: 150,
+            collection_duration_ms: 2500,
+        };
+        let cloned = original.clone();
+
+        assert_eq!(original.schema_count, cloned.schema_count);
+        assert_eq!(original.table_count, cloned.table_count);
+        assert_eq!(original.column_count, cloned.column_count);
+        assert_eq!(
+            original.collection_duration_ms,
+            cloned.collection_duration_ms
+        );
+    }
 }

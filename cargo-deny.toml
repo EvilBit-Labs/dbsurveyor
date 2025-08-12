@@ -21,11 +21,11 @@ yanked = "deny"                      # Deny yanked crates
 ignore = [
     # Add specific advisory IDs here if needed for temporary exceptions
     # Example: "RUSTSEC-2023-0001"
+    "RUSTSEC-2023-0071",  # RSA Marvin Attack - no fix available yet
 ]
 
 [licenses]
 # Security Control: License compliance per Pipeline Standard
-version = 2
 allow = [
     "MIT",
     "Apache-2.0",
@@ -37,19 +37,6 @@ allow = [
     "CC0-1.0",
 ]
 
-deny = [
-    "GPL-2.0",          # Copyleft licenses not compatible with commercial use
-    "GPL-3.0",
-    "AGPL-3.0",
-    "LGPL-2.1",
-    "LGPL-3.0",
-    "MPL-2.0",          # Mozilla Public License has copyleft requirements
-]
-
-copyleft = "deny"           # Deny all copyleft licenses
-allow-osi-fsf-free = "both" # Allow OSI and FSF approved licenses
-default = "deny"            # Deny any licenses not explicitly allowed
-
 [[licenses.exceptions]]
 # Special handling for specific crates if needed
 allow = ["Unicode-DFS-2016"]
@@ -57,7 +44,6 @@ name = "unicode-ident"
 
 [bans]
 # Security Control: Dependency banning for security reasons
-version = 2
 multiple-versions = "warn"  # Warn about multiple versions (supply chain bloat)
 wildcards = "deny"          # Deny wildcard versions (security risk)
 highlight = "all"           # Highlight all issues
@@ -99,14 +85,13 @@ skip = [
 
 # Skip files/directories from being scanned
 skip-tree = [
-    { path = "target" },        # Skip build artifacts
-    { path = ".git" },          # Skip git metadata
-    { path = "docs" },          # Skip documentation
+    "target",        # Skip build artifacts
+    ".git",          # Skip git metadata
+    "docs",          # Skip documentation
 ]
 
 [sources]
 # Security Control: Source validation per Pipeline Standard
-version = 2
 unknown-registry = "deny"       # Only allow known registries
 unknown-git = "deny"           # Only allow known git sources
 
