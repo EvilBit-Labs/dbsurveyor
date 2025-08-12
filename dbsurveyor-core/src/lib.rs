@@ -3,8 +3,8 @@
 //! This crate contains common data structures, types, and utilities
 //! shared between the collector and postprocessor components.
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Version information for survey data format
@@ -65,11 +65,11 @@ impl DatabaseSurvey {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DatabaseInfo {
     /// Database engine type (postgresql, mysql, etc.)
-    pub engine: String,     // "postgresql", "mysql", etc.
+    pub engine: String, // "postgresql", "mysql", etc.
     /// Database server version
     pub version: Option<String>,
     /// Database host (sanitized, no credentials)
-    pub host: String,       // Sanitized (no credentials)
+    pub host: String, // Sanitized (no credentials)
     /// Database name
     pub database_name: String,
     /// Connection metadata and statistics
@@ -257,10 +257,9 @@ impl Default for ConnectionMetadata {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json;
 
     #[test]
-    fn test_database_survey_json_format() {
+    fn test_database_survey_json_format() -> Result<(), Box<dyn std::error::Error>> {
         // Create a sample database survey
         let db_info = DatabaseInfo {
             engine: "postgresql".to_string(),
@@ -271,16 +270,17 @@ mod tests {
         };
 
         let survey = DatabaseSurvey::new(db_info);
-        
+
         // Test JSON serialization
-        let json = serde_json::to_string_pretty(&survey).expect("Failed to serialize survey");
-        
+        let json = serde_json::to_string_pretty(&survey)?;
+
         // Verify format version is correct
         assert!(json.contains("\"format_version\": \"1.0\""));
-        
+
         // Test JSON deserialization
-        let _deserialized: DatabaseSurvey = serde_json::from_str(&json)
-            .expect("Failed to deserialize survey");
+        let _deserialized: DatabaseSurvey = serde_json::from_str(&json)?;
+
+        Ok(())
     }
 
     #[test]

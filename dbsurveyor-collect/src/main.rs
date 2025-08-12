@@ -40,7 +40,11 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Collect { database_url: _, output: _, engine: _ }) => {
+        Some(Commands::Collect {
+            database_url: _,
+            output: _,
+            engine: _,
+        }) => {
             println!("dbsurveyor-collect v{}", env!("CARGO_PKG_VERSION"));
             println!("Database schema collection tool");
             println!("⚠️  Collection functionality will be implemented in future tasks");
