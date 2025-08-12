@@ -62,8 +62,14 @@ lint:
     @echo "✅ Rust Quality Gate passed - zero warnings enforced"
 
 # Run all linting and formatting checks
-check: format-check lint pre-commit
+check: format-check lint pre-commit pre-commit-run
     @echo "✅ All checks passed!"
+
+# Run pre-commit hooks manually
+pre-commit-run:
+    @echo "🔄 Running pre-commit hooks..."
+    pre-commit run -a
+    @echo "✅ Pre-commit hooks passed!"
 
 # Fix linting and formatting issues
 fix: format
@@ -392,7 +398,7 @@ ci-check-fast: format-check lint test-no-bench
     @echo "✅ Fast CI checks passed!"
 
 # Full comprehensive checks - runs all non-interactive verifications
-full-checks: format-check lint pre-commit test coverage audit build-release
+full-checks: format-check lint pre-commit test coverage audit build-release pre-commit-run
     @echo "✅ All full checks passed!"
 
 # CI-friendly QA check (respects TERM=dumb)
@@ -543,7 +549,7 @@ validate-workflows:
 # -----------------------------
 
 # Development workflow: format, lint, test, coverage
-dev: format lint test coverage
+dev: format lint test coverage pre-commit-run
     @echo "✅ Development checks complete!"
 
 # Watch for changes and run tests
