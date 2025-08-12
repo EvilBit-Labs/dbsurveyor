@@ -1,4 +1,6 @@
 # DBSurveyor
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FEvilBit-Labs%2Fdbsurveyor.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FEvilBit-Labs%2Fdbsurveyor?ref=badge_shield)
+
 
 ## Secure, Offline-First Database Analysis and Documentation Toolchain
 
@@ -44,3 +46,7 @@ Toolchain for surveying database servers, extracting schema and sample data, and
 - **OpenAPI Generator**: Future HTTP client development will use OpenAPI Generator for Rust code generation
 
 WARNING: Sample data may contain sensitive information. Use `--redact-samples` flag and review outputs before sharing.
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FEvilBit-Labs%2Fdbsurveyor.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FEvilBit-Labs%2Fdbsurveyor?ref=badge_large)
