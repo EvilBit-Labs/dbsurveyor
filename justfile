@@ -248,6 +248,25 @@ doc-open:
     cargo doc --all-features --no-deps --document-private-items --open
     @echo "✅ Documentation generated - works offline"
 
+# Serve documentation locally (required by standard)
+docs:
+    @echo "📖 Starting documentation server..."
+    @if ! command -v mkdocs > /dev/null 2>&1; then \
+        echo "Installing MkDocs..."; \
+        pip install mkdocs-material; \
+    fi
+    mkdocs serve
+
+# Build documentation for verification (required by standard)
+docs-build:
+    @echo "🔨 Building documentation site..."
+    @if ! command -v mkdocs > /dev/null 2>&1; then \
+        echo "Installing MkDocs..."; \
+        pip install mkdocs-material; \
+    fi
+    mkdocs build
+    @echo "✅ Documentation built - check site/ directory"
+
 # Run the CLI tool with sample arguments
 run *args:
     cargo run --all-features -- {{args}}
@@ -282,6 +301,42 @@ security-audit:
     @echo "✅ Security audit complete - reports generated"
     @echo "📄 SBOM files: sbom.json, sbom.spdx.json"
     @echo "🛡️  Vulnerability report: grype-report.json"
+
+# SBOM generation for local inspection (required by standard)
+sbom:
+    @echo "📋 Generating Software Bill of Materials..."
+    @if ! command -v syft > /dev/null 2>&1; then \
+        echo "Installing Syft..."; \
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
+    fi
+    ~/.local/bin/syft dir:. -o json > sbom.json
+    ~/.local/bin/syft dir:. -o spdx-json > sbom.spdx.json
+    @echo "✅ SBOM generated: sbom.json, sbom.spdx.json"
+
+# Simulate release process without publishing (required by standard)
+release-dry:
+    @echo "🎭 Simulating release process..."
+    @just lint
+    @just test
+    @just build-release
+    @just sbom
+    @just security-audit
+    @echo "✅ Release dry run complete - ready for actual release"
+
+# Install language-specific tooling (required by standard)
+install-tools:
+    @echo "🔧 Installing Rust development tools..."
+    rustup component add clippy rustfmt
+    @if ! command -v cargo-audit > /dev/null 2>&1; then \
+        cargo install cargo-audit; \
+    fi
+    @if ! command -v cargo-deny > /dev/null 2>&1; then \
+        cargo install cargo-deny; \
+    fi
+    @if ! command -v cargo-llvm-cov > /dev/null 2>&1; then \
+        cargo install cargo-llvm-cov; \
+    fi
+    @echo "✅ Rust tools installed"
 
 # Run dependency audit
 audit:
@@ -343,6 +398,136 @@ full-checks: format-check lint pre-commit test coverage audit build-release
 # CI-friendly QA check (respects TERM=dumb)
 ci-qa: rust-fmt-check rust-clippy rust-test
     @echo "✅ CI QA checks passed!"
+
+# -----------------------------
+# 🧪 Local GitHub Actions Testing (act)
+# -----------------------------
+
+# Install act for local GitHub Actions testing
+install-act:
+    @echo "📦 Installing act for local GitHub Actions testing..."
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "Installing act via Homebrew..."; \
+        brew install act; \
+    else \
+        echo "✅ act is already installed"; \
+    fi
+    @echo "✅ act installation complete"
+
+# Setup act with local configuration
+setup-act: install-act
+    @echo "⚙️  Setting up act for local GitHub Actions testing..."
+    @if [ ! -f .secrets ]; then \
+        echo "📝 Creating .secrets file from template..."; \
+        cp .secrets.template .secrets; \
+        echo "✏️  Please edit .secrets file with your actual tokens if needed"; \
+    else \
+        echo "✅ .secrets file already exists"; \
+    fi
+    @echo "🐳 Pulling required Docker images for act..."
+    docker pull ghcr.io/catthehacker/ubuntu:act-latest
+    @echo "✅ act setup complete - you can now run 'just test-ci-local'"
+
+# Test CI workflow locally with act
+test-ci-local:
+    @echo "🧪 Running CI workflow locally with act..."
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    act -W .github/workflows/ci.yml
+
+# Test specific CI jobs locally
+test-lint-local:
+    @echo "🔍 Testing lint job locally..."
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    act -W .github/workflows/ci.yml -j lint
+
+test-security-local:
+    @echo "🛡️  Testing security scan job locally..."
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    act -W .github/workflows/ci.yml -j security-scan
+
+test-build-local:
+    @echo "🔨 Testing build job locally..."
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    act -W .github/workflows/ci.yml -j build
+
+# Test release workflow locally (dry run)
+test-release-local:
+    @echo "📦 Testing release workflow locally..."
+    @echo "⚠️  Note: This simulates release triggers but won't actually release"
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    act -W .github/workflows/release.yml --dryrun
+
+# Test Release Please workflow locally
+test-release-please-local:
+    @echo "🏷️  Testing Release Please workflow locally..."
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    act -W .github/workflows/release-please.yml
+
+# Test OSSF Scorecard workflow locally
+test-scorecard-local:
+    @echo "📊 Testing OSSF Scorecard workflow locally..."
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    act -W .github/workflows/scorecard.yml
+
+# List all available GitHub Actions workflows
+list-workflows:
+    @echo "📋 Available GitHub Actions workflows:"
+    @find .github/workflows -name "*.yml" -o -name "*.yaml" | sort | while read file; do \
+        echo "  📄 $(basename "$file")"; \
+        grep -H "^name:" "$file" 2>/dev/null | sed 's/.*name: *//; s/^/    - /' || echo "    - (no name specified)"; \
+    done
+
+# Test all workflows locally (comprehensive check)
+test-all-workflows:
+    @echo "🚀 Testing all workflows locally..."
+    @echo "⚠️  This may take a while and requires Docker"
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    @echo "🧪 Testing CI workflow..."
+    act -W .github/workflows/ci.yml --dryrun || echo "❌ CI workflow test failed"
+    @echo "🏷️  Testing Release Please workflow..."
+    act -W .github/workflows/release-please.yml --dryrun || echo "❌ Release Please workflow test failed"
+    @echo "📊 Testing Scorecard workflow..."
+    act -W .github/workflows/scorecard.yml --dryrun || echo "❌ Scorecard workflow test failed"
+    @echo "✅ All workflow tests completed"
+
+# Validate GitHub Actions syntax
+validate-workflows:
+    @echo "✅ Validating GitHub Actions workflow syntax..."
+    @for file in .github/workflows/*.yml .github/workflows/*.yaml; do \
+        if [ -f "$file" ]; then \
+            echo "🔍 Checking $(basename "$file")..."; \
+            if command -v yamllint > /dev/null 2>&1; then \
+                yamllint "$file" || echo "❌ YAML syntax error in $(basename "$file")"; \
+            else \
+                echo "⚠️  yamllint not installed - install with: pip install yamllint"; \
+            fi; \
+        fi; \
+    done
+    @echo "✅ Workflow validation complete"
 
 # -----------------------------
 # 🚀 Development Workflow
