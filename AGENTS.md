@@ -7,7 +7,7 @@ This document outlines the coding standards, architectural patterns, and project
 - **Security-First Principle**: Always prioritize security considerations in design and implementation. Trust the framework's built-in security mechanisms over custom solutions.
 - **Operator-Centric Design**: Projects are built for operators, by operators. This means prioritizing workflows that are efficient, auditable, and functional in contested or airgapped environments.
 - **Offline-First Architecture**: All functionality must work without internet connectivity. No telemetry, external reporting, or network dependencies in production.
-- **Database-Agnostic Design**: Support for multiple database engines (PostgreSQL, MySQL, SQLite) with unified interfaces and consistent behavior.
+- **Database-Agnostic Design**: Support for multiple database engines (PostgreSQL, MySQL, SQLite, MongoDB) with unified interfaces and consistent behavior across both SQL and NoSQL databases.
 
 ## 2. Project Structure and Layout
 
@@ -100,6 +100,7 @@ The preferred technology stack is consistent across the project:
 - **PostgreSQL**: Primary target with full feature support
 - **MySQL**: Secondary target with core functionality
 - **SQLite**: Minimal target for local development and testing
+- **MongoDB**: NoSQL target for document database support (required for initial release)
 
 ### Database Operations
 
@@ -226,7 +227,7 @@ just package-airgap          # Create airgap deployment package
 
 - **Primary Purpose**: Database schema documentation and analysis
 - **Security Focus**: Offline-only operation with encrypted outputs
-- **Database Support**: PostgreSQL (primary), MySQL, SQLite
+- **Database Support**: PostgreSQL (primary), MySQL, SQLite, MongoDB (NoSQL)
 - **Deployment**: Self-contained binaries with no runtime dependencies
 - **Output Formats**: JSON, Markdown, encrypted bundles
 

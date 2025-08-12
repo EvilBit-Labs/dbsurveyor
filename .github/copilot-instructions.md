@@ -2,12 +2,12 @@
 
 ## Project Overview
 
-DBSurveyor is a security-focused database documentation tool written in Rust that generates comprehensive schema documentation for PostgreSQL, MySQL, and SQLite databases. **Offline-first design** - all operations work without internet connectivity except for database connections.
+DBSurveyor is a security-focused database documentation tool written in Rust that generates comprehensive schema documentation for both SQL (PostgreSQL, MySQL, SQLite) and NoSQL (MongoDB) databases. **Offline-first design** - all operations work without internet connectivity except for database connections.
 
 ## Core Principles
 
 - **Security-First**: Offline-only operation with encrypted outputs and no telemetry
-- **Database-Agnostic**: Unified interface across PostgreSQL, MySQL, and SQLite
+- **Database-Agnostic**: Unified interface across both SQL (PostgreSQL, MySQL, SQLite) and NoSQL (MongoDB) databases
 - **Operator-Centric**: Efficient, auditable workflows for security professionals
 - **Zero-Warning Policy**: `cargo clippy -- -D warnings` must pass without any warnings
 
@@ -84,6 +84,7 @@ DBSurveyor is a security-focused database documentation tool written in Rust tha
 - **PostgreSQL**: Primary target with full feature support
 - **MySQL**: Secondary target with core functionality
 - **SQLite**: Minimal target for local development and testing
+- **MongoDB**: NoSQL target for document database support (required for initial release)
 
 ### Database Operations
 

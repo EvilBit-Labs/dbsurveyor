@@ -34,7 +34,8 @@ The primary objectives of dbsurveyor are:
 
 - **Offline-First Operation**: All functionality must work without internet connectivity after initial installation
 - **Operator-Focused Design**: Built for database administrators, data analysts, and software developers who need reliable, comprehensive database documentation
-- **Comprehensive Coverage**: Support major database systems (PostgreSQL, MySQL, SQLite, SQL Server, Oracle) with full metadata extraction
+- **Comprehensive Coverage**: Support major database systems (PostgreSQL, MySQL, SQLite, SQL Server, Oracle, MongoDB) with full metadata extraction
+- **NoSQL Database Support**: MongoDB support is required for the initial release to ensure coverage of both relational and non-relational database paradigms
 - **Structured Output**: Generate portable, machine-readable output formats for integration with other tools and workflows
 - **Cross-Platform Compatibility**: Native support for Linux, macOS, and Windows environments
 - **Security-Conscious**: Zero telemetry, secure credential handling, and configurable data anonymization
