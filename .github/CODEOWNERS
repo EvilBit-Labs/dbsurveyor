@@ -1,0 +1,26 @@
+# DBSurveyor Code Owners
+#
+# This project operates under a single-maintainer model with the following characteristics:
+# - No second reviewer required
+# - Direct push access for the maintainer
+# - Streamlined process optimized for rapid iteration
+#
+# Code Review Preferences:
+# - Primary tool: CodeRabbit.ai for automated, conversational code reviews
+# - GitHub Copilot automatic reviews are disabled
+# - Quality gate: cargo clippy -- -D warnings must pass
+#
+# Future HTTP Client Development:
+# - Use OpenAPI Generator for Rust client code generation
+#
+# Author: UncleSp1d3r
+
+# Global ownership - all files are owned by the single maintainer
+* @UncleSp1d3r
+
+# Specific ownership for critical files
+/.github/ @UncleSp1d3r
+/Cargo.toml @UncleSp1d3r
+/justfile @UncleSp1d3r
+/cargo-deny.toml @UncleSp1d3r
+/CONTRIBUTORS.md @UncleSp1d3r

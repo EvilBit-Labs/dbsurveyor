@@ -1,32 +1,73 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Rust/Cargo build artifacts
+/target/
 
-# Test binary, built with `go test -c`
-*.test
 
-# Code coverage profiles and other test artifacts
-*.out
-coverage.*
-*.coverprofile
-profile.cov
+# Cargo.lock should be committed for applications, ignored for libraries
+# Since this is a workspace with both binaries and libraries, we keep Cargo.lock
+# Cargo.lock
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Generated documentation
+/doc/
 
-# Go workspace file
-go.work
-go.work.sum
+# Backup files
+*.bak
+*.orig
+*.tmp
 
-# env file
+# Environment files
 .env
+.env.local
+.env.*.local
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.#*
+\#*#
+
+# Rust-analyzer
+rust-project.json
+
+# cargo-audit database
+~/.cargo/audit.toml.sig
+
+# Security and config files that shouldn't be committed
+*.pem
+*.key
+*.crt
+config.toml
+secrets.toml
+
+# Test artifacts
+*.profraw
+cov-report/
+
+# Local development files
+.local/
+dev-config/
+
+# Database files (for testing)
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+logs/
+
+# Survey data files (should be handled deliberately)
+*.survey
+*.dbsurvey
+survey-data/

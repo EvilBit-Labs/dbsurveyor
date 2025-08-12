@@ -1,0 +1,34 @@
+{
+  // Markdownlint configuration for DBSurveyor
+  "config": {
+    // Line length - disabled for tables and code blocks
+    "MD013": false,
+    // Multiple consecutive blank lines - allow for readability
+    "MD012": false,
+    // Inline HTML - allow for advanced formatting
+    "MD033": false,
+    // Code fence style - require backticks
+    "MD046": {
+      "style": "fenced"
+    },
+    // Emphasis marker style - use asterisks
+    "MD049": {
+      "style": "asterisk"
+    },
+    // Strong marker style - use asterisks
+    "MD050": {
+      "style": "asterisk"
+    }
+  },
+  // Files to ignore
+  "ignores": [
+    "node_modules/**",
+    "target/**",
+    ".git/**",
+    "CHANGELOG.md"
+  ],
+  // Custom fixes
+  "fix": true,
+  // Show rule names in output
+  "showFoundFiles": false
+}

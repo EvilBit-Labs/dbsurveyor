@@ -1,0 +1,690 @@
+---
+alwaysApply: true
+---
+
+
+# Core Concepts for DBSurveyor
+
+This project is DBSurveyor, a security-focused database documentation tool that generates comprehensive schema documentation for PostgreSQL, MySQL, and SQLite databases. The tool operates offline-first with encrypted outputs and strict security guarantees.
+
+## Rule Precedence
+
+**CRITICAL - Rules are applied in the following order of precedence:**
+
+1. **Project-specific rules** (from project root AGENTS.md or .cursor/rules/)
+2. **General development standards** (outlined in this document)
+3. **Language-specific style guides** (Rust conventions, etc.)
+
+When rules conflict, always follow the rule with higher precedence.
+
+## 🔒 Core Security Philosophy
+
+- **Security-First**: All design decisions must prioritize security considerations
+- **Offline-Only Operation**: No network calls except to target databases for schema collection
+- **No Telemetry**: Zero data collection or external reporting mechanisms
+- **Credential Protection**: Database credentials never appear in any output files or logs
+- **Airgap Compatibility**: Full functionality must work in air-gapped environments
+
+## 🎯 Project Purpose & Focus
+
+- **Primary Function**: Generate secure database schema documentation
+- **Database Engines**: PostgreSQL (primary), MySQL (secondary), SQLite (minimal)
+- **Security Focus**: Offline operation with AES-GCM encrypted outputs
+- **Target Users**: Security professionals, database administrators, DevOps teams
+- **Deployment Model**: Self-contained binaries with no runtime dependencies
+
+### EvilBit Labs Brand Principles
+
+- **Trust the Operator**: Full control, no black boxes
+- **Polish Over Scale**: Quality over feature-bloat
+- **Offline First**: Built for where the internet isn't
+- **Sane Defaults**: Clean outputs, CLI help that's actually helpful
+- **Ethical Constraints**: No dark patterns, spyware, or telemetry
+
+## 🦀 Technology Stack
+
+- **Language**: Rust 2021 Edition with strict safety guarantees
+- **CLI Framework**: Clap v4 with derive macros for clean command-line interfaces
+- **Async Runtime**: Tokio for async database operations
+- **Database Access**: SQLx with async drivers for type-safe database access
+- **Serialization**: Serde with JSON support for data interchange
+- **Encryption**: AES-GCM with random nonce for secure data at rest
+- **Testing**: Built-in test framework + testcontainers for integration testing
+- **CI/CD**: GitHub Actions with security scanning and vulnerability assessment
+
+## 🦀 Rust Development Standards
+
+### Code Quality Requirements
+
+- **Formatting**: `cargo fmt` using standard Rust formatting (4-space indentation)
+- **Linting**: `cargo clippy -- -D warnings` - ZERO warnings policy strictly enforced
+- **Naming**: Follow Rust conventions - `snake_case` for variables/functions, `PascalCase` for types
+- **Error Handling**: Use `Result<T, E>` types and `?` operator, create custom error types with `thiserror`
+- **Documentation**: Comprehensive `///` doc comments for all public APIs
+- **Testing**: Unit tests co-located with code, integration tests in separate files
+- **Safety**: `unsafe` code is denied at the workspace level
+- **Logging**: Use structured logging with `tracing` crate instead of `println!`
+
+### Architecture Patterns
+
+- **Repository Pattern**: Database access abstraction layer
+- **Service Pattern**: Business logic encapsulation
+- **Factory Pattern**: Database driver instantiation
+- **Command Pattern**: CLI command organization using Clap
+- **Error Chaining**: Comprehensive error context through call stack
+
+### Rust Development Patterns
+
+- Use Clap for CLI with consistent verb patterns and derive macros
+- Use SQLx for database access with compile-time query verification
+- Use tokio for async operations with proper error handling
+- Use serde for serialization with custom serializers for security
+- Implement Repository pattern for database access abstraction
+- Use testcontainers for integration testing with real databases
+
+## 🔐 Security Implementation Standards
+
+### Critical Security Guarantees
+
+1. **OFFLINE-ONLY OPERATION**: No network calls except to target databases
+2. **NO TELEMETRY**: Zero data collection or external reporting mechanisms
+3. **CREDENTIAL PROTECTION**: Database credentials never stored, logged, or output
+4. **ENCRYPTION**: AES-GCM with random nonce, embedded KDF params, authenticated headers
+5. **AIRGAP COMPATIBILITY**: Full functionality in air-gapped environments
+
+### Security Code Patterns
+
+```rust
+// ✅ Correct: Secure error handling without credential exposure
+#[derive(Error, Debug)]
+pub enum DatabaseError {
+    #[error("Connection failed to database")]
+    ConnectionFailed,
+
+    #[error("Query execution failed")]
+    QueryFailed(#[from] sqlx::Error),
+}
+
+// ❌ Incorrect: Exposes credentials in error messages
+#[error("Failed to connect to {url}")]
+ConnectionFailedWithUrl { url: String },
+```
+
+### Database Operations Standards
+
+- **Read-Only Operations**: All database operations are strictly read-only
+- **Connection Management**: Use connection pooling for performance
+- **Query Safety**: Use parameterized queries only - NO string concatenation
+- **Transaction Safety**: Proper transaction boundaries with rollback on errors
+- **TLS Security**: Use TLS/SSL when available, validate certificates
+- **Connection Security**: TLS/SSL when available, certificate validation
+- **Credential Isolation**: Database credentials never stored, logged, or output
+- **Offline Processing**: Schema analysis and documentation generation works offline
+
+### Security Principles
+
+- **No Secrets in Code**: Never hardcode API keys, passwords, or sensitive data
+- **Environment Variables**: Use environment variables or secure vaults for configuration
+- **Input Validation**: Always validate and sanitize user inputs and file paths
+- **Secure Defaults**: Default to secure configurations and fail securely
+- **File Permissions**: Use restrictive file permissions for generated files
+- **Error Messages**: Avoid exposing sensitive information in error messages
+
+## Database Processing Patterns
+
+### Data Model Standards
+
+- **Schema Structures**: Comprehensive database schema representation (tables, columns, indexes, constraints)
+- **Database Agnostic**: Unified interface across PostgreSQL, MySQL, and SQLite
+- **Security Models**: Separate structs for security analysis and credential handling
+- **Serialization Safety**: JSON/YAML export with credential sanitization
+
+### Security Processing
+
+- **Read-Only Operations**: All database operations are strictly read-only
+- **Connection Security**: TLS/SSL when available, certificate validation
+- **Credential Isolation**: Database credentials never stored, logged, or output
+- **Offline Processing**: Schema analysis and documentation generation works offline
+
+## 🧪 Testing Requirements
+
+### Test Organization
+
+- **Unit Tests**: Test individual functions and modules
+- **Integration Tests**: Test database adapters with real databases using testcontainers
+- **Security Tests**: Verify encryption, credential handling, offline operation
+- **Performance Tests**: Benchmark database operations and memory usage
+- **Coverage**: Aim for >80% test coverage with `cargo llvm-cov`
+
+### Security Testing Patterns
+
+```rust
+#[tokio::test]
+async fn test_no_credentials_in_output() {
+    let database_url = "postgres://user:secret@localhost/db";
+    let output = generate_schema_doc(database_url).await?;
+
+    // Verify no sensitive data leaks
+    assert!(!output.contains("secret"));
+    assert!(!output.contains("password"));
+    assert!(!output.contains("user:secret"));
+}
+
+#[tokio::test]
+async fn test_encryption_randomness() {
+    let data = b"test schema data";
+    let encrypted1 = encrypt_data(data)?;
+    let encrypted2 = encrypt_data(data)?;
+
+    // Same data should produce different ciphertext (random nonce)
+    assert_ne!(encrypted1, encrypted2);
+
+    // Both should decrypt to same plaintext
+    assert_eq!(decrypt_data(&encrypted1)?, data);
+    assert_eq!(decrypt_data(&encrypted2)?, data);
+}
+```
+
+## 🔧 Development Workflow
+
+### Essential Commands
+
+- `just dev-setup` - Install tools and dependencies
+- `just lint` - Run strict clippy linting (`cargo clippy -- -D warnings`)
+- `just format` - Format code with `cargo fmt`
+- `just test` - Run complete test suite
+- `just ci-check` - Run CI-equivalent checks locally
+- `just security-full` - Run complete security validation
+- `just build` - Build optimized release version
+- `just package-airgap` - Create offline deployment package
+
+### Quality Gates
+
+1. **Rust Quality Gate**: `cargo clippy -- -D warnings` must pass with zero warnings
+2. **Formatting**: `cargo fmt --check` must pass
+3. **Testing**: All tests must pass with `cargo test --all-features`
+4. **Security**: Security validation suite must pass
+5. **Documentation**: All public APIs must be documented
+
+### Development Process
+
+- Review files before editing
+- Match existing Rust patterns and conventions
+- Use `just` commands for build and development tasks
+- Follow conventional commit format: `<type>(<scope>): <description>`
+- Run security validation with `just security-full`
+
+## 📁 Project Structure Standards
+
+```text
+/
+├── bin/
+│   ├── collector/             # Database collection binary
+│   └── postprocessor/         # Data processing binary
+├── crates/
+│   └── shared/                # Shared library code
+├── .cursor/rules/             # Cursor AI rules
+├── .github/workflows/         # GitHub Actions CI/CD
+├── project_specs/             # Project specifications
+├── justfile                   # Task runner configuration
+├── Cargo.toml                 # Workspace configuration
+├── cargo-deny.toml            # Security policy
+└── AGENTS.md                  # AI coding standards
+```
+
+## 🔍 Code Review Standards
+
+### What to Check
+
+- **Security**: No credential leaks, proper encryption, offline-only operation
+- **Database Safety**: Read-only operations, parameterized queries, proper error handling
+- **Rust Quality**: Zero clippy warnings, proper error handling, comprehensive documentation
+- **Testing**: Unit tests, integration tests, security tests for all changes
+- **Performance**: No unnecessary allocations, efficient database operations
+
+### Common Anti-Patterns to Avoid
+
+```rust
+// ❌ Avoid: Exposing credentials in logs
+log::info!("Connecting to {}", database_url);
+
+// ✅ Correct: Log without sensitive data
+log::info!("Establishing database connection");
+
+// ❌ Avoid: String concatenation for SQL
+let query = format!("SELECT * FROM {} WHERE id = {}", table, id);
+
+// ✅ Correct: Parameterized queries
+let query = "SELECT * FROM users WHERE id = $1";
+let result = sqlx::query(query).bind(id).fetch_all(&pool).await?;
+```
+
+## 🚨 Critical Requirements
+
+### Security Constraints (NON-NEGOTIABLE)
+
+1. **No Network Access**: Except to target databases for schema collection
+2. **No Telemetry**: Zero external data collection or reporting
+3. **Credential Security**: Database credentials never stored, logged, or output
+4. **Encryption**: Proper AES-GCM implementation with random nonces
+5. **Offline Ready**: Full functionality in air-gapped environments
+
+### Rust Constraints
+
+1. **Zero Warnings**: `cargo clippy -- -D warnings` must pass
+2. **No Unsafe**: `unsafe` code is forbidden at workspace level
+3. **Error Handling**: All `Result` types must be properly handled
+4. **Documentation**: All public APIs must have `///` documentation
+5. **Testing**: All new functionality must include appropriate tests
+
+## 🤖 AI Assistant Guidelines
+
+### Development Rules of Engagement
+
+- **Clippy Strict Enforcement**: Always use `cargo clippy -- -D warnings`
+- **Security-First**: All code changes must maintain security guarantees
+- **TERM=dumb Support**: Terminal output respects `TERM="dumb"` for CI/automation
+- **CodeRabbit.ai Integration**: Prefer coderabbit.ai for code review
+- **Single Maintainer**: Configure for single maintainer (UncleSp1d3r) workflow
+- **No Auto-commits**: Never commit code without explicit permission
+
+### Code Generation Requirements
+
+- Generated code must conform to all established patterns
+- Include comprehensive type safety through Rust's type system
+- Use proper error handling with context preservation
+- Follow architectural patterns (Repository, Service, Factory, Command)
+- Include appropriate documentation and testing
+- Maintain security guarantees (offline-only, no telemetry, credential protection)
+
+## 🔄 Commit Standards
+
+All commit messages must follow [Conventional Commits](https://www.conventionalcommits.org):
+
+- **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`
+- **Scopes**: `(collector)`, `(processor)`, `(shared)`, `(security)`, `(cli)`, etc.
+- **Format**: `<type>(<scope>): <description>`
+- **Breaking Changes**: Indicated with `!` in header
+
+Examples:
+
+- `feat(collector): add PostgreSQL schema discovery`
+- `fix(security): prevent credential leakage in error messages`
+- `docs(readme): update installation instructions`
+
+## 🚩 Issue Resolution
+
+When encountering problems:
+
+- Identify the specific issue clearly
+- Explain the problem in ≤ 5 lines
+- Propose a concrete path forward
+- Don't proceed without resolving security blockers
+
+## ⚠️ Safety Guidelines
+
+- No destructive database operations (read-only access only)
+- Don't modify protected files (CI scripts, security configs) without approval
+- Stay focused on database documentation tasks; avoid scope creep
+- Always maintain security guarantees in any changes
+
+## ⚠️ Final Reminders
+
+1. **Security First**: Every change must maintain security guarantees
+2. **Zero Warnings**: `cargo clippy -- -D warnings` must pass
+3. **Offline Only**: No external dependencies at runtime
+4. **Database Safety**: Read-only operations with proper connection handling
+5. **Quality Focus**: Build for security professionals who need reliable tools
+6. **Documentation**: Clear docs for all public APIs and CLI usage
+
+## 🚨 Final Reminder
+
+You're here to deliver secure, reliable database documentation tools. No side quests. No second-guessing. Security first, always.
+
+This document serves as the core guide for AI assistants working on the DBSurveyor project.
+
+
+You're here to deliver secure, reliable database documentation tools. No side quests. No second-guessing. Security first, always.
+
+# Core Concepts for DBSurveyor
+
+This project is DBSurveyor, a security-focused database documentation tool that generates comprehensive schema documentation for PostgreSQL, MySQL, and SQLite databases. The tool operates offline-first with encrypted outputs and strict security guarantees.
+
+## Rule Precedence
+
+**CRITICAL - Rules are applied in the following order of precedence:**
+
+1. **Project-specific rules** (from project root AGENTS.md or .cursor/rules/)
+2. **General development standards** (outlined in this document)
+3. **Language-specific style guides** (Rust conventions, etc.)
+
+When rules conflict, always follow the rule with higher precedence.
+
+## 🔒 Core Security Philosophy
+
+- **Security-First**: All design decisions must prioritize security considerations
+- **Offline-Only Operation**: No network calls except to target databases for schema collection
+- **No Telemetry**: Zero data collection or external reporting mechanisms
+- **Credential Protection**: Database credentials never appear in any output files or logs
+- **Airgap Compatibility**: Full functionality must work in air-gapped environments
+
+## 🎯 Project Purpose & Focus
+
+- **Primary Function**: Generate secure database schema documentation
+- **Database Engines**: PostgreSQL (primary), MySQL (secondary), SQLite (minimal)
+- **Security Focus**: Offline operation with AES-GCM encrypted outputs
+- **Target Users**: Security professionals, database administrators, DevOps teams
+- **Deployment Model**: Self-contained binaries with no runtime dependencies
+
+### EvilBit Labs Brand Principles
+
+- **Trust the Operator**: Full control, no black boxes
+- **Polish Over Scale**: Quality over feature-bloat
+- **Offline First**: Built for where the internet isn't
+- **Sane Defaults**: Clean outputs, CLI help that's actually helpful
+- **Ethical Constraints**: No dark patterns, spyware, or telemetry
+
+## 🦀 Technology Stack
+
+- **Language**: Rust 2021 Edition with strict safety guarantees
+- **CLI Framework**: Clap v4 with derive macros for clean command-line interfaces
+- **Async Runtime**: Tokio for async database operations
+- **Database Access**: SQLx with async drivers for type-safe database access
+- **Serialization**: Serde with JSON support for data interchange
+- **Encryption**: AES-GCM with random nonce for secure data at rest
+- **Testing**: Built-in test framework + testcontainers for integration testing
+- **CI/CD**: GitHub Actions with security scanning and vulnerability assessment
+
+## 🦀 Rust Development Standards
+
+### Code Quality Requirements
+
+- **Formatting**: `cargo fmt` using standard Rust formatting (4-space indentation)
+- **Linting**: `cargo clippy -- -D warnings` - ZERO warnings policy strictly enforced
+- **Naming**: Follow Rust conventions - `snake_case` for variables/functions, `PascalCase` for types
+- **Error Handling**: Use `Result<T, E>` types and `?` operator, create custom error types with `thiserror`
+- **Documentation**: Comprehensive `///` doc comments for all public APIs
+- **Testing**: Unit tests co-located with code, integration tests in separate files
+- **Safety**: `unsafe` code is denied at the workspace level
+- **Logging**: Use structured logging with `tracing` crate instead of `println!`
+
+### Architecture Patterns
+
+- **Repository Pattern**: Database access abstraction layer
+- **Service Pattern**: Business logic encapsulation
+- **Factory Pattern**: Database driver instantiation
+- **Command Pattern**: CLI command organization using Clap
+- **Error Chaining**: Comprehensive error context through call stack
+
+### Rust Development Patterns
+
+- Use Clap for CLI with consistent verb patterns and derive macros
+- Use SQLx for database access with compile-time query verification
+- Use tokio for async operations with proper error handling
+- Use serde for serialization with custom serializers for security
+- Implement Repository pattern for database access abstraction
+- Use testcontainers for integration testing with real databases
+
+## 🔐 Security Implementation Standards
+
+### Critical Security Guarantees
+
+1. **OFFLINE-ONLY OPERATION**: No network calls except to target databases
+2. **NO TELEMETRY**: Zero data collection or external reporting mechanisms
+3. **CREDENTIAL PROTECTION**: Database credentials never stored, logged, or output
+4. **ENCRYPTION**: AES-GCM with random nonce, embedded KDF params, authenticated headers
+5. **AIRGAP COMPATIBILITY**: Full functionality in air-gapped environments
+
+### Security Code Patterns
+
+```rust
+// ✅ Correct: Secure error handling without credential exposure
+#[derive(Error, Debug)]
+pub enum DatabaseError {
+    #[error("Connection failed to database")]
+    ConnectionFailed,
+
+    #[error("Query execution failed")]
+    QueryFailed(#[from] sqlx::Error),
+}
+
+// ❌ Incorrect: Exposes credentials in error messages
+#[error("Failed to connect to {url}")]
+ConnectionFailedWithUrl { url: String },
+```
+
+### Database Operations Standards
+
+- **Read-Only Operations**: All database operations are strictly read-only
+- **Connection Management**: Use connection pooling for performance
+- **Query Safety**: Use parameterized queries only - NO string concatenation
+- **Transaction Safety**: Proper transaction boundaries with rollback on errors
+- **TLS Security**: Use TLS/SSL when available, validate certificates
+- **Connection Security**: TLS/SSL when available, certificate validation
+- **Credential Isolation**: Database credentials never stored, logged, or output
+- **Offline Processing**: Schema analysis and documentation generation works offline
+
+### Security Principles
+
+- **No Secrets in Code**: Never hardcode API keys, passwords, or sensitive data
+- **Environment Variables**: Use environment variables or secure vaults for configuration
+- **Input Validation**: Always validate and sanitize user inputs and file paths
+- **Secure Defaults**: Default to secure configurations and fail securely
+- **File Permissions**: Use restrictive file permissions for generated files
+- **Error Messages**: Avoid exposing sensitive information in error messages
+
+## Database Processing Patterns
+
+### Data Model Standards
+
+- **Schema Structures**: Comprehensive database schema representation (tables, columns, indexes, constraints)
+- **Database Agnostic**: Unified interface across PostgreSQL, MySQL, and SQLite
+- **Security Models**: Separate structs for security analysis and credential handling
+- **Serialization Safety**: JSON/YAML export with credential sanitization
+
+### Security Processing
+
+- **Read-Only Operations**: All database operations are strictly read-only
+- **Connection Security**: TLS/SSL when available, certificate validation
+- **Credential Isolation**: Database credentials never stored, logged, or output
+- **Offline Processing**: Schema analysis and documentation generation works offline
+
+## 🧪 Testing Requirements
+
+### Test Organization
+
+- **Unit Tests**: Test individual functions and modules
+- **Integration Tests**: Test database adapters with real databases using testcontainers
+- **Security Tests**: Verify encryption, credential handling, offline operation
+- **Performance Tests**: Benchmark database operations and memory usage
+- **Coverage**: Aim for >80% test coverage with `cargo llvm-cov`
+
+### Security Testing Patterns
+
+```rust
+#[tokio::test]
+async fn test_no_credentials_in_output() {
+    let database_url = "postgres://user:secret@localhost/db";
+    let output = generate_schema_doc(database_url).await?;
+
+    // Verify no sensitive data leaks
+    assert!(!output.contains("secret"));
+    assert!(!output.contains("password"));
+    assert!(!output.contains("user:secret"));
+}
+
+#[tokio::test]
+async fn test_encryption_randomness() {
+    let data = b"test schema data";
+    let encrypted1 = encrypt_data(data)?;
+    let encrypted2 = encrypt_data(data)?;
+
+    // Same data should produce different ciphertext (random nonce)
+    assert_ne!(encrypted1, encrypted2);
+
+    // Both should decrypt to same plaintext
+    assert_eq!(decrypt_data(&encrypted1)?, data);
+    assert_eq!(decrypt_data(&encrypted2)?, data);
+}
+```
+
+## 🔧 Development Workflow
+
+### Essential Commands
+
+- `just dev-setup` - Install tools and dependencies
+- `just lint` - Run strict clippy linting (`cargo clippy -- -D warnings`)
+- `just format` - Format code with `cargo fmt`
+- `just test` - Run complete test suite
+- `just ci-check` - Run CI-equivalent checks locally
+- `just security-full` - Run complete security validation
+- `just build` - Build optimized release version
+- `just package-airgap` - Create offline deployment package
+
+### Quality Gates
+
+1. **Rust Quality Gate**: `cargo clippy -- -D warnings` must pass with zero warnings
+2. **Formatting**: `cargo fmt --check` must pass
+3. **Testing**: All tests must pass with `cargo test --all-features`
+4. **Security**: Security validation suite must pass
+5. **Documentation**: All public APIs must be documented
+
+### Development Process
+
+- Review files before editing
+- Match existing Rust patterns and conventions
+- Use `just` commands for build and development tasks
+- Follow conventional commit format: `<type>(<scope>): <description>`
+- Run security validation with `just security-full`
+
+## 📁 Project Structure Standards
+
+```text
+/
+├── bin/
+│   ├── collector/             # Database collection binary
+│   └── postprocessor/         # Data processing binary
+├── crates/
+│   └── shared/                # Shared library code
+├── .cursor/rules/             # Cursor AI rules
+├── .github/workflows/         # GitHub Actions CI/CD
+├── project_specs/             # Project specifications
+├── justfile                   # Task runner configuration
+├── Cargo.toml                 # Workspace configuration
+├── cargo-deny.toml            # Security policy
+└── AGENTS.md                  # AI coding standards
+```
+
+## 🔍 Code Review Standards
+
+### What to Check
+
+- **Security**: No credential leaks, proper encryption, offline-only operation
+- **Database Safety**: Read-only operations, parameterized queries, proper error handling
+- **Rust Quality**: Zero clippy warnings, proper error handling, comprehensive documentation
+- **Testing**: Unit tests, integration tests, security tests for all changes
+- **Performance**: No unnecessary allocations, efficient database operations
+
+### Common Anti-Patterns to Avoid
+
+```rust
+// ❌ Avoid: Exposing credentials in logs
+log::info!("Connecting to {}", database_url);
+
+// ✅ Correct: Log without sensitive data
+log::info!("Establishing database connection");
+
+// ❌ Avoid: String concatenation for SQL
+let query = format!("SELECT * FROM {} WHERE id = {}", table, id);
+
+// ✅ Correct: Parameterized queries
+let query = "SELECT * FROM users WHERE id = $1";
+let result = sqlx::query(query).bind(id).fetch_all(&pool).await?;
+```
+
+## 🚨 Critical Requirements
+
+### Security Constraints (NON-NEGOTIABLE)
+
+1. **No Network Access**: Except to target databases for schema collection
+2. **No Telemetry**: Zero external data collection or reporting
+3. **Credential Security**: Database credentials never stored, logged, or output
+4. **Encryption**: Proper AES-GCM implementation with random nonces
+5. **Offline Ready**: Full functionality in air-gapped environments
+
+### Rust Constraints
+
+1. **Zero Warnings**: `cargo clippy -- -D warnings` must pass
+2. **No Unsafe**: `unsafe` code is forbidden at workspace level
+3. **Error Handling**: All `Result` types must be properly handled
+4. **Documentation**: All public APIs must have `///` documentation
+5. **Testing**: All new functionality must include appropriate tests
+
+## 🤖 AI Assistant Guidelines
+
+### Development Rules of Engagement
+
+- **Clippy Strict Enforcement**: Always use `cargo clippy -- -D warnings`
+- **Security-First**: All code changes must maintain security guarantees
+- **TERM=dumb Support**: Terminal output respects `TERM="dumb"` for CI/automation
+- **CodeRabbit.ai Integration**: Prefer coderabbit.ai for code review
+- **Single Maintainer**: Configure for single maintainer (UncleSp1d3r) workflow
+- **No Auto-commits**: Never commit code without explicit permission
+
+### Code Generation Requirements
+
+- Generated code must conform to all established patterns
+- Include comprehensive type safety through Rust's type system
+- Use proper error handling with context preservation
+- Follow architectural patterns (Repository, Service, Factory, Command)
+- Include appropriate documentation and testing
+- Maintain security guarantees (offline-only, no telemetry, credential protection)
+
+## 🔄 Commit Standards
+
+All commit messages must follow [Conventional Commits](https://www.conventionalcommits.org):
+
+- **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`
+- **Scopes**: `(collector)`, `(processor)`, `(shared)`, `(security)`, `(cli)`, etc.
+- **Format**: `<type>(<scope>): <description>`
+- **Breaking Changes**: Indicated with `!` in header
+
+Examples:
+
+- `feat(collector): add PostgreSQL schema discovery`
+- `fix(security): prevent credential leakage in error messages`
+- `docs(readme): update installation instructions`
+
+## 🚩 Issue Resolution
+
+When encountering problems:
+
+- Identify the specific issue clearly
+- Explain the problem in ≤ 5 lines
+- Propose a concrete path forward
+- Don't proceed without resolving security blockers
+
+## ⚠️ Safety Guidelines
+
+- No destructive database operations (read-only access only)
+- Don't modify protected files (CI scripts, security configs) without approval
+- Stay focused on database documentation tasks; avoid scope creep
+- Always maintain security guarantees in any changes
+
+## ⚠️ Final Reminders
+
+1. **Security First**: Every change must maintain security guarantees
+2. **Zero Warnings**: `cargo clippy -- -D warnings` must pass
+3. **Offline Only**: No external dependencies at runtime
+4. **Database Safety**: Read-only operations with proper connection handling
+5. **Quality Focus**: Build for security professionals who need reliable tools
+6. **Documentation**: Clear docs for all public APIs and CLI usage
+
+## 🚨 Final Reminder
+
+You're here to deliver secure, reliable database documentation tools. No side quests. No second-guessing. Security first, always.
+
+This document serves as the core guide for AI assistants working on the DBSurveyor project.
+
+
+You're here to deliver secure, reliable database documentation tools. No side quests. No second-guessing. Security first, always.

@@ -1,0 +1,214 @@
+language: en-US
+tone_instructions: >-
+  Focus on database security, schema analysis accuracy, and offline operation guarantees.
+  Prioritize credential protection, encryption implementation, and airgap compatibility.
+  Database security tool - enforce read-only operations and secure defaults.
+early_access: true
+enable_free_tier: false
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  high_level_summary_in_walkthrough: true
+  auto_title_placeholder: "@coderabbitai"
+  auto_title_instructions: "Use conventional commit format: <type>(<scope>): <description>"
+  review_status: true
+  commit_status: true
+  fail_commit_status: false
+  collapse_walkthrough: false
+  changed_files_summary: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  auto_apply_labels: true
+  suggested_reviewers: true
+  auto_assign_reviewers: true
+  poem: true
+  labeling_instructions:
+    - label: "type:security"
+      instructions: "Use for security-related changes including encryption, credential handling, and offline guarantees"
+    - label: "type:feature"
+      instructions: "Use for new functionality and database engine support"
+    - label: "type:bug"
+      instructions: "Use for bug fixes and defect corrections"
+    - label: "priority:critical"
+      instructions: "Use for security vulnerabilities and data safety issues"
+    - label: "priority:high"
+      instructions: "Use for database compatibility and core functionality"
+    - label: "priority:normal"
+      instructions: "Use for standard improvements and enhancements"
+    - label: "database:postgresql"
+      instructions: "Use for PostgreSQL-specific changes"
+    - label: "database:mysql"
+      instructions: "Use for MySQL-specific changes"
+    - label: "database:sqlite"
+      instructions: "Use for SQLite-specific changes"
+    - label: "rust"
+      instructions: "Use for Rust code changes and modifications"
+    - label: "dependencies"
+      instructions: "Use for dependency updates and package changes"
+    - label: "documentation"
+      instructions: "Use for documentation improvements and updates"
+    - label: "testing"
+      instructions: "Use for test-related changes and test infrastructure"
+    - label: "performance"
+      instructions: "Use for performance optimizations and improvements"
+    - label: "ci"
+      instructions: "Use for CI/CD and GitHub Actions changes"
+    - label: "breaking_change"
+      instructions: "Use for incompatible changes and major updates"
+    - label: "encryption"
+      instructions: "Use for encryption and cryptographic changes"
+    - label: "offline"
+      instructions: "Use for offline operation and airgap compatibility"
+  path_filters: []
+  path_instructions: []
+  abort_on_close: true
+  disable_cache: false
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    ignore_title_keywords: []
+    labels: []
+    drafts: false
+    base_branches: []
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: true
+  pre_merge_checks:
+    docstrings:
+      mode: warning
+      threshold: 80
+    title:
+      mode: warning
+      requirements: Must follow conventional commit format
+    description:
+      mode: warning
+    issue_assessment:
+      mode: warning
+  tools:
+    ast-grep:
+      rule_dirs: []
+      util_dirs: []
+      essential_rules: true
+      packages: []
+    shellcheck:
+      enabled: true
+    ruff:
+      enabled: false
+    markdownlint:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 300000
+    languagetool:
+      enabled: true
+      enabled_rules: []
+      disabled_rules: []
+      enabled_categories: []
+      disabled_categories: []
+      enabled_only: false
+      level: default
+    biome:
+      enabled: false
+    hadolint:
+      enabled: true
+    swiftlint:
+      enabled: false
+    phpstan:
+      enabled: false
+      level: default
+    phpmd:
+      enabled: false
+    phpcs:
+      enabled: false
+    golangci-lint:
+      enabled: false
+    yamllint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    checkov:
+      enabled: true
+    detekt:
+      enabled: false
+    eslint:
+      enabled: false
+    flake8:
+      enabled: false
+    rubocop:
+      enabled: false
+    buf:
+      enabled: false
+    regal:
+      enabled: false
+    actionlint:
+      enabled: true
+    pmd:
+      enabled: false
+    cppcheck:
+      enabled: false
+    semgrep:
+      enabled: true
+    circleci:
+      enabled: true
+    clippy:
+      enabled: true
+    sqlfluff:
+      enabled: true
+    prismaLint:
+      enabled: false
+    pylint:
+      enabled: false
+    oxc:
+      enabled: false
+    shopifyThemeCheck:
+      enabled: false
+    luacheck:
+      enabled: false
+    brakeman:
+      enabled: false
+    dotenvLint:
+      enabled: true
+    htmlhint:
+      enabled: false
+    checkmake:
+      enabled: true
+chat:
+  auto_reply: true
+  integrations:
+    jira:
+      usage: disabled
+    linear:
+      usage: disabled
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+    filePatterns: []
+  learnings:
+    scope: auto
+  issues:
+    scope: auto
+  jira:
+    usage: disabled
+    project_keys: []
+  linear:
+    usage: disabled
+    team_keys: []
+  pull_requests:
+    scope: auto
+code_generation:
+  docstrings:
+    language: en-US
+    path_instructions: []
+  unit_tests:
+    path_instructions: []

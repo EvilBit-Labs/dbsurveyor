@@ -1,0 +1,13 @@
+# Line length for text wrapping (keep = no wrapping)
+wrap = "keep"
+
+# End files with a newline
+end_of_line = "lf"
+
+# Exclude specific directories
+exclude = [
+    "target/**",
+    "node_modules/**",
+    ".git/**",
+    "CHANGELOG.md"
+]

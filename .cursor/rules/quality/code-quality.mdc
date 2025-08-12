@@ -1,0 +1,688 @@
+---
+globs: **/*.rs,**/Cargo.toml,**/*.md,**/*.yml,**/*.yaml,**/*.toml
+alwaysApply: true
+---
+
+# Code Quality Standards for DBSurveyor
+
+## Quality Philosophy
+
+- **Zero Warnings Policy**: All code must compile with `cargo clippy -- -D warnings`
+- **Security-First Quality**: Quality checks emphasize security vulnerabilities
+- **Automated Enforcement**: Quality gates prevent low-quality code from merging
+- **Consistent Standards**: All contributors follow identical quality standards
+
+## Rust Code Quality
+
+### Clippy Configuration
+
+```toml
+# Cargo.toml - Workspace level clippy configuration
+[workspace.lints.clippy]
+# Mandatory lints - treat as errors
+all = "deny"
+correctness = "deny"
+suspicious = "deny"
+complexity = "deny"
+perf = "deny"
+style = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+
+# Security-specific lints
+await_holding_lock = "deny"
+await_holding_refcell_ref = "deny"
+large_stack_arrays = "deny"
+rc_buffer = "deny"
+rc_mutex = "deny"
+redundant_clone = "deny"
+suspicious_else_formatting = "deny"
+suspicious_op_assign_impl = "deny"
+
+# Performance lints
+inefficient_to_string = "deny"
+large_enum_variant = "deny"
+large_types_passed_by_value = "warn"
+linkedlist = "deny"
+mutex_atomic = "deny"
+naive_bytecount = "deny"
+or_fun_call = "deny"
+slow_vector_initialization = "deny"
+stable_sort_primitive = "deny"
+zero_sized_map_values = "deny"
+
+# Security and correctness
+clone_on_ref_ptr = "deny"
+cmp_null = "deny"
+crosspointer_transmute = "deny"
+drop_copy = "deny"
+drop_ref = "deny"
+forget_copy = "deny"
+forget_ref = "deny"
+mem_forget = "deny"
+mem_replace_with_default = "deny"
+transmute_int_to_float = "deny"
+transmute_ptr_to_ptr = "deny"
+undropped_manually_drops = "deny"
+unneeded_field_pattern = "deny"
+unused_self = "deny"
+
+# Allow specific lints that conflict with our style
+module_name_repetitions = "allow"  # Common in domain modeling
+similar_names = "allow"            # Database field names are often similar
+too_many_arguments = "allow"       # Config structs can have many params
+type_complexity = "allow"          # Complex types for comprehensive APIs
+
+[workspace.lints.rust]
+unsafe_code = "forbid"             # No unsafe code allowed
+missing_docs = "warn"              # Document public APIs
+dead_code = "warn"                 # Clean up unused code
+unused_imports = "deny"            # Remove unused imports
+unused_variables = "deny"          # Clean variable usage
+```
+
+### Rustfmt Configuration
+
+```toml
+# rustfmt.toml - Consistent formatting standards
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Unix"
+use_small_heuristics = "Default"
+indent_style = "Block"
+wrap_comments = true
+format_code_in_doc_comments = true
+comment_width = 80
+normalize_comments = true
+normalize_doc_attributes = true
+format_strings = false
+format_macro_matchers = true
+format_macro_bodies = true
+hex_literal_case = "Preserve"
+empty_item_single_line = true
+struct_lit_single_line = true
+fn_single_line = false
+where_single_line = false
+imports_indent = "Block"
+imports_layout = "Mixed"
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+reorder_modules = true
+reorder_impl_items = false
+type_punctuation_density = "Wide"
+space_before_colon = false
+space_after_colon = true
+spaces_around_ranges = false
+binop_separator = "Front"
+remove_nested_parens = true
+combine_control_expr = true
+overflow_delimited_expr = false
+struct_field_align_threshold = 0
+enum_discrim_align_threshold = 0
+match_arm_blocks = true
+force_multiline_blocks = false
+fn_args_layout = "Tall"
+brace_style = "SameLineWhere"
+control_brace_style = "AlwaysSameLine"
+trailing_semicolon = true
+trailing_comma = "Vertical"
+match_block_trailing_comma = false
+blank_lines_upper_bound = 1
+blank_lines_lower_bound = 0
+edition = "2021"
+version = "Two"
+inline_attribute_width = 0
+merge_derives = true
+use_try_shorthand = false
+use_field_init_shorthand = false
+force_explicit_abi = true
+condense_wildcard_suffixes = false
+color = "Auto"
+required_version = "1.7.0"
+unstable_features = false
+disable_all_formatting = false
+skip_children = false
+hide_parse_errors = false
+error_on_line_overflow = false
+error_on_unformatted = false
+ignore = []
+emit_mode = "Files"
+make_backup = false
+```
+
+### Code Organization Standards
+
+```rust
+// File organization template
+//! Module-level documentation
+//!
+//! Security considerations and guarantees
+//! Usage examples and patterns
+
+// Standard library imports first
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
+use std::time::Duration;
+
+// External crate imports second, grouped by crate
+use serde::{Deserialize, Serialize};
+use sqlx::{Pool, Postgres, Row};
+use thiserror::Error;
+use tokio::time::timeout;
+
+// Internal imports last
+use crate::error::{CollectorError, Result};
+use crate::models::{DatabaseSchema, Table};
+
+// Constants and type aliases
+const MAX_CONNECTION_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_POOL_SIZE: u32 = 10;
+
+type ConnectionPool = Pool<Postgres>;
+
+// Public types first
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicStruct {
+    pub field: String,
+}
+
+// Private types second
+#[derive(Debug)]
+struct PrivateStruct {
+    field: String,
+}
+
+// Implementations
+impl PublicStruct {
+    /// Public constructor with comprehensive documentation
+    pub fn new(field: String) -> Self {
+        Self { field }
+    }
+}
+
+// Tests at the end
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_public_struct_creation() {
+        let instance = PublicStruct::new("test".to_string());
+        assert_eq!(instance.field, "test");
+    }
+}
+```
+
+## Error Handling Quality
+
+### Error Type Standards
+
+```rust
+// Comprehensive error handling with security focus
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum DbSurveyorError {
+    /// Database connection errors with sanitized messages
+    #[error("Connection failed: {context}")]
+    Connection {
+        context: String,  // Never include credentials
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    /// Configuration errors
+    #[error("Configuration error: {message}")]
+    Config {
+        message: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
+    /// IO errors with context
+    #[error("IO operation failed: {operation}")]
+    Io {
+        operation: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// Serialization errors
+    #[error("Serialization failed: {format}")]
+    Serialization {
+        format: String,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    /// Encryption errors (no sensitive details)
+    #[error("Encryption operation failed")]
+    Encryption {
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+}
+
+// Security-conscious error message sanitization
+impl DbSurveyorError {
+    /// Get sanitized error message safe for logging
+    pub fn sanitized_message(&self) -> String {
+        match self {
+            DbSurveyorError::Connection { context, .. } => {
+                // Remove any potential credential fragments
+                let sanitized = context
+                    .split('@')
+                    .last()
+                    .unwrap_or("unknown")
+                    .to_string();
+                format!("Connection failed to {}", sanitized)
+            }
+            _ => self.to_string(),
+        }
+    }
+}
+```
+
+### Result Type Patterns
+
+```rust
+// Consistent Result type usage
+pub type Result<T> = std::result::Result<T, DbSurveyorError>;
+
+// Function signature patterns
+pub async fn collect_schema(
+    connection_string: &str,
+    options: CollectionOptions,
+) -> Result<DatabaseSchema> {
+    // Implementation with comprehensive error handling
+    let connection = establish_connection(connection_string)
+        .await
+        .map_err(|e| DbSurveyorError::Connection {
+            context: "Failed to establish database connection".to_string(),
+            source: Box::new(e),
+        })?;
+
+    let schema = extract_schema(&connection)
+        .await
+        .map_err(|e| DbSurveyorError::Collection {
+            context: "Failed to extract schema information".to_string(),
+            source: Box::new(e),
+        })?;
+
+    Ok(schema)
+}
+```
+
+## Documentation Quality
+
+### Documentation Standards
+
+```rust
+/// Comprehensive function documentation template
+///
+/// Brief description of what the function does, emphasizing security
+/// aspects and offline capabilities where relevant.
+///
+/// # Arguments
+///
+/// * `connection_string` - Database connection URL (credentials sanitized in logs)
+/// * `include_system_tables` - Whether to include system/internal tables
+/// * `encryption_key` - Optional key for encrypting sensitive schema data
+///
+/// # Returns
+///
+/// Returns a `Result` containing:
+/// - `Ok(DatabaseSchema)` - Complete database schema with metadata
+/// - `Err(CollectorError)` - Connection, permission, or processing errors
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Database connection fails (network, credentials, permissions)
+/// - Insufficient privileges to read schema information
+/// - Database contains unsupported features or extensions
+/// - Encryption key derivation fails (if encryption requested)
+///
+/// # Security
+///
+/// - Connection credentials are never logged or persisted
+/// - All schema data can be optionally encrypted before storage
+/// - Query execution uses minimal required privileges
+/// - Error messages are sanitized to prevent credential leakage
+///
+/// # Example
+///
+/// ```rust
+/// use dbsurveyor_shared::collectors::collect_postgres_schema;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let schema = collect_postgres_schema(
+///     "postgres://user:pass@localhost/mydb",
+///     false,  // exclude system tables
+///     None,   // no encryption
+/// ).await?;
+///
+/// println!("Found {} tables", schema.tables.len());
+/// assert!(schema.database_type == DatabaseType::PostgreSQL);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Performance
+///
+/// Collection time scales linearly with schema complexity:
+/// - Small schemas (<100 tables): ~1 second
+/// - Medium schemas (100-1000 tables): 1-10 seconds
+/// - Large schemas (>1000 tables): 10-60 seconds
+///
+/// Memory usage is proportional to schema size, approximately 1-5MB per 1000 tables.
+pub async fn collect_postgres_schema(
+    connection_string: &str,
+    include_system_tables: bool,
+    encryption_key: Option<&EncryptionKey>,
+) -> Result<DatabaseSchema> {
+    // Implementation...
+}
+```
+
+## Testing Quality Standards
+
+### Test Structure and Organization
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    /// Test helper for creating mock database schemas
+    fn create_test_schema() -> DatabaseSchema {
+        DatabaseSchema {
+            database_name: "test_db".to_string(),
+            database_type: DatabaseType::PostgreSQL,
+            tables: vec![create_test_table("users")],
+            created_at: chrono::Utc::now(),
+        }
+    }
+
+    /// Test basic functionality with clear naming
+    #[tokio::test]
+    async fn test_postgres_schema_collection_success() {
+        // Arrange
+        let connection_string = "postgres://test:test@localhost/test";
+        let collector = PostgresCollector::new(connection_string).await?;
+
+        // Act
+        let result = collector.collect_schema().await;
+
+        // Assert
+        assert!(result.is_ok());
+        let schema = result.unwrap();
+        assert_eq!(schema.database_type, DatabaseType::PostgreSQL);
+        assert!(!schema.tables.is_empty());
+    }
+
+    /// Test error conditions thoroughly
+    #[tokio::test]
+    async fn test_postgres_connection_failure_sanitizes_credentials() {
+        // Arrange
+        let connection_string = "postgres://admin:supersecret@nonexistent:5432/db";
+
+        // Act
+        let result = PostgresCollector::new(connection_string).await;
+
+        // Assert
+        assert!(result.is_err());
+        let error_message = format!("{}", result.unwrap_err());
+        assert!(!error_message.contains("supersecret"));
+        assert!(!error_message.contains("admin:supersecret"));
+    }
+
+    /// Test timeout scenarios
+    #[tokio::test]
+    async fn test_collection_timeout_handling() {
+        let connection_string = "postgres://test:test@localhost/test";
+        let collector = PostgresCollector::new(connection_string).await?;
+
+        let result = timeout(
+            Duration::from_millis(100), // Very short timeout
+            collector.collect_schema()
+        ).await;
+
+        // Should timeout or complete quickly
+        match result {
+            Ok(_) => {}, // Completed quickly
+            Err(_) => {}, // Timed out as expected
+        }
+    }
+
+    /// Property-based testing for edge cases
+    #[tokio::test]
+    async fn test_schema_serialization_roundtrip() {
+        let original_schema = create_test_schema();
+
+        // Test JSON roundtrip
+        let json = serde_json::to_string(&original_schema)?;
+        let deserialized: DatabaseSchema = serde_json::from_str(&json)?;
+        assert_eq!(original_schema, deserialized);
+
+        // Test encrypted roundtrip
+        let encrypted = encrypt_schema_data(&json.into_bytes()).await?;
+        let decrypted = decrypt_schema_data(&encrypted).await?;
+        let decrypted_schema: DatabaseSchema = serde_json::from_slice(&decrypted)?;
+        assert_eq!(original_schema, decrypted_schema);
+    }
+}
+```
+
+### Benchmark Quality Standards
+
+```rust
+// benches/schema_collection.rs
+use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use dbsurveyor_shared::*;
+
+fn bench_schema_collection(c: &mut Criterion) {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+
+    let mut group = c.benchmark_group("schema_collection");
+
+    // Test different database sizes
+    for table_count in [10, 100, 1000].iter() {
+        group.bench_with_input(
+            BenchmarkId::new("postgres", table_count),
+            table_count,
+            |b, &table_count| {
+                b.to_async(&runtime).iter(|| async {
+                    let schema = create_mock_schema_with_tables(table_count);
+                    black_box(schema)
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+fn bench_serialization_formats(c: &mut Criterion) {
+    let schema = create_large_test_schema(1000);
+
+    let mut group = c.benchmark_group("serialization");
+
+    group.bench_function("json", |b| {
+        b.iter(|| serde_json::to_string(black_box(&schema)))
+    });
+
+    group.bench_function("bincode", |b| {
+        b.iter(|| bincode::serialize(black_box(&schema)))
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_schema_collection, bench_serialization_formats);
+criterion_main!(benches);
+```
+
+## CI/CD Quality Gates
+
+### Quality Check Commands
+
+```bash
+#!/bin/bash
+# scripts/quality-check.sh - Comprehensive quality validation
+
+set -euo pipefail
+
+echo "🔍 Running comprehensive quality checks..."
+
+# 1. Formatting check
+echo "📏 Checking code formatting..."
+cargo fmt --all -- --check
+if [ $? -ne 0 ]; then
+    echo "❌ Code formatting issues found. Run 'cargo fmt' to fix."
+    exit 1
+fi
+
+# 2. Clippy with zero warnings
+echo "🔧 Running Clippy with strict linting..."
+cargo clippy --all-features --all-targets -- -D warnings
+if [ $? -ne 0 ]; then
+    echo "❌ Clippy warnings found. Fix all warnings before proceeding."
+    exit 1
+fi
+
+# 3. Test execution
+echo "🧪 Running all tests..."
+cargo test --all-features --verbose
+if [ $? -ne 0 ]; then
+    echo "❌ Tests failed. Fix failing tests before proceeding."
+    exit 1
+fi
+
+# 4. Documentation tests
+echo "📚 Running documentation tests..."
+cargo test --doc --all-features
+if [ $? -ne 0 ]; then
+    echo "❌ Documentation tests failed."
+    exit 1
+fi
+
+# 5. Security audit
+echo "🛡️  Running security audit..."
+cargo audit
+if [ $? -ne 0 ]; then
+    echo "❌ Security vulnerabilities found."
+    exit 1
+fi
+
+# 6. Coverage check
+echo "📊 Checking test coverage..."
+cargo llvm-cov --all-features --workspace --fail-under-lines 80
+if [ $? -ne 0 ]; then
+    echo "❌ Test coverage below 80% threshold."
+    exit 1
+fi
+
+# 7. Documentation generation
+echo "📖 Generating documentation..."
+cargo doc --all-features --no-deps
+if [ $? -ne 0 ]; then
+    echo "❌ Documentation generation failed."
+    exit 1
+fi
+
+echo "✅ All quality checks passed!"
+```
+
+### Pre-commit Quality Hooks
+
+```yaml
+# .pre-commit-config.yaml - Enhanced quality hooks
+repos:
+  - repo: local
+    hooks:
+      - id: rust-fmt
+        name: Rust formatting
+        entry: cargo fmt --all -- --check
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: rust-clippy
+        name: Rust clippy
+        entry: cargo clippy --all-features --all-targets -- -D warnings
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: rust-test
+        name: Rust tests
+        entry: cargo test --all-features
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: rust-doc-test
+        name: Rust doc tests
+        entry: cargo test --doc --all-features
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: security-audit
+        name: Security audit
+        entry: cargo audit
+        language: system
+        files: Cargo\.(toml|lock)
+        pass_filenames: false
+
+      - id: coverage-check
+        name: Coverage check
+        entry: cargo llvm-cov --all-features --workspace --fail-under-lines 80
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.37.0
+    hooks:
+      - id: markdownlint-fix
+        args: [--config, .markdownlint-cli2.jsonc]
+```
+
+## Quality Metrics and Monitoring
+
+### Code Quality Metrics
+
+- **Cyclomatic Complexity**: Maximum 10 per function
+- **Test Coverage**: Minimum 80% line coverage
+- **Documentation Coverage**: 100% for public APIs
+- **Clippy Warnings**: Zero warnings policy
+- **Security Vulnerabilities**: Zero known vulnerabilities
+- **Performance Regressions**: <5% performance degradation per release
+
+### Quality Dashboard
+
+```toml
+# Cargo.toml - Quality measurement tools
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+cargo-llvm-cov = "0.5"
+cargo-audit = "0.18"
+cargo-outdated = "0.13"
+cargo-machete = "0.6"  # Find unused dependencies
+
+[package.metadata.coverage]
+min-coverage = 80
+exclude-files = ["tests/*", "benches/*", "examples/*"]
+
+[package.metadata.audit]
+ignore = []  # List of CVE IDs to ignore (with justification)
+```
+
+This comprehensive quality framework ensures that DBSurveyor maintains the highest standards of code quality, security, and maintainability throughout its development lifecycle.

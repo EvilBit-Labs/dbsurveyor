@@ -1,0 +1,494 @@
+---
+globs: **/*.rs,**/Cargo.toml
+alwaysApply: false
+---
+
+# Rust Testing Standards for DBSurveyor
+
+## Testing Philosophy
+
+- **Security-First Testing**: All tests must verify security guarantees (no credential leakage, offline operation)
+- **Comprehensive Coverage**: >80% test coverage with `cargo llvm-cov`
+- **Real Database Integration**: Use testcontainers for authentic database testing
+- **Zero Warnings**: All test code must pass `cargo clippy -- -D warnings`
+
+## Test Organization
+
+### Test Categories
+
+```text
+├── Unit Tests (src/)
+│   ├── #[cfg(test)] mod tests in each module
+│   └── Test individual functions and data structures
+├── Integration Tests (tests/)
+│   ├── Database adapter tests with testcontainers
+│   ├── End-to-end workflow tests
+│   └── Security validation tests
+├── Benchmarks (benches/)
+│   ├── Database query performance
+│   ├── Schema processing speed
+│   └── Memory usage optimization
+└── Doc Tests
+    └── Examples in /// documentation
+```
+
+### Test File Naming
+
+- Unit tests: `#[cfg(test)]` modules in source files
+- Integration tests: `tests/integration_*.rs`
+- Security tests: `tests/security_*.rs`
+- Database tests: `tests/database_*.rs`
+- Benchmarks: `benches/*.rs`
+
+## Unit Testing Standards
+
+### Test Structure
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_function_name_expected_behavior() {
+        // Arrange
+        let input = create_test_input();
+
+        // Act
+        let result = function_under_test(input);
+
+        // Assert
+        assert_eq!(result, expected_output);
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let invalid_input = create_invalid_input();
+
+        let result = function_under_test(invalid_input);
+
+        assert!(result.is_err());
+        assert_matches!(result.unwrap_err(), ExpectedError::VariantName);
+    }
+}
+```
+
+### Table-Driven Tests
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_database_url_parsing() {
+        let test_cases = vec![
+            ("postgres://user:pass@localhost/db", Some(DatabaseConfig { /* ... */ })),
+            ("invalid_url", None),
+            ("mysql://root:secret@host:3306/db", Some(DatabaseConfig { /* ... */ })),
+        ];
+
+        for (url, expected) in test_cases {
+            let result = DatabaseConfig::from_url(url);
+            assert_eq!(result.ok(), expected);
+        }
+    }
+}
+```
+
+## Integration Testing with Testcontainers
+
+### PostgreSQL Integration Tests
+
+```rust
+// tests/integration_postgres.rs
+use testcontainers::{clients, images};
+use dbsurveyor_shared::collectors::PostgresCollector;
+
+#[tokio::test]
+async fn test_postgres_schema_collection() {
+    let docker = clients::Cli::default();
+    let postgres = docker.run(images::postgres::Postgres::default());
+
+    let port = postgres.get_host_port_ipv4(5432);
+    let database_url = format!(
+        "postgres://postgres:postgres@localhost:{}/postgres",
+        port
+    );
+
+    let collector = PostgresCollector::new(&database_url).await
+        .expect("Failed to create collector");
+
+    let schema = collector.collect_schema().await
+        .expect("Failed to collect schema");
+
+    // Verify basic schema structure
+    assert!(!schema.tables.is_empty());
+    assert!(schema.tables.iter().any(|t| t.name == "information_schema"));
+}
+
+#[tokio::test]
+async fn test_postgres_connection_timeout() {
+    use std::time::Duration;
+
+    let docker = clients::Cli::default();
+    let postgres = docker.run(images::postgres::Postgres::default());
+    let port = postgres.get_host_port_ipv4(5432);
+
+    // Stop container to simulate network timeout
+    drop(postgres);
+
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+    let result = tokio::time::timeout(
+        Duration::from_secs(5),
+        PostgresCollector::new(&database_url)
+    ).await;
+
+    assert!(result.is_err() || result.unwrap().is_err());
+}
+```
+
+### MySQL Integration Tests
+
+```rust
+// tests/integration_mysql.rs
+use testcontainers::{clients, images};
+use dbsurveyor_shared::collectors::MySqlCollector;
+
+#[tokio::test]
+async fn test_mysql_schema_collection() {
+    let docker = clients::Cli::default();
+    let mysql = docker.run(
+        images::mysql::Mysql::default()
+            .with_root_password("testpass")
+            .with_database("testdb")
+    );
+
+    let port = mysql.get_host_port_ipv4(3306);
+    let database_url = format!(
+        "mysql://root:testpass@localhost:{}/testdb",
+        port
+    );
+
+    // Wait for MySQL to be ready
+    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+
+    let collector = MySqlCollector::new(&database_url).await
+        .expect("Failed to create MySQL collector");
+
+    let schema = collector.collect_schema().await
+        .expect("Failed to collect MySQL schema");
+
+    // MySQL should have system tables
+    assert!(!schema.tables.is_empty());
+}
+```
+
+### SQLite Integration Tests
+
+```rust
+// tests/integration_sqlite.rs
+use tempfile::tempdir;
+use dbsurveyor_shared::collectors::SqliteCollector;
+
+#[tokio::test]
+async fn test_sqlite_schema_collection() {
+    let temp_dir = tempdir().unwrap();
+    let db_path = temp_dir.path().join("test.db");
+
+    // Create test database
+    let conn = sqlx::SqlitePool::connect(&format!("sqlite:{}", db_path.display())).await?;
+
+    sqlx::query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+        .execute(&conn).await?;
+
+    conn.close().await;
+
+    // Test schema collection
+    let database_url = format!("sqlite:{}", db_path.display());
+    let collector = SqliteCollector::new(&database_url).await
+        .expect("Failed to create SQLite collector");
+
+    let schema = collector.collect_schema().await
+        .expect("Failed to collect SQLite schema");
+
+    assert!(schema.tables.iter().any(|t| t.name == "users"));
+}
+```
+
+## Security Testing
+
+### Credential Protection Tests
+
+```rust
+// tests/security_credentials.rs
+use dbsurveyor_shared::*;
+
+#[tokio::test]
+async fn test_no_credentials_in_schema_output() {
+    let database_url = "postgres://testuser:secret123@localhost:5432/testdb";
+
+    // This would normally fail due to connection, but we're testing serialization
+    let mock_schema = create_mock_schema();
+    let json_output = serde_json::to_string(&mock_schema).unwrap();
+
+    // Verify no sensitive data is present
+    assert!(!json_output.contains("secret123"));
+    assert!(!json_output.contains("testuser:secret123"));
+    assert!(!json_output.contains("password"));
+    assert!(!json_output.contains("secret"));
+}
+
+#[test]
+fn test_database_config_display() {
+    let config = DatabaseConfig::new("postgres://user:secret@host:5432/db");
+    let display_output = format!("{}", config);
+
+    // Should show connection info but not credentials
+    assert!(display_output.contains("host:5432"));
+    assert!(display_output.contains("db"));
+    assert!(!display_output.contains("secret"));
+    assert!(!display_output.contains("user:secret"));
+}
+
+#[test]
+fn test_error_message_sanitization() {
+    let database_url = "postgres://admin:supersecret@production.db/maindb";
+    let error = DatabaseError::ConnectionFailed {
+        context: "Failed to connect".to_string(),
+        // Should not include the full URL
+    };
+
+    let error_message = format!("{}", error);
+    assert!(!error_message.contains("supersecret"));
+    assert!(!error_message.contains("admin:supersecret"));
+}
+```
+
+### Encryption Tests
+
+```rust
+// tests/security_encryption.rs
+use dbsurveyor_shared::encryption::*;
+
+#[tokio::test]
+async fn test_aes_gcm_encryption_randomness() {
+    let data = b"test database schema data";
+
+    let encrypted1 = encrypt_schema_data(data).await?;
+    let encrypted2 = encrypt_schema_data(data).await?;
+
+    // Same data should produce different ciphertext due to random nonce
+    assert_ne!(encrypted1.ciphertext, encrypted2.ciphertext);
+    assert_ne!(encrypted1.nonce, encrypted2.nonce);
+
+    // Both should decrypt to same plaintext
+    let decrypted1 = decrypt_schema_data(&encrypted1).await?;
+    let decrypted2 = decrypt_schema_data(&encrypted2).await?;
+
+    assert_eq!(decrypted1, data);
+    assert_eq!(decrypted2, data);
+}
+
+#[test]
+fn test_encryption_metadata_embedding() {
+    let data = b"test data for encryption";
+    let encrypted = encrypt_schema_data(data).unwrap();
+
+    // Verify KDF parameters are embedded
+    assert!(encrypted.kdf_params.is_some());
+    assert!(encrypted.algorithm == "AES-GCM-256");
+    assert_eq!(encrypted.nonce.len(), 12); // 96-bit nonce
+}
+```
+
+### Offline Operation Tests
+
+```rust
+// tests/security_offline.rs
+use dbsurveyor_shared::*;
+
+#[test]
+fn test_no_external_network_calls() {
+    // This test would ideally run with network disabled
+    // For now, we verify no external dependencies are imported
+
+    // Test that schema processing works entirely offline
+    let mock_schema = create_mock_schema();
+    let markdown_output = generate_markdown_documentation(&mock_schema).unwrap();
+
+    assert!(!markdown_output.is_empty());
+    assert!(markdown_output.contains("Database Schema"));
+}
+
+#[tokio::test]
+async fn test_airgap_compatibility() {
+    // Simulate airgap environment by testing without network access
+    let schema_data = include_bytes!("fixtures/sample_schema.json");
+    let schema: DatabaseSchema = serde_json::from_slice(schema_data).unwrap();
+
+    // All processing should work offline
+    let documentation = generate_documentation(&schema, OutputFormat::Markdown).await?;
+    assert!(!documentation.is_empty());
+
+    let json_export = generate_documentation(&schema, OutputFormat::Json).await?;
+    assert!(!json_export.is_empty());
+}
+```
+
+## Performance Testing and Benchmarks
+
+### Benchmark Structure
+
+```rust
+// benches/schema_processing.rs
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use dbsurveyor_shared::*;
+
+fn bench_schema_serialization(c: &mut Criterion) {
+    let schema = create_large_test_schema(1000); // 1000 tables
+
+    c.bench_function("schema_to_json", |b| {
+        b.iter(|| serde_json::to_string(black_box(&schema)))
+    });
+
+    c.bench_function("schema_to_markdown", |b| {
+        b.iter(|| generate_markdown_documentation(black_box(&schema)))
+    });
+}
+
+fn bench_database_query_parsing(c: &mut Criterion) {
+    let sample_query_result = include_str!("fixtures/postgres_schema_query.sql");
+
+    c.bench_function("parse_postgres_schema", |b| {
+        b.iter(|| parse_postgres_schema_result(black_box(sample_query_result)))
+    });
+}
+
+criterion_group!(benches, bench_schema_serialization, bench_database_query_parsing);
+criterion_main!(benches);
+```
+
+## Test Data and Fixtures
+
+### Test Data Generation
+
+```rust
+// tests/common/mod.rs
+use dbsurveyor_shared::models::*;
+
+pub fn create_test_schema() -> DatabaseSchema {
+    DatabaseSchema {
+        database_name: "test_db".to_string(),
+        database_type: DatabaseType::PostgreSQL,
+        tables: vec![
+            create_test_table("users"),
+            create_test_table("orders"),
+            create_test_table("products"),
+        ],
+        indexes: vec![],
+        constraints: vec![],
+        created_at: chrono::Utc::now(),
+    }
+}
+
+pub fn create_test_table(name: &str) -> Table {
+    Table {
+        name: name.to_string(),
+        schema: "public".to_string(),
+        table_type: TableType::BaseTable,
+        columns: vec![
+            Column {
+                name: "id".to_string(),
+                data_type: "INTEGER".to_string(),
+                is_nullable: false,
+                column_default: None,
+                is_primary_key: true,
+            },
+            Column {
+                name: "name".to_string(),
+                data_type: "TEXT".to_string(),
+                is_nullable: false,
+                column_default: None,
+                is_primary_key: false,
+            },
+        ],
+        row_count: Some(100),
+        size_bytes: Some(8192),
+    }
+}
+```
+
+## Testing Commands
+
+### Essential Test Commands
+
+```bash
+# Run all tests
+just test
+
+# Run unit tests only
+cargo test --lib
+
+# Run integration tests
+cargo test --test '*'
+
+# Run specific database tests
+just test-postgres
+just test-mysql
+just test-sqlite
+
+# Run security tests
+just test-credential-security
+just test-encryption
+just test-offline
+
+# Generate coverage report
+just coverage
+just coverage-html
+
+# Run benchmarks
+cargo bench
+
+# Test with different feature flags
+cargo test --no-default-features --features sqlite
+cargo test --all-features
+```
+
+### CI Test Commands
+
+```bash
+# CI-friendly test execution
+cargo test --all-features --verbose -- --nocapture
+
+# Test with race detection
+cargo test --all-features -- --test-threads=1
+
+# Coverage with threshold enforcement
+cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 80
+```
+
+## Test Quality Standards
+
+### Test Requirements
+
+- **Comprehensive**: Test happy path, error cases, and edge conditions
+- **Isolated**: Tests should not depend on external services (except testcontainers)
+- **Deterministic**: Tests must produce consistent results
+- **Fast**: Unit tests should complete in milliseconds
+- **Secure**: No credentials or sensitive data in test code
+
+### Common Testing Patterns
+
+- Use `Result<(), Box<dyn std::error::Error>>` for test functions
+- Test both `Ok` and `Err` cases for functions returning `Result`
+- Use `assert_matches!` for pattern matching in tests
+- Use `tempfile` for temporary files and directories
+- Mock external dependencies appropriately
+
+### Test Coverage Goals
+
+- **Unit Tests**: >90% coverage for business logic
+- **Integration Tests**: Cover all database adapters
+- **Security Tests**: Verify all security guarantees
+- **Performance Tests**: Establish baseline metrics

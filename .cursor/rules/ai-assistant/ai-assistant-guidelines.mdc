@@ -1,0 +1,182 @@
+---
+alwaysApply: true
+---
+
+# AI Assistant Guidelines for DBSurveyor
+
+## Development Rules of Engagement
+
+- **TERM=dumb Support**: Ensure terminal output respects `TERM="dumb"` environment variable for CI/automation
+- **CodeRabbit.ai Integration**: Prefer coderabbit.ai for code review over GitHub Copilot auto-reviews
+- **Single Maintainer Workflow**: Configure for single maintainer (UncleSp1d3r) with no second reviewer requirement
+- **No Auto-commits**: Never commit code on behalf of maintainer without explicit permission
+- **Security-First**: All code changes must maintain security guarantees (offline-only, no telemetry, credential protection)
+
+## Assistant Behavior Rules
+
+- **Clarity and Precision**: Be direct, professional, and context-aware in all interactions
+- **Adherence to Standards**: Strictly follow the defined rules for Rust code style and project structure
+- **Tool Usage**: Use `just` for task execution, `cargo` commands for Rust development
+- **Focus on Value**: Enhance the project's unique value proposition as a secure database documentation tool
+- **Respect Documentation**: Always consult and follow project documentation before making changes
+
+## Code Generation Requirements
+
+- Generated code must conform to all established Rust patterns
+- Include comprehensive error handling with `Result<T, E>` and custom error types
+- Follow architectural patterns (Repository, Service, Factory, Command where appropriate)
+- Include appropriate `///` documentation and testing
+- Use proper type safety through Rust's type system and SQLx compile-time verification
+- Maintain security guarantees (offline-only, no telemetry, credential protection)
+
+## AI Agent Mandatory Practices
+
+When AI agents contribute to this project, they **MUST**:
+
+01. **Always run tests** after making changes: `just test`
+02. **Run linting** before committing: `just lint` (enforces `cargo clippy -- -D warnings`)
+03. **Follow the established Rust patterns** shown in existing code
+04. **Use the preferred tooling commands** (see justfile)
+05. **Write comprehensive tests** for new functionality (unit, integration, security)
+06. **Include proper error handling** with context using `thiserror`
+07. **Add structured logging** for important operations using `tracing`
+08. **Validate all inputs** and handle edge cases securely
+09. **Document new functions and types** following Rust `///` conventions
+10. **Never commit secrets** or hardcoded credentials
+11. **Consult project documentation** - AGENTS.md, project_specs/requirements.md for guidance
+12. **Maintain security guarantees** in all database operations (read-only, credential isolation)
+13. **Test offline operation** and airgap compatibility for all features
+14. **Validate encryption** implementation follows AES-GCM with random nonce standards
+
+## Common Commands and Workflows
+
+### Development Commands
+
+```bash
+# Primary development workflow
+just dev                 # Run development checks (format, lint, test, coverage)
+just install            # Install dependencies and setup environment
+just build              # Complete build with security optimizations
+
+# Code quality
+just format             # Format code with cargo fmt
+just lint               # Run linting with strict warnings (cargo clippy -- -D warnings)
+just check              # Run pre-commit hooks and comprehensive checks
+just ci-check           # Run CI-equivalent checks locally
+
+# Testing
+just test               # Run the full test suite with security verification
+just test-postgres      # Test PostgreSQL adapter specifically
+just test-mysql         # Test MySQL adapter specifically
+just test-sqlite        # Test SQLite adapter specifically
+just coverage           # Run test coverage with >80% threshold
+just coverage-html      # Generate HTML coverage report
+
+# Security validation
+just security-full      # Complete security validation suite
+just test-encryption    # Verify AES-GCM encryption with random nonce
+just test-offline       # Test airgap compatibility
+just test-credential-security  # Verify no credential leakage
+just security-audit     # Generate SBOM and vulnerability reports
+
+# Building and packaging
+just build-release      # Build optimized release version
+just build-minimal      # Build minimal airgap-compatible version
+just package-airgap     # Create offline deployment package
+```
+
+### Usage Examples
+
+```bash
+# Primary use cases - Database schema collection and documentation
+cargo run --bin dbsurveyor-collect -- --database-url postgres://user:pass@localhost/db --output schema.json
+cargo run --bin dbsurveyor -- --input schema.json --format markdown --output schema.md
+
+# Security-focused operation
+export DATABASE_URL="postgres://user:pass@localhost/db"
+cargo run --bin dbsurveyor-collect -- --output encrypted_schema.bin --encrypt
+cargo run --bin dbsurveyor -- --input encrypted_schema.bin --decrypt --format json
+```
+
+## Development Process
+
+### Pre-Development
+
+1. **Review Requirements**: Understand specific requirements in project_specs/requirements.md
+2. **Check Existing Code**: Review similar implementations for Rust patterns
+3. **Verify Security**: Ensure changes maintain security guarantees
+
+### Implementation
+
+1. **Implement Changes**: Follow established Rust patterns and security principles
+2. **Write Tests**: Create unit, integration, and security test coverage
+3. **Update Documentation**: Update relevant documentation files
+
+### Quality Assurance
+
+```bash
+# Format and lint
+just format
+just lint
+
+# Run tests
+just test
+
+# Security validation
+just security-full
+
+# Comprehensive validation
+just ci-check
+```
+
+## Issue Resolution
+
+When encountering problems:
+
+- Identify the specific issue clearly
+- Explain the problem in ≤ 5 lines
+- Propose a concrete path forward that maintains security guarantees
+- Don't proceed without resolving security blockers
+- Always test offline operation and credential isolation
+
+## Database-Specific Guidelines
+
+### PostgreSQL Development
+
+- Use SQLx with compile-time query verification
+- Implement connection pooling with proper timeout handling
+- Test with testcontainers for integration tests
+- Support modern PostgreSQL features (JSON, arrays, custom types)
+
+### MySQL Development
+
+- Handle MySQL-specific data types and constraints
+- Test compatibility with different MySQL versions
+- Implement proper charset and collation handling
+
+### SQLite Development
+
+- Focus on minimal feature set for local development
+- Handle SQLite-specific limitations gracefully
+- Ensure thread-safe operations
+
+## Security Development Guidelines
+
+### Credential Handling
+
+- Never log, display, or store database credentials
+- Use secure connection strings with proper escaping
+- Implement credential sanitization in all output formats
+
+### Encryption Implementation
+
+- Use AES-GCM with random nonce generation
+- Embed KDF parameters in encrypted output
+- Verify encryption randomness in tests
+- Never store encryption keys in code
+
+### Offline Operation
+
+- Ensure all functionality works without internet connectivity
+- No external API calls except to target databases
+- Validate airgap compatibility in all features

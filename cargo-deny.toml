@@ -1,0 +1,144 @@
+# cargo-deny configuration for dbsurveyor
+# Enforces security guarantees and supply chain security per Pipeline Standard
+
+# SECURITY GUARANTEE: This file enforces supply chain security and dependency auditing
+
+[graph]
+# Ensure all features and target combinations are checked
+all-features = true
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+]
+
+[advisories]
+# Security Control: Vulnerability scanning per Pipeline Standard
+version = 2
+yanked = "deny"                      # Deny yanked crates
+ignore = [
+    # Add specific advisory IDs here if needed for temporary exceptions
+    # Example: "RUSTSEC-2023-0001"
+]
+
+[licenses]
+# Security Control: License compliance per Pipeline Standard
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+]
+
+deny = [
+    "GPL-2.0",          # Copyleft licenses not compatible with commercial use
+    "GPL-3.0",
+    "AGPL-3.0",
+    "LGPL-2.1",
+    "LGPL-3.0",
+    "MPL-2.0",          # Mozilla Public License has copyleft requirements
+]
+
+copyleft = "deny"           # Deny all copyleft licenses
+allow-osi-fsf-free = "both" # Allow OSI and FSF approved licenses
+default = "deny"            # Deny any licenses not explicitly allowed
+
+[[licenses.exceptions]]
+# Special handling for specific crates if needed
+allow = ["Unicode-DFS-2016"]
+name = "unicode-ident"
+
+[bans]
+# Security Control: Dependency banning for security reasons
+version = 2
+multiple-versions = "warn"  # Warn about multiple versions (supply chain bloat)
+wildcards = "deny"          # Deny wildcard versions (security risk)
+highlight = "all"           # Highlight all issues
+
+# Security: Ban known problematic crates
+deny = [
+    # Network-related crates that could compromise offline-only guarantee
+    { name = "reqwest", reason = "Compromises offline-only guarantee" },
+    { name = "curl", reason = "Compromises offline-only guarantee" },
+    { name = "hyper", reason = "Could enable network calls" },
+
+    # Telemetry and analytics crates
+    { name = "google-analytics", reason = "Compromises no-telemetry guarantee" },
+    { name = "mixpanel", reason = "Compromises no-telemetry guarantee" },
+    { name = "segment", reason = "Compromises no-telemetry guarantee" },
+    { name = "amplitude", reason = "Compromises no-telemetry guarantee" },
+    { name = "bugsnag", reason = "Compromises no-telemetry guarantee" },
+    { name = "rollbar", reason = "Compromises no-telemetry guarantee" },
+    { name = "raygun", reason = "Compromises no-telemetry guarantee" },
+    { name = "honeybadger", reason = "Compromises no-telemetry guarantee" },
+    { name = "airbrake", reason = "Compromises no-telemetry guarantee" },
+
+    # Auto-update mechanisms
+    { name = "self-update", reason = "Compromises manual update control" },
+    { name = "update-informer", reason = "Compromises manual update control" },
+
+    # Insecure cryptographic crates
+    { name = "md5", reason = "Cryptographically broken hash function" },
+    { name = "sha1", reason = "Weak hash function for security purposes" },
+
+    # Deprecated or unmaintained crates with security implications
+    { name = "openssl-sys", reason = "Use rustls instead for better security" },
+]
+
+# Skip certain crates from duplicate version checking if needed
+skip = [
+    # Example: { name = "winapi", version = "0.2" }
+]
+
+# Skip files/directories from being scanned
+skip-tree = [
+    { path = "target" },        # Skip build artifacts
+    { path = ".git" },          # Skip git metadata
+    { path = "docs" },          # Skip documentation
+]
+
+[sources]
+# Security Control: Source validation per Pipeline Standard
+version = 2
+unknown-registry = "deny"       # Only allow known registries
+unknown-git = "deny"           # Only allow known git sources
+
+allow-registry = [
+    "https://github.com/rust-lang/crates.io-index"  # Only official crates.io
+]
+
+allow-git = [
+    # Add specific git repositories if needed
+    # Example: "https://github.com/rustsec/advisory-db"
+]
+
+# SECURITY NOTICE: This configuration file enforces the following security guarantees:
+#
+# SUPPLY CHAIN SECURITY:
+# - Only allows pre-approved, security-audited dependencies
+# - Prevents known vulnerable or problematic crates from entering the dependency tree
+# - Enforces license compliance with business-friendly licenses only
+# - Validates all dependencies come from trusted sources (crates.io)
+#
+# OFFLINE-ONLY ENFORCEMENT:
+# - Bans network-related crates that could compromise offline operation
+# - Prevents auto-update mechanisms that could bypass manual control
+# - Ensures no telemetry or analytics crates can be introduced
+#
+# CRYPTOGRAPHIC SECURITY:
+# - Bans weak or broken cryptographic primitives
+# - Enforces use of modern, secure cryptographic libraries
+# - Prevents introduction of deprecated security libraries
+#
+# This file is automatically validated in CI via:
+# - cargo deny check advisories  (vulnerability scanning)
+# - cargo deny check licenses    (license compliance)
+# - cargo deny check bans        (banned crate detection)
+# - cargo deny check sources     (source validation)

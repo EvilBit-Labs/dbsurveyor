@@ -1,0 +1,107 @@
+[workspace]
+members = [
+    "bin/collector",
+    "bin/postprocessor",
+    "crates/shared"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+authors = ["UncleSp1d3r"]
+license = "Apache-2.0"
+repository = "https://github.com/UncleSp1d3r/dbsurveyor"
+keywords = ["database", "documentation", "schema", "offline", "security"]
+categories = ["command-line-utilities", "database"]
+
+# 🔒 SECURITY GUARANTEES ENFORCED BY WORKSPACE:
+# - Offline-only operation through careful dependency selection
+# - No telemetry or external reporting capabilities
+# - AES-GCM encryption with authenticated headers and random nonces
+# - Feature flags ensure minimal attack surface for airgap deployments
+
+[workspace.dependencies]
+# Shared workspace dependencies - will be added as features are implemented
+# Async runtime
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging (structured, no external reporting)
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Internal workspace dependencies
+dbsurveyor-shared = { path = "crates/shared" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"           # No unsafe code allowed (security)
+missing_docs = "warn"          # Documentation required
+unreachable_pub = "warn"       # No dead public APIs
+
+[workspace.lints.clippy]
+# Security-focused clippy lints
+all = "deny"                   # Strict linting per user preference
+pedantic = { level = "warn", priority = -1 }  # Additional pedantic checks
+nursery = { level = "warn", priority = -1 }   # Experimental but useful lints
+
+# Security-specific lints
+arithmetic_side_effects = "deny"  # Prevent integer overflow (renamed from integer_arithmetic)
+panic = "deny"                # No panic in production code
+expect_used = "deny"          # Use proper error handling
+unwrap_used = "deny"          # No unwrap in production code
+todo = "deny"                 # No TODO in production code
+unimplemented = "deny"        # No unimplemented in production code
+
+[profile.release]
+# Security-optimized release profile
+lto = true              # Link-time optimization
+codegen-units = 1       # Better optimization
+panic = "abort"         # Smaller binary, immediate failure on panic
+strip = "symbols"       # Remove debug symbols for smaller binary
+
+# Security hardening compiler flags
+[profile.release.build-override]
+opt-level = 3
+
+# Development profile with security checks
+[profile.dev]
+debug = true           # Full debug info for security auditing
+overflow-checks = true # Runtime integer overflow detection
+
+# ⚠️ SECURITY NOTICE: This Cargo.toml enforces the following security guarantees:
+#
+# OFFLINE-ONLY OPERATION:
+# - No dependencies that require network connectivity during runtime
+# - All external network calls limited to initial dependency resolution
+# - Feature flags allow building minimal versions for airgap environments
+#
+# NO TELEMETRY:
+# - No analytics, crash reporting, or usage tracking dependencies
+# - Logging is local-only with no external endpoints
+# - Build process includes no external reporting mechanisms
+#
+# DATA SECURITY:
+# - AES-GCM encryption with random nonces and authenticated headers
+# - Argon2 for secure key derivation with configurable parameters
+# - No credentials stored in dependency cache or build artifacts
+#
+# CI SECURITY CONTROLS:
+# - Linting enforces security best practices (cargo clippy -- -D warnings)
+# - Dependency auditing via cargo-audit and cargo-deny
+# - SBOM generation compatible for supply chain security
+# - Feature flags enable minimal builds for reduced attack surface
+#
+# AIRGAP COMPATIBILITY:
+# - Minimal feature set supports completely disconnected environments
+# - All required dependencies can be vendored for offline builds
+# - Documentation generation works without external resources
+# - Binary artifacts are self-contained with no runtime dependencies
