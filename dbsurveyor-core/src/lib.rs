@@ -81,7 +81,7 @@ pub struct DatabaseInfo {
 pub struct ConnectionMetadata {
     /// Connection success status
     pub connected_successfully: bool,
-    /// Connection timestamp  
+    /// Connection timestamp
     pub connected_at: DateTime<Utc>,
     /// Connection latency in milliseconds
     pub connection_latency_ms: Option<u64>,
