@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Core Concepts for DBSurveyor
 
-This project is DBSurveyor, a security-focused database documentation tool that generates comprehensive schema documentation for PostgreSQL, MySQL, and SQLite databases. The tool operates offline-first with encrypted outputs and strict security guarantees.
+This project is DBSurveyor, a security-focused database documentation tool that generates comprehensive schema documentation for both SQL (PostgreSQL, MySQL, SQLite) and NoSQL (MongoDB) databases. The tool operates offline-first with encrypted outputs and strict security guarantees.
 
 ## Rule Precedence
 
@@ -28,7 +28,7 @@ When rules conflict, always follow the rule with higher precedence.
 ## 🎯 Project Purpose & Focus
 
 - **Primary Function**: Generate secure database schema documentation
-- **Database Engines**: PostgreSQL (primary), MySQL (secondary), SQLite (minimal)
+- **Database Engines**: PostgreSQL (primary), MySQL (secondary), SQLite (minimal), MongoDB (NoSQL)
 - **Security Focus**: Offline operation with AES-GCM encrypted outputs
 - **Target Users**: Security professionals, database administrators, DevOps teams
 - **Deployment Model**: Self-contained binaries with no runtime dependencies
