@@ -51,7 +51,11 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Process { input: _, format: _, output: _ }) => {
+        Some(Commands::Process {
+            input: _,
+            format: _,
+            output: _,
+        }) => {
             println!("dbsurveyor v{}", env!("CARGO_PKG_VERSION"));
             println!("Database survey postprocessing and documentation tool");
             println!("⚠️  Processing functionality will be implemented in future tasks");
