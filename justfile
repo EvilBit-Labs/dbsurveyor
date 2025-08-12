@@ -437,6 +437,15 @@ test-ci-local:
     fi
     act -W .github/workflows/ci.yml
 
+# Test simplified CI workflow optimized for local testing
+test-ci-simple:
+    @echo "🧪 Running simplified CI workflow locally with act..."
+    @if ! command -v act > /dev/null 2>&1; then \
+        echo "❌ act not found - installing..."; \
+        just install-act; \
+    fi
+    act -W .github/workflows/ci-local.yml
+
 # Test specific CI jobs locally
 test-lint-local:
     @echo "🔍 Testing lint job locally..."
