@@ -273,11 +273,11 @@ Comprehensive user stories are detailed in the [user_stories.md](user_stories.md
 
 Aligned with business requirements priority:
 
-| Priority          | Features                                          | Justification                                                            |
-| ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
-| **High**          | F000–F007, F014, F015, F021, F022, F023           | Core functionality: dual-binary architecture, database survey, portable output, offline mode, pluggable engines, throttling/compression |
-| **Medium**        | F016–F019, F013                                   | Processing features: SQL reconstruction, report/diagram modes, Pro features, data sampling with privacy controls |
-| **Low**           | F020, advanced diagrams, anonymized redaction     | HTML output (Pro), advanced visualizations, enhanced privacy features |
+| Priority   | Features                                      | Justification                                                                                                                           |
+| ---------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **High**   | F000–F007, F014, F015, F021, F022, F023       | Core functionality: dual-binary architecture, database survey, portable output, offline mode, pluggable engines, throttling/compression |
+| **Medium** | F016–F019, F013                               | Processing features: SQL reconstruction, report/diagram modes, Pro features, data sampling with privacy controls                        |
+| **Low**    | F020, advanced diagrams, anonymized redaction | HTML output (Pro), advanced visualizations, enhanced privacy features                                                                   |
 
 ### 4.4 Performance Requirements (from Business Document)
 
@@ -580,13 +580,13 @@ None identified. This project fully complies with all applicable EvilBit Labs st
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Document Type**     | Requirements Specification                                                                                                                                                  |
 | **Classification**    | Internal                                                                                                                                                                    |
-| **Review Status**     | Updated - Aligned with Business Requirements                                                                                                                               |
+| **Review Status**     | Updated - Aligned with Business Requirements                                                                                                                                |
 | **Next Review Date**  | 2025-01-19                                                                                                                                                                  |
 | **Related Documents** | [user_stories.md](user_stories.md) - Comprehensive user stories with requirement mappings<br/>[tasks.md](tasks.md) - Detailed implementation tasks with acceptance criteria |
 | **Repository**        | dbsurveyor                                                                                                                                                                  |
 | **Branch**            | main                                                                                                                                                                        |
 | **Commit SHA**        | TBD                                                                                                                                                                         |
-| **Last Modified**     | 2025-08-12 (Updated to align with ~/Documents/Business Stuff/EvilBit Labs/Product Plans/dbsurveyor/dbsurveyor_requirements.md) |
+| **Last Modified**     | 2025-08-12 (Updated to align with ~/Documents/Business Stuff/EvilBit Labs/Product Plans/dbsurveyor/dbsurveyor_requirements.md)                                              |
 
 ---
 

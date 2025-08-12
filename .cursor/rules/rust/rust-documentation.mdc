@@ -253,10 +253,6 @@ pub enum CollectorError {
 
 > Secure, offline database schema documentation and analysis tool
 
-[![CI](https://github.com/username/dbsurveyor/workflows/CI/badge.svg)](https://github.com/username/dbsurveyor/actions)
-[![Security Audit](https://github.com/username/dbsurveyor/workflows/Security/badge.svg)](https://github.com/username/dbsurveyor/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 ## Overview
 
 DBSurveyor is a security-first database introspection tool designed for offline environments. It extracts comprehensive schema information from PostgreSQL, MySQL, and SQLite databases while ensuring zero credential leakage and complete offline operation.
