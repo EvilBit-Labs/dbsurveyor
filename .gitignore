@@ -53,6 +53,7 @@ secrets.toml
 # Test artifacts
 *.profraw
 cov-report/
+lcov.info
 
 # Local development files
 .local/
@@ -71,3 +72,21 @@ logs/
 *.survey
 *.dbsurvey
 survey-data/
+
+# act (GitHub Actions local testing) files
+.secrets
+.actrc.local
+
+# Security audit and SBOM files (generated locally)
+sbom.json
+sbom.spdx.json
+grype-report.json
+*.sbom
+*.spdx
+
+# MkDocs generated site
+site/
+
+# Coverage reports
+target/llvm-cov/
+*.profdata

@@ -27,8 +27,8 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 
 # Database drivers (feature-gated)
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls"], optional = true }
-mongodb = { version = "2.8", optional = true }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls"], optional = true }
+mongodb = { version = "3.2", optional = true }
 tiberius = { version = "0.12", optional = true }
 
 [features]
