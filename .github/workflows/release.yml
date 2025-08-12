@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  # Cross-platform build and release
+  build-and-release:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.os }}-${{ hashFiles('**/Cargo.toml') }}
+
+      # Run tests to ensure release quality
+      - name: Run tests
+        run: just test
+
+      # Build release binaries
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }} --all-features
+
+      # Generate SBOM with Syft
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0.17.6
+
+      - name: Generate SBOM
+        run: |
+          syft dir:. -o spdx-json --file dbsurveyor-${{ matrix.target }}.spdx.json
+          syft dir:. -o json --file dbsurveyor-${{ matrix.target }}.sbom.json
+
+      # Vulnerability scan with Grype
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Vulnerability scan
+        run: |
+          grype dir:. --output json --file grype-${{ matrix.target }}.json
+          grype dir:. --output table
+
+      # Create checksums
+      - name: Create checksums
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cd target/${{ matrix.target }}/release
+            sha256sum *.exe > SHA256SUMS.txt
+          else
+            cd target/${{ matrix.target }}/release
+            sha256sum dbsurveyor* > SHA256SUMS.txt
+          fi
+
+      # Sign with Cosign (keyless OIDC)
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifacts
+        run: |
+          cd target/${{ matrix.target }}/release
+          cosign sign-blob --yes SHA256SUMS.txt --output-signature SHA256SUMS.txt.sig
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            for file in *.exe; do
+              cosign sign-blob --yes "$file" --output-signature "$file.sig"
+            done
+          else
+            for file in dbsurveyor*; do
+              if [[ -f "$file" && -x "$file" ]]; then
+                cosign sign-blob --yes "$file" --output-signature "$file.sig"
+              fi
+            done
+          fi
+
+      # Upload release assets
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/${{ matrix.target }}/release/dbsurveyor*
+            target/${{ matrix.target }}/release/SHA256SUMS.txt*
+            *.spdx.json
+            *.sbom.json
+            grype-*.json
+
+  # Generate SLSA Level 3 provenance
+  provenance:
+    needs: [build-and-release]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.build-and-release.outputs.hashes }}"
+      upload-assets: true

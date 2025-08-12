@@ -44,3 +44,72 @@ Toolchain for surveying database servers, extracting schema and sample data, and
 - **OpenAPI Generator**: Future HTTP client development will use OpenAPI Generator for Rust code generation
 
 WARNING: Sample data may contain sensitive information. Use `--redact-samples` flag and review outputs before sharing.
+
+## Exceptions
+
+### FOSSA License Scanning Integration
+- **Rule:** FOSSA GitHub App integration with PR enforcement requirement
+- **Status:** Pending - requires GitHub App installation and configuration
+- **Rationale:** FOSSA integration requires organization-level GitHub App setup
+- **Duration:** Until FOSSA GitHub App is configured for the repository
+- **Compensating Controls:** 
+  - Manual license review via cargo-deny.toml configuration
+  - Pre-commit license validation hooks
+  - Regular dependency auditing with cargo-audit
+  - License information included in generated SBOMs
+- **Tracking:** Will be resolved once FOSSA GitHub App is installed
+
+### Migration Status
+- **Renovate:** ✅ Configured (replaced Dependabot)
+- **Release Please:** ✅ Configured 
+- **SLSA Provenance:** ✅ Configured
+- **Cosign Signing:** ✅ Configured
+- **CodeQL Analysis:** ✅ Configured
+- **OSSF Scorecard:** ✅ Configured
+- **MkDocs Documentation:** ✅ Configured
+- **Local GitHub Actions Testing:** ✅ Configured with `act`
+
+## Local Development and Testing
+
+### GitHub Actions Testing with `act`
+
+This project supports local testing of GitHub Actions workflows using [`act`](https://github.com/nektos/act):
+
+```bash
+# Setup act for local testing
+just setup-act
+
+# Test the entire CI workflow locally
+just test-ci-local
+
+# Test specific jobs
+just test-lint-local
+just test-security-local
+just test-build-local
+
+# Test release workflows (dry run)
+just test-release-local
+just test-release-please-local
+
+# List all available workflows
+just list-workflows
+
+# Validate workflow syntax
+just validate-workflows
+```
+
+### Key Development Commands
+
+```bash
+# Development workflow (format, lint, test, coverage)
+just dev
+
+# Security-focused development cycle
+just security-full
+
+# Local/CI parity - run the same checks as CI
+just ci-check
+
+# Pre-commit validation
+just pre-commit
+```

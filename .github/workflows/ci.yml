@@ -73,18 +73,6 @@ jobs:
   test-and-coverage:
     name: Test and Coverage
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_USER: testuser
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -107,7 +95,6 @@ jobs:
       - name: Run tests with coverage
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info --fail-under-lines 80
         env:
-          DATABASE_URL: postgres://testuser:testpass@localhost/testdb
           CARGO_TERM_COLOR: never
           TERM: dumb
 
@@ -143,7 +130,7 @@ jobs:
           name: rust-coverage
           fail_ci_if_error: false
 
-  # Security scanning
+  # Security scanning with CodeQL and supply chain security
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -153,6 +140,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # CodeQL static analysis (required per standard)
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: rust
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build for CodeQL analysis
+        run: cargo build --all-features
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:rust"
+
+      # SBOM generation with Syft
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0.17.6
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-report
+          path: sbom.spdx.json
+          retention-days: 30
+
+      # Vulnerability scanning with Grype
       - name: Run Grype vulnerability scanner
         uses: anchore/scan-action@v4
         id: scan

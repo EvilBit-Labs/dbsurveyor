@@ -1,0 +1,46 @@
+site_name: DBSurveyor
+site_description: Secure, Offline-First Database Analysis and Documentation Toolchain
+site_author: UncleSp1d3r
+site_url: https://dbsurveyor.evilbitlabs.io
+repo_name: EvilBit-Labs/dbsurveyor
+repo_url: https://github.com/EvilBit-Labs/dbsurveyor
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - Configuration: configuration.md
+  - Security: security.md
+  - API Reference: api.md
+
+plugins:
+  - search
+  - offline
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true
