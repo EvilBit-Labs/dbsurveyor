@@ -48,11 +48,12 @@ WARNING: Sample data may contain sensitive information. Use `--redact-samples` f
 ## Exceptions
 
 ### FOSSA License Scanning Integration
+
 - **Rule:** FOSSA GitHub App integration with PR enforcement requirement
 - **Status:** Pending - requires GitHub App installation and configuration
 - **Rationale:** FOSSA integration requires organization-level GitHub App setup
 - **Duration:** Until FOSSA GitHub App is configured for the repository
-- **Compensating Controls:** 
+- **Compensating Controls:**
   - Manual license review via cargo-deny.toml configuration
   - Pre-commit license validation hooks
   - Regular dependency auditing with cargo-audit
@@ -60,8 +61,9 @@ WARNING: Sample data may contain sensitive information. Use `--redact-samples` f
 - **Tracking:** Will be resolved once FOSSA GitHub App is installed
 
 ### Migration Status
+
 - **Renovate:** ✅ Configured (replaced Dependabot)
-- **Release Please:** ✅ Configured 
+- **Release Please:** ✅ Configured
 - **SLSA Provenance:** ✅ Configured
 - **Cosign Signing:** ✅ Configured
 - **CodeQL Analysis:** ✅ Configured
