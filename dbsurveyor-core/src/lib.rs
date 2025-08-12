@@ -253,3 +253,38 @@ impl Default for ConnectionMetadata {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_database_survey_json_format() {
+        // Create a sample database survey
+        let db_info = DatabaseInfo {
+            engine: "postgresql".to_string(),
+            version: Some("13.5".to_string()),
+            host: "localhost".to_string(),
+            database_name: "testdb".to_string(),
+            connection_info: ConnectionMetadata::default(),
+        };
+
+        let survey = DatabaseSurvey::new(db_info);
+        
+        // Test JSON serialization
+        let json = serde_json::to_string_pretty(&survey).expect("Failed to serialize survey");
+        
+        // Verify format version is correct
+        assert!(json.contains("\"format_version\": \"1.0\""));
+        
+        // Test JSON deserialization
+        let _deserialized: DatabaseSurvey = serde_json::from_str(&json)
+            .expect("Failed to deserialize survey");
+    }
+
+    #[test]
+    fn test_format_version() {
+        assert_eq!(SURVEY_FORMAT_VERSION, "1.0");
+    }
+}
