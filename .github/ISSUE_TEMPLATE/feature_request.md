@@ -2,8 +2,8 @@
 name: Feature Request
 about: Suggest an idea for DBSurveyor
 title: '[FEATURE] '
-labels: ['enhancement', 'needs-triage']
-assignees: ['UncleSp1d3r']
+labels: [enhancement, needs-triage]
+assignees: [UncleSp1d3r]
 ---
 
 ## Feature Description
@@ -32,11 +32,13 @@ Describe the solution you'd like to see implemented. Be specific about:
 Describe specific scenarios where this feature would be valuable:
 
 1. **Use Case 1**: [Description]
+
    - Who: [Target user]
    - When: [When they would use this]
    - How: [How they would use this]
 
-2. **Use Case 2**: [Description]
+1. **Use Case 2**: [Description]
+
    - Who: [Target user]
    - When: [When they would use this]
    - How: [How they would use this]

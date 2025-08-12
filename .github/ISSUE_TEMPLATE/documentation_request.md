@@ -2,8 +2,8 @@
 name: Documentation Request
 about: Request improvements to DBSurveyor documentation
 title: '[DOCS] '
-labels: ['documentation', 'enhancement']
-assignees: ['UncleSp1d3r']
+labels: [documentation, enhancement]
+assignees: [UncleSp1d3r]
 ---
 
 ## Documentation Request
@@ -55,10 +55,12 @@ Describe the current documentation situation:
 Describe specific scenarios where better documentation would help:
 
 1. **Use Case 1**: [Description]
+
    - Current difficulty: [What's hard to understand]
    - Desired outcome: [What should be clear after reading]
 
-2. **Use Case 2**: [Description]
+1. **Use Case 2**: [Description]
+
    - Current difficulty: [What's hard to understand]
    - Desired outcome: [What should be clear after reading]
 

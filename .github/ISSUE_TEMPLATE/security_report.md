@@ -2,8 +2,8 @@
 name: Security Report
 about: Report a security vulnerability in DBSurveyor
 title: '[SECURITY] '
-labels: ['security', 'confidential']
-assignees: ['UncleSp1d3r']
+labels: [security, confidential]
+assignees: [UncleSp1d3r]
 ---
 
 ## Security Vulnerability Report
@@ -47,10 +47,10 @@ A clear and concise description of the security vulnerability.
 **WARNING**: Do not include actual credentials, connection strings, or sensitive data.
 
 1. Environment setup: [Generic description]
-2. Database configuration: [Sanitized connection details]
-3. Command executed: [Command without sensitive data]
-4. Vulnerability trigger: [What causes the issue]
-5. Observed behavior: [What happens when exploited]
+1. Database configuration: [Sanitized connection details]
+1. Command executed: [Command without sensitive data]
+1. Vulnerability trigger: [What causes the issue]
+1. Observed behavior: [What happens when exploited]
 
 ## Proof of Concept
 

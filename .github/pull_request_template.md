@@ -19,7 +19,7 @@ Brief description of changes made and why they are needed.
 ## Database Support
 
 - [ ] PostgreSQL
-- [ ] MySQL  
+- [ ] MySQL
 - [ ] SQLite
 - [ ] SQL Server
 - [ ] MongoDB
@@ -38,7 +38,7 @@ Brief description of changes made and why they are needed.
 ## Testing
 
 - [ ] Unit tests added/updated
-- [ ] Integration tests added/updated  
+- [ ] Integration tests added/updated
 - [ ] Security tests added/updated
 - [ ] All tests pass locally (`just test`)
 - [ ] Database-specific tests pass (`just test-postgres`, `just test-mysql`, `just test-sqlite`)
