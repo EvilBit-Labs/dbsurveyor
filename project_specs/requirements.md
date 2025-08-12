@@ -17,7 +17,9 @@
 
 ### 1.1 Project Description and Purpose
 
-dbsurveyor is an offline-first database analysis and documentation toolchain implemented in Rust. The system provides comprehensive database metadata extraction, documentation generation, and schema analysis capabilities without requiring persistent network connectivity. The toolchain consists of two independent binaries that work together to collect database metadata and generate structured output files for further processing and documentation.
+dbsurveyor is a two-part toolchain designed to quickly survey and map the contents of unknown or unfamiliar database systems. It provides security operators, penetration testers, and system administrators with fast visibility into the structure and contents of database servers for which they have access credentials. The tool is split into a collector and a postprocessor to support offline workflows and red team use cases.
+
+The system provides comprehensive database metadata extraction, documentation generation, and schema analysis capabilities without requiring persistent network connectivity. The toolchain consists of two independent binaries that work together to collect database metadata and generate structured output files for further processing and documentation.
 
 #### CRITICAL SECURITY GUARANTEES
 
@@ -41,14 +43,16 @@ The primary objectives of dbsurveyor are:
 
 #### Primary Users
 
+- **Red team operators**: Performing post-compromise database enumeration in contested environments
+- **Blue team analysts and defenders**: Auditing unknown systems and inherited databases
+- **System administrators**: Exploring inherited or legacy databases with minimal documentation
+- **Developers**: Working in inherited environments with minimal documentation
 - **Database Administrators (DBAs)**: Comprehensive documentation, schema analysis, and compliance reporting
 - **Data Analysts**: Data discovery, quality assessment, and relationship understanding
-- **Software Developers**: Schema versioning, API generation, and migration planning
-- **Compliance Officers**: Audit-ready documentation and sensitive data cataloging
 
 #### Secondary Users
 
-- **Systems Architects**: High-level data relationship visualization
+- **Compliance Officers**: Audit-ready documentation and sensitive data cataloging
 - **Security Analysts**: Database security assessment and risk identification
 
 ### 1.4 Project Boundaries and Limitations
@@ -163,20 +167,24 @@ Detailed task breakdown and implementation phases are documented in [tasks.md](t
 
 ### 3.1 Business Context and Justification
 
-Organizations require comprehensive database documentation for compliance, maintenance, and development purposes. Existing tools often require internet connectivity, have limited database support, or lack the security features needed for enterprise environments. dbsurveyor addresses these gaps by providing a completely offline, security-focused solution that works across multiple database platforms.
+- Red teams often find database credentials but lack visibility into contents
+- Blue teams and devs frequently inherit systems with undocumented schemas
+- Existing tools are heavy, invasive, or not suited to airgapped use
+- dbsurveyor fills this niche with a polished, low-friction survey/report pipeline
 
 ### 3.2 Previous Work and Dependencies
 
-This is a greenfield project with no direct predecessors. The tool will utilize established Rust database connectivity crates and documentation generation libraries while maintaining strict control over dependencies for security and reliability.
+- Inspired by ad hoc scripts and tools like sqlmap, schemaSpy, and internal red team enumeration tools
+- No runtime external dependencies — static builds only
 
 ### 3.3 Assumptions and Constraints
 
 #### Assumptions
 
-- Users have direct database access with appropriate privileges
-- Target databases are accessible via standard connection protocols
+- Requires valid DB credentials and host info
+- Collector requires runtime DB driver availability (statically linked or embedded)
+- Output file must be portable and self-contained
 - Users are comfortable with command-line interfaces
-- Organizations can deploy standalone binaries in their environments
 
 #### Constraints
 
@@ -187,26 +195,23 @@ This is a greenfield project with no direct predecessors. The tool will utilize 
 
 ### 3.4 Risk Assessment Overview
 
-#### High Risk
-
-- Database compatibility across versions and vendors
-- Performance with extremely large databases
-- Security of credential handling
-
 #### Medium Risk
 
+- Driver support and edge-case schemas (e.g., no primary keys)
+- DB-specific quirks and non-standard metadata conventions
 - Cross-platform build and distribution complexity
-- Documentation rendering performance
-- User adoption and learning curve
 
 #### Low Risk
 
+- CLI-focused design minimizes complexity
 - Core Rust ecosystem stability
 - File I/O and basic system operations
 
 ## 4. Functional Requirements
 
-### 4.1 Functional Requirements (F000-F016)
+### 4.1 Functional Requirements (F000-F023)
+
+Updated to align with complete business requirements from dbsurveyor_requirements.md
 
 #### System Architecture (F000-F002)
 
@@ -234,11 +239,24 @@ This is a greenfield project with no direct predecessors. The tool will utilize 
 - **F012**: Data quality metrics (completeness, consistency, uniqueness) with configurable thresholds
 - **F013**: Configurable sample data extraction with privacy controls and pattern-based redaction
 
-#### Output Generation (F014-F016)
+#### Core Processing Features (F014-F016)
 
-- **F014**: Structured metadata export in standardized formats with "format_version": "1.0" specification
-- **F015**: Multi-format output generation including .dbsurveyor.json, .dbsurveyor.json.zst (compressed), and .dbsurveyor.enc (encrypted)
-- **F016**: Comprehensive documentation generation with HTML navigation, search capabilities, and Entity Relationship Diagrams (ERD)
+- **F014**: Generate .dbsurveyor.json output — fully portable and structured with "format_version": "1.0" specification
+- **F015**: Postprocessor that loads .dbsurveyor.json and generates markdown/JSON reports
+- **F016**: SQL reconstruction mode — outputs CREATE TABLE definitions based on discovered schema
+
+#### Reporting and Visualization (F017-F019)
+
+- **F017**: Report mode — renders a browsable table-of-contents style markdown document
+- **F018**: Diagram mode (Pro) — generates Mermaid.js or D2 visual schema diagrams
+- **F019**: Classify mode (Pro) — tags likely PII/PCI fields based on regex or naming heuristics
+
+#### Pro Features and Advanced Capabilities (F020-F023)
+
+- **F020**: HTML output (Pro) — standalone styled HTML report generation with search/filter
+- **F021**: Offline mode only — all features must function without network access
+- **F022**: Support pluggable DB engines via a Rust trait-based adapter system (adapters may be compiled-in by feature flag or loaded as WASM/stdio child-process plugins using stable JSON contract)
+- **F023**: Additional capabilities: Allow user to redact sensitive sample values in postprocessor; MVP must include at least one NoSQL database with schema-like inspection support (e.g., MongoDB); Support configurable throttling rate in collector to reduce detection risk and avoid slow logs; Support optional output compression (e.g., gzip) and encryption (e.g., AES-GCM) via CLI flags
 
 ### 4.2 User Stories and Use Cases
 
@@ -252,25 +270,22 @@ Comprehensive user stories are detailed in the [user_stories.md](user_stories.md
 
 ### 4.3 Feature Priority Matrix
 
+Aligned with business requirements priority:
+
 | Priority          | Features                                          | Justification                                                            |
 | ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
-| **P0 (Critical)** | F001-F005, F012, F015                             | Core database connectivity, metadata collection, and basic documentation |
-| **P1 (High)**     | F006-F008, F013-F014                              | Relationship mapping, incremental updates, error handling                |
-| **P2 (Medium)**   | F009-F011, F016                                   | Data profiling, sample extraction, ERD generation                        |
-| **P3 (Low)**      | Advanced customization, additional output formats | Nice-to-have features for future releases                                |
+| **High**          | F000–F007, F014, F015, F021, F022, F023           | Core functionality: dual-binary architecture, database survey, portable output, offline mode, pluggable engines, throttling/compression |
+| **Medium**        | F016–F019, F013                                   | Processing features: SQL reconstruction, report/diagram modes, Pro features, data sampling with privacy controls |
+| **Low**           | F020, advanced diagrams, anonymized redaction     | HTML output (Pro), advanced visualizations, enhanced privacy features |
 
-### 4.4 Performance Targets
+### 4.4 Performance Requirements (from Business Document)
 
-- **Startup Budget**: Cold start under 2 seconds for basic operations
-- **Processing Budget**:
-  - Small databases (≤100 tables): Complete processing under 30 seconds
-  - Medium databases (100-1,000 tables): Complete processing under 5 minutes
-  - Large databases (1,000-10,000+ tables): Linear scaling, progress feedback every 30 seconds
-- **Memory Usage**: Maximum 1GB RAM for typical workloads, streaming processing for large datasets
-- **File Size Goals**:
-  - Compressed output (.dbsurveyor.json.zst): 70-80% size reduction vs. uncompressed
-  - Encrypted output (.dbsurveyor.enc): \<5% overhead vs. compressed
-- **Concurrent Processing**: Support for connection pooling and parallel metadata extraction
+- **CLI startup in < 100ms**
+- **Collector must complete < 10s for DBs with < 1000 tables**
+- **Output files should remain < 10MB when possible**
+- **Postprocessor should operate in < 500ms on small/medium DBs**
+- **Memory Usage**: Efficient processing for typical workloads
+- **File Formats**: .dbsurveyor.json (JSON), .dbsurveyor.json.zst (compressed), .dbsurveyor.enc (encrypted)
 - **Cross-Platform Performance**: Consistent performance across Linux, macOS, and Windows
 
 ## 5. User Interface Requirements
@@ -564,12 +579,13 @@ None identified. This project fully complies with all applicable EvilBit Labs st
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Document Type**     | Requirements Specification                                                                                                                                                  |
 | **Classification**    | Internal                                                                                                                                                                    |
-| **Review Status**     | Draft                                                                                                                                                                       |
+| **Review Status**     | Updated - Aligned with Business Requirements                                                                                                                               |
 | **Next Review Date**  | 2025-01-19                                                                                                                                                                  |
 | **Related Documents** | [user_stories.md](user_stories.md) - Comprehensive user stories with requirement mappings<br/>[tasks.md](tasks.md) - Detailed implementation tasks with acceptance criteria |
 | **Repository**        | dbsurveyor                                                                                                                                                                  |
 | **Branch**            | main                                                                                                                                                                        |
 | **Commit SHA**        | TBD                                                                                                                                                                         |
+| **Last Modified**     | 2025-08-12 (Updated to align with ~/Documents/Business Stuff/EvilBit Labs/Product Plans/dbsurveyor/dbsurveyor_requirements.md) |
 
 ---
 
