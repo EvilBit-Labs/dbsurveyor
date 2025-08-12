@@ -1,0 +1,41 @@
+[package]
+name = "dbsurveyor"
+description = "Database metadata processor and report generator"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "dbsurveyor"
+path = "src/main.rs"
+
+[dependencies]
+# Core shared library
+dbsurveyor-core = { workspace = true }
+
+# CLI and processing
+clap = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Template engines for report generation
+askama = { version = "0.12", features = ["serde-json"] }
+comrak = "0.19"
+
+[features]
+default = ["markdown", "sql-reconstruction"]
+markdown = []
+sql-reconstruction = []
+# Pro features
+html = ["askama/config"]
+mermaid = []
+d2 = []
+classification = []
+
+[lints]
+workspace = true
