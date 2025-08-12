@@ -22,7 +22,9 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
-    
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,10 +74,10 @@ jobs:
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             cd target/${{ matrix.target }}/release
-            sha256sum *.exe > SHA256SUMS.txt
+            sha256sum ./*.exe > SHA256SUMS.txt
           else
             cd target/${{ matrix.target }}/release
-            sha256sum dbsurveyor* > SHA256SUMS.txt
+            sha256sum ./dbsurveyor* > SHA256SUMS.txt
           fi
 
       # Sign with Cosign (keyless OIDC)
@@ -94,6 +96,26 @@ jobs:
             for file in dbsurveyor*; do
               if [[ -f "$file" && -x "$file" ]]; then
                 cosign sign-blob --yes "$file" --output-signature "$file.sig"
+              fi
+            done
+          fi
+
+      # Generate hashes for SLSA provenance
+      - name: Generate hashes
+        id: hash
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            for file in ./*.exe; do
+              if [[ -f "$file" ]]; then
+                echo "hashes=$(sha256sum "$file" | cut -d' ' -f1 | base64 -w0)" >> "$GITHUB_OUTPUT"
+              fi
+            done
+          else
+            for file in ./dbsurveyor*; do
+              if [[ -f "$file" && -x "$file" ]]; then
+                echo "hashes=$(sha256sum "$file" | cut -d' ' -f1 | base64 -w0)" >> "$GITHUB_OUTPUT"
               fi
             done
           fi
