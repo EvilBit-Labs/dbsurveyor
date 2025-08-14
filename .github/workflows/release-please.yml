@@ -18,4 +18,3 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           release-type: rust
-          package-name: dbsurveyor

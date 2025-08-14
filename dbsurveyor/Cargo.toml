@@ -28,7 +28,8 @@ thiserror = "1.0"
 
 # Template engines for report generation
 askama = { version = "0.12", features = ["serde-json"] }
-comrak = "0.19"
+# Note: Replaced comrak with markdown crate to avoid yaml-rust dependency vulnerability
+markdown = "1.0"
 
 [dev-dependencies]
 # Testing utilities

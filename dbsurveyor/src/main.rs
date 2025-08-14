@@ -88,6 +88,51 @@ pub enum PathValidationError {
     },
 }
 
+/// CLI execution error types
+#[derive(Debug, thiserror::Error)]
+pub enum ExecuteError {
+    /// Input file does not exist or is not readable
+    #[error("Input file does not exist or is not readable: {path}")]
+    InputFileNotFound {
+        /// The path that was not found
+        path: String,
+        /// The underlying IO error
+        source: std::io::Error,
+    },
+
+    /// Output directory does not exist or is not writable
+    #[error("Output directory does not exist or is not writable: {path}")]
+    OutputDirectoryNotWritable {
+        /// The path that is not writable
+        path: String,
+        /// The underlying IO error
+        source: std::io::Error,
+    },
+
+    /// Output file cannot be created or written
+    #[error("Output file cannot be created or written: {path}")]
+    OutputFileNotWritable {
+        /// The path that cannot be written
+        path: String,
+        /// The underlying IO error
+        source: std::io::Error,
+    },
+
+    /// Processing operation failed
+    #[error("Processing operation failed: {message}")]
+    ProcessingFailed {
+        /// Description of the processing failure
+        message: String,
+    },
+
+    /// Invalid command or arguments
+    #[error("Invalid command or arguments: {message}")]
+    InvalidCommand {
+        /// Description of the invalid command
+        message: String,
+    },
+}
+
 /// Validate and sanitize a file path for security
 ///
 /// # Arguments
@@ -233,23 +278,138 @@ pub fn validate_cli_paths(cli: &Cli) -> Result<Cli, PathValidationError> {
 /// * `cli` - The parsed CLI arguments
 ///
 /// # Returns
+/// Check if a file exists and is readable
 ///
-/// A result indicating success or failure of the operation
+/// # Arguments
+///
+/// * `path` - The file path to check
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the file exists and is readable, or an error if not
+fn check_input_file_readable(path: &Path) -> Result<(), ExecuteError> {
+    std::fs::metadata(path).map_err(|e| ExecuteError::InputFileNotFound {
+        path: path.to_string_lossy().to_string(),
+        source: e,
+    })?;
+
+    // Check if file is readable by attempting to open it
+    std::fs::File::open(path).map_err(|e| ExecuteError::InputFileNotFound {
+        path: path.to_string_lossy().to_string(),
+        source: e,
+    })?;
+
+    Ok(())
+}
+
+/// Check if an output path is writable
+///
+/// # Arguments
+///
+/// * `path` - The output path to check
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the path is writable, or an error if not
+fn check_output_path_writable(path: &Path) -> Result<(), ExecuteError> {
+    if path.exists() {
+        // File exists, check if it's writable
+        let metadata =
+            std::fs::metadata(path).map_err(|e| ExecuteError::OutputFileNotWritable {
+                path: path.to_string_lossy().to_string(),
+                source: e,
+            })?;
+
+        if metadata.is_file() {
+            // Try to open for writing
+            std::fs::File::create(path).map_err(|e| ExecuteError::OutputFileNotWritable {
+                path: path.to_string_lossy().to_string(),
+                source: e,
+            })?;
+        }
+    } else {
+        // File doesn't exist, check if parent directory is writable
+        if let Some(parent) = path.parent() {
+            if parent.exists() {
+                // Check if parent directory is writable
+                let metadata = std::fs::metadata(parent).map_err(|e| {
+                    ExecuteError::OutputDirectoryNotWritable {
+                        path: parent.to_string_lossy().to_string(),
+                        source: e,
+                    }
+                })?;
+
+                if metadata.permissions().readonly() {
+                    return Err(ExecuteError::OutputDirectoryNotWritable {
+                        path: parent.to_string_lossy().to_string(),
+                        source: std::io::Error::new(
+                            std::io::ErrorKind::PermissionDenied,
+                            "Directory is read-only",
+                        ),
+                    });
+                }
+                // Try to create a temporary file to test write permissions
+                let temp_path = parent.join(".dbsurveyor_write_test");
+                if let Err(e) = std::fs::write(&temp_path, b"test") {
+                    return Err(ExecuteError::OutputDirectoryNotWritable {
+                        path: parent.to_string_lossy().to_string(),
+                        source: e,
+                    });
+                }
+                // Clean up test file
+                let _ = std::fs::remove_file(&temp_path);
+            } else {
+                return Err(ExecuteError::OutputDirectoryNotWritable {
+                    path: parent.to_string_lossy().to_string(),
+                    source: std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "Parent directory does not exist",
+                    ),
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Execute CLI commands with robust error handling
+///
+/// # Arguments
+///
+/// * `cli` - The parsed CLI arguments
+///
+/// # Returns
+///
+/// Returns `Ok(String)` with the operation result, or an error if execution fails
 ///
 /// # Errors
 ///
-/// Currently, this function always returns `Ok`. Future implementations
-/// may return errors for invalid inputs or command execution failures.
-pub fn execute_cli(cli: &Cli) -> Result<String, String> {
+/// This function will return an error if:
+/// - Input file does not exist or is not readable
+/// - Output path is not writable
+/// - Processing operation fails
+/// - Invalid command or arguments are provided
+pub fn execute_cli(cli: &Cli) -> Result<String, ExecuteError> {
     match cli.command {
         Some(Commands::Process {
-            input: _,
+            ref input,
             format: _,
-            output: _,
+            ref output,
         }) => {
+            // Validate input file exists and is readable
+            check_input_file_readable(input)?;
+
+            // Validate output path is writable if specified
+            if let Some(output_path) = output {
+                check_output_path_writable(output_path)?;
+            }
+
             let version = env!("CARGO_PKG_VERSION");
             Ok(format!(
-                "dbsurveyor v{version}\nDatabase survey postprocessing and documentation tool\n⚠️  Processing functionality will be implemented in future tasks"
+                "dbsurveyor v{version}\nDatabase survey postprocessing and documentation tool\n✅ Input file validated: {}\n✅ Output path validated: {}\n⚠️  Processing functionality will be implemented in future tasks",
+                input.display(),
+                output.as_ref().map_or_else(|| std::path::Path::new("stdout").display(), |p| p.display())
             ))
         }
         None => {
@@ -304,12 +464,18 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unwrap_used)]
     fn test_cli_process_command() {
+        // Create a temporary test file
+        let temp_dir = tempdir().unwrap();
+        let test_file = temp_dir.path().join("test.json");
+        fs::write(&test_file, "test content").unwrap();
+
         let cli = Cli {
             command: Some(Commands::Process {
-                input: PathBuf::from("test.json"),
+                input: test_file,
                 format: OutputFormat::Markdown,
-                output: Some(PathBuf::from("output.md")),
+                output: Some(temp_dir.path().join("output.md")),
             }),
         };
 
@@ -348,31 +514,31 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_file_path_success() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempdir()?;
+    #[allow(clippy::unwrap_used)]
+    fn test_validate_file_path_success() {
+        let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
 
         // Create a test file
         let test_file = base_dir.join("test.json");
-        fs::write(&test_file, "test content")?;
+        fs::write(&test_file, "test content").unwrap();
 
         // Use relative path for validation
         let relative_path = PathBuf::from("test.json");
         let result = validate_file_path(&relative_path, base_dir);
         assert!(result.is_ok());
 
-        let canonical_path = result?;
+        let canonical_path = result.unwrap();
         let canonical_base_dir = base_dir
             .canonicalize()
             .unwrap_or_else(|_| base_dir.to_path_buf());
         assert!(canonical_path.starts_with(&canonical_base_dir));
-
-        Ok(())
     }
 
     #[test]
-    fn test_validate_file_path_directory_traversal() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempdir()?;
+    #[allow(clippy::unwrap_used)]
+    fn test_validate_file_path_directory_traversal() {
+        let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
 
         let malicious_path = PathBuf::from("../../../etc/passwd");
@@ -383,17 +549,14 @@ mod tests {
             Err(PathValidationError::DirectoryTraversal { path }) => {
                 assert!(path.contains(".."));
             }
-            Err(_) => return Err("Expected DirectoryTraversal error".into()),
-            Ok(_) => return Err("Expected error but got success".into()),
+            _ => panic!("Expected DirectoryTraversal error"),
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_validate_file_path_leading_separator_relative() -> Result<(), Box<dyn std::error::Error>>
-    {
-        let temp_dir = tempdir()?;
+    #[allow(clippy::unwrap_used)]
+    fn test_validate_file_path_leading_separator_relative() {
+        let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
 
         let malicious_path = PathBuf::from("/etc/passwd");
@@ -406,16 +569,14 @@ mod tests {
             Err(PathValidationError::OutsideBaseDirectory { path }) => {
                 assert!(path.contains("/etc/passwd"));
             }
-            Err(_) => return Err("Expected OutsideBaseDirectory error".into()),
-            Ok(_) => return Err("Expected error but got success".into()),
+            _ => panic!("Expected OutsideBaseDirectory error"),
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_validate_file_path_leading_separator() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempdir()?;
+    #[allow(clippy::unwrap_used)]
+    fn test_validate_file_path_leading_separator() {
+        let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
 
         // Test relative path with leading separator
@@ -428,22 +589,20 @@ mod tests {
             Err(PathValidationError::OutsideBaseDirectory { path }) => {
                 assert!(path.starts_with("/relative/path"));
             }
-            Err(_) => return Err("Expected OutsideBaseDirectory error".into()),
-            Ok(_) => return Err("Expected error but got success".into()),
+            _ => panic!("Expected OutsideBaseDirectory error"),
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_validate_file_path_outside_base_directory() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempdir()?;
+    #[allow(clippy::unwrap_used)]
+    fn test_validate_file_path_outside_base_directory() {
+        let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
 
         // Create a file outside the base directory
-        let outside_dir = tempfile::tempdir()?;
+        let outside_dir = tempfile::tempdir().unwrap();
         let outside_file = outside_dir.path().join("test.json");
-        fs::write(&outside_file, "test content")?;
+        fs::write(&outside_file, "test content").unwrap();
 
         let result = validate_file_path(&outside_file, base_dir);
 
@@ -452,27 +611,25 @@ mod tests {
             Err(PathValidationError::OutsideBaseDirectory { path }) => {
                 assert!(!path.starts_with(&base_dir.to_string_lossy().to_string()));
             }
-            Err(_) => return Err("Expected OutsideBaseDirectory error".into()),
-            Ok(_) => return Err("Expected error but got success".into()),
+            _ => panic!("Expected OutsideBaseDirectory error"),
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_validate_cli_paths_success() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempdir()?;
+    #[allow(clippy::unwrap_used)]
+    fn test_validate_cli_paths_success() {
+        let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
 
         // Create test files
         let input_file = base_dir.join("input.json");
         let output_file = base_dir.join("output.md");
-        fs::write(&input_file, "test input")?;
-        fs::write(&output_file, "test output")?;
+        fs::write(&input_file, "test input").unwrap();
+        fs::write(&output_file, "test output").unwrap();
 
         // Change to the temp directory for this test
-        let original_dir = std::env::current_dir()?;
-        std::env::set_current_dir(base_dir)?;
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(base_dir).unwrap();
 
         let cli = Cli {
             command: Some(Commands::Process {
@@ -485,7 +642,7 @@ mod tests {
         let result = validate_cli_paths(&cli);
         assert!(result.is_ok());
 
-        let validated_cli = result?;
+        let validated_cli = result.unwrap();
         if let Some(Commands::Process { input, output, .. }) = validated_cli.command {
             // The paths should be within the base directory
             let canonical_base_dir = base_dir
@@ -498,15 +655,14 @@ mod tests {
         }
 
         // Restore original directory
-        std::env::set_current_dir(original_dir)?;
-
-        Ok(())
+        std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
-    fn test_validate_cli_paths_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempdir()?;
-        let _base_dir = temp_dir.path();
+    #[allow(clippy::unwrap_used)]
+    fn test_validate_cli_paths_failure() {
+        // Create temp dir but don't use it in this test
+        let _temp_dir = tempdir().unwrap();
 
         let malicious_input = PathBuf::from("../../../etc/passwd");
 
@@ -524,10 +680,7 @@ mod tests {
             Err(PathValidationError::DirectoryTraversal { .. }) => {
                 // Expected error
             }
-            Err(_) => return Err("Expected DirectoryTraversal error".into()),
-            Ok(_) => return Err("Expected error but got success".into()),
+            _ => panic!("Expected DirectoryTraversal error"),
         }
-
-        Ok(())
     }
 }

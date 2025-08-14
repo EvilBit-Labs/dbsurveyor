@@ -287,6 +287,51 @@ All security guarantees are:
 - [x] **Enforced**: CI/CD pipeline enforces compliance
 - [x] **Auditable**: Full audit trail maintained
 
+## Known Vulnerabilities
+
+### RUSTSEC-2023-0071: RSA Marvin Attack Vulnerability
+
+**Affected Component**: MySQL support in `dbsurveyor-collect`
+**Status**: Mitigated by default configuration
+**Severity**: Medium (5.9)
+
+#### Issue Description
+
+The RSA crate v0.9.8 used by SQLx for MySQL connections contains a vulnerability that may allow key recovery through timing side-channels (Marvin Attack).
+
+#### Mitigation
+
+**Default Configuration**: MySQL support is **disabled by default** to prevent this vulnerability.
+
+**For users who need MySQL support**:
+
+1. Explicitly enable MySQL feature: `cargo build --features mysql`
+1. **Security Recommendation**: Use PostgreSQL or SQLite instead when possible
+1. If MySQL is required, ensure connections use:
+   - Strong network security (VPN, private networks)
+   - Regular key rotation
+   - Monitoring for timing attacks
+
+#### Alternative Solutions
+
+1. **PostgreSQL**: Full support, no security vulnerabilities
+1. **SQLite**: Full support, no network dependencies
+1. **MongoDB**: Full support with secure authentication
+
+#### Status Updates
+
+This vulnerability will be resolved when:
+
+- SQLx updates to use a patched RSA crate version
+- Alternative TLS implementations are available
+- The RSA crate maintainers release a security fix
+
+For the latest security status, run:
+
+```bash
+cargo audit
+```
+
 ## Security Warnings
 
 ### Critical Warnings
