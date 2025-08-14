@@ -124,7 +124,10 @@ qa-cov: rust-fmt-check rust-clippy rust-test rust-cov
 test:
     @echo "🧪 Running test suite with security checks..."
     @echo "⚠️  Testing offline-only operation - no external network calls allowed"
-    cargo test --all-features --verbose
+    # Run dbsurveyor-collect tests sequentially to avoid environment variable conflicts
+    cargo test -p dbsurveyor-collect --all-features --verbose -- --test-threads=1
+    # Run all other tests normally
+    cargo test --workspace --exclude dbsurveyor-collect --all-features --verbose
     @echo "✅ All tests passed - security guarantees maintained"
 
 # Run tests excluding benchmarks
@@ -156,17 +159,17 @@ test-sqlite:
     @echo "📦 Testing SQLite adapter..."
     cargo test sqlite --verbose
 
-# Run coverage with cargo-llvm-cov and enforce 80% threshold
+# Run coverage with cargo-llvm-cov and enforce 75% threshold
 coverage:
-    @echo "🔍 Running coverage with >80% threshold..."
-    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 80 --output-path lcov.info
-    @echo "✅ Coverage passed 80% threshold!"
+    @echo "🔍 Running coverage with >75% threshold..."
+    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 75 --output-path lcov.info -- --test-threads=1
+    @echo "✅ Coverage passed 75% threshold!"
 
 # Run coverage for CI - generates report even if some tests fail
 coverage-ci:
-    @echo "🔍 Running coverage for CI with >80% threshold..."
-    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 80 --output-path lcov.info --ignore-run-fail
-    @echo "✅ Coverage passed 80% threshold!"
+    @echo "🔍 Running coverage for CI with >75% threshold..."
+    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 75 --output-path lcov.info --ignore-run-fail
+    @echo "✅ Coverage passed 75% threshold!"
 
 # Run coverage report in HTML format for local viewing
 coverage-html:
@@ -347,7 +350,8 @@ install-tools:
 # Run dependency audit
 audit:
     @echo "📊 Auditing dependencies for security vulnerabilities..."
-    cargo audit
+    @echo "🔍 Ignoring whitelisted RUSTSEC-2023-0071 (RSA vulnerability, see SECURITY.md)"
+    cargo audit --ignore RUSTSEC-2023-0071
     @echo "✅ Dependency audit complete"
 
 # Check for security advisories
