@@ -28,7 +28,7 @@ aes-gcm = { version = "0.10", optional = true }
 ring = { version = "0.17", optional = true }
 
 [features]
-default = ["compression", "encryption"]
+default = ["compression"]
 compression = ["zstd"]
 encryption = ["aes-gcm", "ring"]
 

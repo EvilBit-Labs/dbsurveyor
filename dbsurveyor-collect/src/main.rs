@@ -17,7 +17,7 @@ use clap::{Parser, Subcommand};
 use rpassword::read_password;
 use std::env;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 
 /// Command-line interface for the database collector
@@ -113,7 +113,7 @@ pub fn get_database_url(
         }
     }
 
-    // 3. Interactive prompt as fallback
+    // 3. Interactive prompt as fallback (only if no file was provided)
     match get_database_url_interactive() {
         Ok(url) => Ok((url, CredentialSource::Interactive)),
         Err(e) => Err(format!("Failed to get database URL interactively: {e}")),
@@ -143,7 +143,7 @@ fn validate_database_url(url: &str) -> bool {
     url_lower.starts_with("postgres://")
         || url_lower.starts_with("postgresql://")
         || url_lower.starts_with("mysql://")
-        || url_lower.starts_with("sqlite://")
+        || url_lower.starts_with("sqlite:")
         || url_lower.starts_with("mongodb://")
 }
 
@@ -165,9 +165,7 @@ fn validate_database_url(url: &str) -> bool {
 #[allow(clippy::too_many_lines)]
 fn get_database_url_interactive() -> Result<String, String> {
     // Check if we're in a test environment (no terminal or CI)
-    if !atty::is(atty::Stream::Stdin)
-        || std::env::var("CI").is_ok()
-        || std::env::var("TESTING").is_ok()
+    if std::env::var("TESTING").is_ok() || std::env::var("CI").is_ok() || !io::stdin().is_terminal()
     {
         return Err("Database connection information required. Set DATABASE_URL environment variable or use --database-url-file.".to_string());
     }
@@ -384,8 +382,15 @@ mod tests {
         std::env::set_var("TESTING", "1");
     }
 
+    fn cleanup_test_environment() {
+        // Clean up test environment variables
+        std::env::remove_var("TESTING");
+        std::env::remove_var("DATABASE_URL");
+    }
+
     #[test]
     fn test_cli_no_command() {
+        cleanup_test_environment();
         setup_test_environment();
         let cli = Cli { command: None };
 
@@ -400,11 +405,13 @@ mod tests {
             assert!(output.contains("--database-url-file"));
             assert!(output.contains("Interactive prompt as fallback"));
         }
+        cleanup_test_environment();
     }
 
     #[test]
     #[allow(clippy::expect_used, clippy::unwrap_used)]
     fn test_cli_collect_command_with_file() {
+        cleanup_test_environment();
         setup_test_environment();
         // Create a temporary file with a valid database URL
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -432,11 +439,14 @@ mod tests {
                 output.contains("⚠️  Collection functionality will be implemented in future tasks")
             );
         }
+        cleanup_test_environment();
     }
 
     #[test]
     #[allow(clippy::expect_used, clippy::unwrap_used)]
     fn test_cli_collect_command_without_file() {
+        // Clean up any existing environment variables first
+        env::remove_var("DATABASE_URL");
         setup_test_environment();
         // Ensure no DATABASE_URL environment variable is set
         env::remove_var("DATABASE_URL");
@@ -458,12 +468,13 @@ mod tests {
             .contains("Database connection information required"));
 
         // Clean up
-        env::remove_var("DATABASE_URL");
+        cleanup_test_environment();
     }
 
     #[test]
     #[allow(clippy::expect_used, clippy::unwrap_used)]
     fn test_cli_collect_command_with_env_var() {
+        cleanup_test_environment();
         setup_test_environment();
         // Set environment variable for testing
         env::set_var("DATABASE_URL", "mysql://user:pass@localhost/testdb");
@@ -490,8 +501,8 @@ mod tests {
             );
         }
 
-        // Clean up environment variable
-        env::remove_var("DATABASE_URL");
+        // Clean up environment variables
+        cleanup_test_environment();
     }
 
     #[test]
@@ -515,7 +526,10 @@ mod tests {
     #[test]
     #[allow(clippy::expect_used, clippy::unwrap_used)]
     fn test_get_database_url_from_file() {
+        cleanup_test_environment();
         setup_test_environment();
+        // Ensure no DATABASE_URL environment variable is set
+        env::remove_var("DATABASE_URL");
         // Create a temporary file with a valid database URL
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, "postgresql://user:pass@localhost/testdb")
@@ -527,6 +541,7 @@ mod tests {
         let (url, source) = result.unwrap();
         assert_eq!(url, "postgresql://user:pass@localhost/testdb");
         assert!(matches!(source, CredentialSource::File(_)));
+        cleanup_test_environment();
     }
 
     #[test]
@@ -543,25 +558,32 @@ mod tests {
         assert_eq!(url, "mysql://user:pass@localhost/testdb");
         assert!(matches!(source, CredentialSource::Environment));
 
-        // Clean up
-        env::remove_var("DATABASE_URL");
+        // Clean up environment variables
+        cleanup_test_environment();
     }
 
     #[test]
     #[allow(clippy::expect_used, clippy::unwrap_used)]
     fn test_get_database_url_invalid_file() {
+        cleanup_test_environment();
         setup_test_environment();
+        // Ensure no DATABASE_URL environment variable is set
+        env::remove_var("DATABASE_URL");
         let result = get_database_url(Some(PathBuf::from("nonexistent_file.txt")));
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
             .contains("Failed to read database URL file"));
+        cleanup_test_environment();
     }
 
     #[test]
     #[allow(clippy::expect_used, clippy::unwrap_used)]
     fn test_get_database_url_invalid_format() {
+        cleanup_test_environment();
         setup_test_environment();
+        // Ensure no DATABASE_URL environment variable is set
+        env::remove_var("DATABASE_URL");
         // Create a temporary file with an invalid database URL
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, "invalid://url").expect("Failed to write to temp file");
@@ -571,12 +593,16 @@ mod tests {
         assert!(result
             .unwrap_err()
             .contains("Invalid database URL format in file"));
+        cleanup_test_environment();
     }
 
     #[test]
     #[allow(clippy::expect_used, clippy::unwrap_used)]
     fn test_get_database_url_empty_file() {
+        cleanup_test_environment();
         setup_test_environment();
+        // Ensure no DATABASE_URL environment variable is set
+        env::remove_var("DATABASE_URL");
         // Create a temporary file with empty content
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         fs::write(&temp_file, "").expect("Failed to write to temp file");
@@ -586,5 +612,6 @@ mod tests {
         assert!(result
             .unwrap_err()
             .contains("Invalid database URL format in file"));
+        cleanup_test_environment();
     }
 }

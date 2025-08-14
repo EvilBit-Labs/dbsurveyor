@@ -1,11 +1,12 @@
 {
   "extends": ["config:base"],
   "schedule": ["before 9am on Monday"],
+  "timezone": "UTC",
   "groupName": "all dependencies",
   "groupSlug": "all",
   "packageRules": [
     {
-      "matchDepTypes": ["devDependencies"],
+      "matchDepTypes": ["dev-dependencies", "build-dependencies"],
       "matchPackagePatterns": ["^cargo-", "clippy", "rustfmt", "cargo-nextest", "cargo-llvm-cov"],
       "automerge": true
     },
