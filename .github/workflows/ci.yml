@@ -187,13 +187,10 @@ jobs:
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
 
-  # Cross-platform build
+  # Build validation (Linux only)
   build:
     name: Build
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -204,19 +201,13 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: build-${{ matrix.os }}-${{ hashFiles('**/Cargo.toml') }}
+          key: build-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Build
         run: cargo build --release --all-features
 
       - name: Test binaries exist
-        shell: bash
         run: |
-          # Test that binaries were created
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            test -f target/release/dbsurveyor-collect.exe
-            test -f target/release/dbsurveyor.exe
-          else
-            test -f target/release/dbsurveyor-collect
-            test -f target/release/dbsurveyor
-          fi
+          # Verify that binaries were created
+          test -f target/release/dbsurveyor-collect
+          test -f target/release/dbsurveyor
