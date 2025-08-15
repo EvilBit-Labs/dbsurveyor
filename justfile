@@ -62,14 +62,22 @@ lint:
     @echo "✅ Rust Quality Gate passed - zero warnings enforced"
 
 # Run all linting and formatting checks
-check: format-check lint pre-commit pre-commit-run
+check: format-check lint pre-commit
     @echo "✅ All checks passed!"
+
+# Run all linting and formatting checks with pre-commit hooks
+check-full: format-check lint pre-commit pre-commit-run
+    @echo "✅ All checks with pre-commit hooks passed!"
 
 # Run pre-commit hooks manually
 pre-commit-run:
     @echo "🔄 Running pre-commit hooks..."
-    pre-commit run -a
-    @echo "✅ Pre-commit hooks passed!"
+    @if command -v pre-commit > /dev/null 2>&1; then \
+        pre-commit run -a; \
+        echo "✅ Pre-commit hooks passed!"; \
+    else \
+        echo "⚠️  pre-commit not installed, skipping hooks"; \
+    fi
 
 # Fix linting and formatting issues
 fix: format
