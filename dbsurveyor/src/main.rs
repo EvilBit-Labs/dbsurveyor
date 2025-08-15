@@ -549,7 +549,7 @@ mod tests {
             Err(PathValidationError::DirectoryTraversal { path }) => {
                 assert!(path.contains(".."));
             }
-            _ => panic!("Expected DirectoryTraversal error"),
+            _ => unreachable!("Expected DirectoryTraversal error"),
         }
     }
 
@@ -569,7 +569,7 @@ mod tests {
             Err(PathValidationError::OutsideBaseDirectory { path }) => {
                 assert!(path.contains("/etc/passwd"));
             }
-            _ => panic!("Expected OutsideBaseDirectory error"),
+            _ => unreachable!("Expected OutsideBaseDirectory error"),
         }
     }
 
@@ -589,7 +589,7 @@ mod tests {
             Err(PathValidationError::OutsideBaseDirectory { path }) => {
                 assert!(path.starts_with("/relative/path"));
             }
-            _ => panic!("Expected OutsideBaseDirectory error"),
+            _ => unreachable!("Expected OutsideBaseDirectory error"),
         }
     }
 
@@ -611,7 +611,7 @@ mod tests {
             Err(PathValidationError::OutsideBaseDirectory { path }) => {
                 assert!(!path.starts_with(&base_dir.to_string_lossy().to_string()));
             }
-            _ => panic!("Expected OutsideBaseDirectory error"),
+            _ => unreachable!("Expected OutsideBaseDirectory error"),
         }
     }
 
@@ -680,7 +680,7 @@ mod tests {
             Err(PathValidationError::DirectoryTraversal { .. }) => {
                 // Expected error
             }
-            _ => panic!("Expected DirectoryTraversal error"),
+            _ => unreachable!("Expected DirectoryTraversal error"),
         }
     }
 }
