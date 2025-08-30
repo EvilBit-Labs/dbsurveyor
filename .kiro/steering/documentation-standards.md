@@ -1,0 +1,417 @@
+---
+inclusion: always
+---
+
+# Documentation Standards for DBSurveyor
+
+## Documentation Philosophy
+
+- **Security-First Documentation**: Document security guarantees and constraints
+- **Offline-First**: All documentation must be available offline
+- **User-Centric**: Focus on operator and end-user needs
+- **Code-First**: Documentation should be generated from code where possible
+
+## Code Documentation Standards
+
+### Module Documentation
+
+```rust
+//! Database schema collection and analysis tool for PostgreSQL, MySQL, and SQLite.
+//!
+//! This module provides secure, offline-capable database introspection with
+//! military-grade encryption for sensitive data protection.
+//!
+//! # Security Guarantees
+//!
+//! - No credentials are stored or logged
+//! - All sensitive data is encrypted with AES-256-GCM
+//! - Offline operation prevents data exfiltration
+//! - Zero external network dependencies
+//!
+//! # Example
+//!
+//! ```rust
+//! use dbsurveyor_shared::collectors::PostgresCollector;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let collector = PostgresCollector::new("postgres://user:pass@localhost/db").await?;
+//! let schema = collector.collect_schema().await?;
+//! println!("Found {} tables", schema.tables.len());
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Architecture
+//!
+//! The module is organized into three main components:
+//! - **Collectors**: Database-specific schema extraction
+//! - **Models**: Unified data structures for all database types
+//! - **Encryption**: Security layer for sensitive data protection
+```
+
+### Function Documentation
+
+```rust
+/// Collects comprehensive database schema information securely.
+///
+/// This function performs deep introspection of the connected database,
+/// extracting tables, columns, indexes, constraints, and metadata while
+/// ensuring no sensitive information is logged or persisted insecurely.
+///
+/// # Security
+///
+/// - Connection credentials are never logged or stored
+/// - All collected data can be encrypted before persistence
+/// - Query execution is read-only and non-privileged
+///
+/// # Arguments
+///
+/// * `connection_pool` - Database connection pool with appropriate permissions
+/// * `include_system_tables` - Whether to include database system tables
+/// * `encryption_key` - Optional key for encrypting sensitive schema data
+///
+/// # Returns
+///
+/// Returns a `Result` containing:
+/// - `Ok(DatabaseSchema)` - Complete schema information
+/// - `Err(CollectorError)` - Database connection or permission errors
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Database connection fails or times out
+/// - Insufficient privileges to read schema information
+/// - Database contains unsupported features or extensions
+/// - Encryption key derivation fails (if encryption enabled)
+///
+/// # Example
+///
+/// ```rust
+/// use dbsurveyor_shared::collectors::collect_schema;
+/// use sqlx::PgPool;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let pool = PgPool::connect("postgres://localhost/mydb").await?;
+/// let schema = collect_schema(&pool, false, None).await?;
+///
+/// assert!(!schema.tables.is_empty());
+/// assert_eq!(schema.database_type, DatabaseType::PostgreSQL);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Performance
+///
+/// Schema collection time scales with database size:
+/// - Small databases (<100 tables): <1 second
+/// - Medium databases (100-1000 tables): 1-10 seconds
+/// - Large databases (>1000 tables): 10-60 seconds
+///
+/// Memory usage is proportional to schema complexity, typically 1-10MB per 1000 tables.
+pub async fn collect_schema(
+    connection_pool: &PgPool,
+    include_system_tables: bool,
+    encryption_key: Option<&EncryptionKey>,
+) -> Result<DatabaseSchema, CollectorError> {
+    // Implementation details...
+}
+```
+
+### Struct Documentation
+
+```rust
+/// Represents a complete database schema with all structural metadata.
+///
+/// This structure provides a unified representation of database schemas
+/// across PostgreSQL, MySQL, and SQLite, abstracting away database-specific
+/// differences while preserving all essential information.
+///
+/// # Security
+///
+/// - No connection credentials or sensitive data are stored
+/// - All fields can be serialized safely without data leakage
+/// - Supports encrypted serialization for additional protection
+///
+/// # Fields
+///
+/// * `database_name` - Name of the database (sanitized, no path info)
+/// * `database_type` - Database engine type (PostgreSQL, MySQL, SQLite)
+/// * `tables` - Complete table definitions with columns and metadata
+/// * `indexes` - All database indexes with performance characteristics
+/// * `constraints` - Foreign keys, check constraints, and unique constraints
+/// * `created_at` - Timestamp when schema was collected (UTC)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DatabaseSchema {
+    /// Database name (sanitized, no sensitive path information)
+    pub database_name: String,
+
+    /// Type of database engine
+    pub database_type: DatabaseType,
+
+    /// All tables in the database with complete metadata
+    pub tables: Vec<Table>,
+
+    /// All indexes with performance characteristics
+    pub indexes: Vec<Index>,
+
+    /// All constraints including foreign keys and check constraints
+    pub constraints: Vec<Constraint>,
+
+    /// UTC timestamp when schema was collected
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl DatabaseSchema {
+    /// Creates a new database schema with current timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `database_name` - Sanitized database name
+    /// * `database_type` - Database engine type
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use dbsurveyor_shared::models::{DatabaseSchema, DatabaseType};
+    ///
+    /// let schema = DatabaseSchema::new("production_db", DatabaseType::PostgreSQL);
+    /// assert_eq!(schema.database_name, "production_db");
+    /// assert!(schema.created_at <= chrono::Utc::now());
+    /// ```
+    pub fn new(database_name: String, database_type: DatabaseType) -> Self {
+        Self {
+            database_name,
+            database_type,
+            tables: Vec::new(),
+            indexes: Vec::new(),
+            constraints: Vec::new(),
+            created_at: chrono::Utc::now(),
+        }
+    }
+}
+```
+
+### Error Documentation
+
+```rust
+/// Errors that can occur during database schema collection.
+///
+/// This enum covers all possible error conditions that may arise when
+/// connecting to databases, executing introspection queries, or processing
+/// the resulting schema information.
+///
+/// # Security
+///
+/// Error messages are sanitized to prevent credential leakage:
+/// - Connection strings are redacted
+/// - Passwords and sensitive data are removed
+/// - Only necessary context is preserved for debugging
+#[derive(Debug, thiserror::Error)]
+pub enum CollectorError {
+    /// Database connection failed or was lost
+    ///
+    /// This error occurs when the database is unreachable, credentials
+    /// are invalid, or the connection times out. Connection strings are
+    /// automatically sanitized in error messages.
+    #[error("Database connection failed: {context}")]
+    ConnectionFailed {
+        /// Sanitized error context (no credentials)
+        context: String,
+    },
+
+    /// Insufficient database privileges for schema introspection
+    ///
+    /// The connected user lacks necessary permissions to read schema
+    /// information. This typically requires SELECT privileges on system
+    /// tables like information_schema or pg_catalog.
+    #[error("Insufficient privileges to read schema: {required_privileges}")]
+    InsufficientPrivileges {
+        /// Description of required privileges
+        required_privileges: String,
+    },
+
+    /// Database contains unsupported features or extensions
+    ///
+    /// Some databases may use features not yet supported by DBSurveyor,
+    /// such as custom data types, specific extensions, or non-standard
+    /// schema structures.
+    #[error("Unsupported database feature: {feature}")]
+    UnsupportedFeature {
+        /// Name of the unsupported feature
+        feature: String,
+    },
+}
+```
+
+## Project Documentation
+
+### README Structure
+
+```markdown
+# DBSurveyor
+
+> Secure, offline database schema documentation and analysis tool
+
+## Overview
+
+DBSurveyor is a security-first database introspection tool designed for offline environments. It extracts comprehensive schema information from PostgreSQL, MySQL, and SQLite databases while ensuring zero credential leakage and complete offline operation.
+
+## Key Features
+
+- 🔒 **Security-First**: Military-grade encryption, no credential logging
+- 📡 **Offline-Capable**: Zero external dependencies, airgap compatible
+- 🗄️ **Multi-Database**: PostgreSQL, MySQL, and SQLite support
+- 📊 **Rich Documentation**: Markdown, JSON, and encrypted output formats
+- ⚡ **High Performance**: Efficient schema collection and processing
+- 🛡️ **Zero Trust**: Minimal privileges, read-only operations
+
+## Quick Start
+
+### Installation
+
+```bash
+# Install from source
+git clone https://github.com/username/dbsurveyor.git
+cd dbsurveyor
+just install
+
+# Or download binary release
+curl -L https://github.com/username/dbsurveyor/releases/latest/download/dbsurveyor-linux-x86_64 -o dbsurveyor
+chmod +x dbsurveyor
+```
+
+### Basic Usage
+
+```bash
+# Collect PostgreSQL schema
+dbsurveyor postgres "postgres://user:pass@localhost/db" --output schema.md
+
+# MySQL with encryption
+dbsurveyor mysql "mysql://root:secret@localhost/db" --encrypt --output encrypted_schema.json
+
+# SQLite database
+dbsurveyor sqlite "/path/to/database.db" --output schema.md
+```
+
+## Security Guarantees
+
+- **No Credential Persistence**: Connection strings are never logged or stored
+- **Offline Operation**: Zero external network calls after connection
+- **Encrypted Storage**: AES-256-GCM encryption for sensitive data
+- **Minimal Privileges**: Read-only access to system tables only
+- **Sanitized Output**: All sensitive information stripped from output
+
+```
+
+## Documentation Generation
+
+### Commands for Documentation
+
+```bash
+# Generate documentation
+just docs
+
+# Generate documentation with private items
+cargo doc --all-features --document-private-items
+
+# Open documentation in browser
+cargo doc --open
+
+# Generate documentation for docs.rs
+DOCS_RS=1 cargo doc --all-features
+
+# Check documentation links
+cargo doc --all-features 2>&1 | grep -i warning
+
+# Generate coverage report for documentation
+cargo doc --all-features --verbose
+```
+
+### Documentation Testing
+
+```bash
+# Test all code examples in documentation
+cargo test --doc
+
+# Test specific module's documentation
+cargo test --doc --package dbsurveyor-shared
+
+# Test with all features enabled
+cargo test --doc --all-features
+```
+
+## Code Examples in Documentation
+
+### Library Usage Examples
+
+```rust
+//! # Examples
+//!
+//! ## Basic Schema Collection
+//!
+//! ```rust
+//! use dbsurveyor_shared::collectors::PostgresCollector;
+//! use tokio;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let collector = PostgresCollector::new(
+//!         "postgres://user:pass@localhost/db"
+//!     ).await?;
+//!
+//!     let schema = collector.collect_schema().await?;
+//!     println!("Database: {}", schema.database_name);
+//!     println!("Tables: {}", schema.tables.len());
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Encrypted Schema Storage
+//!
+//! ```rust
+//! use dbsurveyor_shared::{collectors::MySqlCollector, encryption::*};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Collect schema
+//!     let collector = MySqlCollector::new("mysql://root:pass@localhost/db").await?;
+//!     let schema = collector.collect_schema().await?;
+//!
+//!     // Serialize and encrypt
+//!     let schema_json = serde_json::to_vec(&schema)?;
+//!     let encrypted = encrypt_schema_data(&schema_json).await?;
+//!
+//!     // Save encrypted schema
+//!     std::fs::write("encrypted_schema.bin", encrypted.to_bytes())?;
+//!
+//!     Ok(())
+//! }
+//! ```
+```
+
+## Documentation Quality Standards
+
+### Documentation Requirements
+
+- **Comprehensive**: Document all public APIs and important internal functions
+- **Security-Focused**: Highlight security implications and guarantees
+- **Example-Rich**: Provide practical examples for all major features
+- **Error-Aware**: Document all possible error conditions
+- **Performance-Conscious**: Include performance characteristics where relevant
+
+### Documentation Style Guidelines
+
+- Use present tense ("returns" not "will return")
+- Be specific about error conditions and security implications
+- Include practical examples that can be compiled and run
+- Document security guarantees and constraints explicitly
+- Use consistent terminology throughout the codebase
+
+### Generated Documentation
+
+- All public APIs must have comprehensive rustdoc comments
+- Include examples that are tested with `cargo test --doc`
+- Use `#[doc(hidden)]` for internal APIs not meant for public use
+- Include performance notes for computationally expensive operations
+- Document security considerations for all functions handling sensitive data

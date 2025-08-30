@@ -1,13 +1,29 @@
-# Line length for text wrapping (keep = no wrapping)
-wrap = "keep"
-
-# End files with a newline
-end_of_line = "lf"
-
-# Exclude specific directories
+# Exclude patterns not supported in python earlier than 3.13
 exclude = [
-    "target/**",
-    "node_modules/**",
-    ".git/**",
-    "CHANGELOG.md"
+    "venv/**",
+    "**/node_modules/**",
+    "**/*.txt",
+    "**/*.mdc",
+    "**/*.tpl.md",
+    "**/CHANGELOG.md",
+    "rust_migration/index.md",
 ]
+validate = true
+number = true
+wrap = "keep"
+end_of_line = "lf"
+extensions = [
+    "gfm",
+    "frontmatter",
+    "footnote",
+    "simple_breaks",
+    "tables",
+    "gfm_alerts",
+    "toc",
+    "wikilink",
+]
+
+
+[plugin.mkdocs]
+align_semantic_breaks_in_lists = true
+ignore_missing_references = true

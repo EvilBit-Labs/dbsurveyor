@@ -518,9 +518,9 @@ tui = ["ratatui"]                                  # Optional TUI preview (out-o
 1. **Database Connection**: Connect using sqlx, tiberius, or mongodb drivers
 1. **Metadata Extraction**: Comprehensive schema and statistics collection
 1. **Output Generation**: Structured files with "format_version": "1.0"
-   - `.dbsurveyor.json`: Uncompressed JSON metadata
-   - `.dbsurveyor.json.zst`: Zstandard compressed JSON
-   - `.dbsurveyor.enc`: AES-GCM encrypted JSON with embedded KDF parameters
+    - `.dbsurveyor.json`: Uncompressed JSON metadata
+    - `.dbsurveyor.json.zst`: Zstandard compressed JSON
+    - `.dbsurveyor.enc`: AES-GCM encrypted JSON with embedded KDF parameters
 
 #### Processing Phase
 

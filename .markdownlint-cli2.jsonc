@@ -1,34 +1,49 @@
 {
-  // Markdownlint configuration for DBSurveyor
-  "config": {
-    // Line length - disabled for tables and code blocks
-    "MD013": false,
-    // Multiple consecutive blank lines - allow for readability
-    "MD012": false,
-    // Inline HTML - allow for advanced formatting
-    "MD033": false,
-    // Code fence style - require backticks
-    "MD046": {
-      "style": "fenced"
+    "config": {
+        "default": true,
+        // Line length enforcement: disabled for markdown (MD013: false)
+        // Rust uses 119 characters via rustfmt.toml
+        "heading-increment": true,
+        "ul-style": {
+            "style": "consistent"
+        },
+        "MD007": {
+            "indent": 2
+        },
+        "MD013": false,
+        "MD024": {
+            "siblings_only": true
+        },
+        "MD029": false,
+        "MD033": {
+            "allowed_elements": [
+                "span"
+            ]
+        },
+        "MD035": {
+            "style": "---"
+        },
+        "MD046": {
+            "style": "fenced"
+        },
+        "MD048": {
+            "style": "backtick"
+        },
+        "first-line-h1": false,
+        "fenced-code-language": true
     },
-    // Emphasis marker style - use asterisks
-    "MD049": {
-      "style": "asterisk"
-    },
-    // Strong marker style - use asterisks
-    "MD050": {
-      "style": "asterisk"
-    }
-  },
-  // Files to ignore
-  "ignores": [
-    "node_modules/**",
-    "target/**",
-    ".git/**",
-    "CHANGELOG.md"
-  ],
-  // Custom fixes
-  "fix": true,
-  // Show rule names in output
-  "showFoundFiles": false
+    "gitignore": true,
+    "fix": true,
+    "globs": [
+        "**/*.md"
+    ],
+    "ignores": [
+        "CHANGELOG.md",
+        ".venv/**",
+        "**/node_modules/**",
+        "**/__pycache__/**",
+        "**/*.tpl.md",
+        "docs/src/SUMMARY.md",
+        "docs/src/usage/output-formats.md"
+    ]
 }

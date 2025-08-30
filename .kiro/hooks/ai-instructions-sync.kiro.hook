@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "AI Instructions Sync",
+  "description": "Monitors changes to AI coding assistant instruction files (.github/copilot-instructions.md, WARP.md, AGENTS.md, GEMINI.md, .kiro/steering, .cursor/rules) and automatically updates other AI assistant files to capture the intent of the original modification while maintaining each file's tone and purpose",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      ".github/copilot-instructions.md",
+      "WARP.md",
+      "AGENTS.md",
+      "GEMINI.md",
+      ".kiro/steering/**",
+      ".cursor/rules/**"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "When an AI coding assistant instruction file is modified, follow this strict workflow:\n\n1. FIRST: Check if the diff contains a material (semantic) change. If not, respond with 'NO_CHANGE_DETECTED' and stop.\n\n2. IF MATERIAL CHANGE DETECTED: Analyze the change and produce a concise summary of intended edits:\n   - List each target file that will be modified\n   - Describe the specific changes to be made to each file\n   - Explain how the changes capture the original intent while preserving each file's tone and style\n   - Include the exact confirmation token required to proceed\n\n3. WAIT FOR CONFIRMATION: After providing the summary, you MUST wait for the exact confirmation token 'CONFIRM UPDATE' before proceeding. Do not make any changes until you receive this token.\n\n4. IF CONFIRMED: Only after receiving 'CONFIRM UPDATE', proceed with the updates:\n   - .github/copilot-instructions.md → Copilot-specific instructions  \n   - WARP.md → Warp terminal assistant  \n   - AGENTS.md → General agent guidance  \n   - GEMINI.md → Google Gemini-specific instructions  \n   - .kiro/steering → Kiro configuration  \n   - .cursor/rules → Cursor IDE rules  \n\n5. IF NOT CONFIRMED: If any response other than 'CONFIRM UPDATE' is received, abort with 'UPDATE_ABORTED' and log the proposed changes for review. Make no changes to any files.\n\nUpdate rules:  \n- Capture intent and meaning, not exact wording.  \n- Match the target file's native voice, structure, and formatting.  \n- Keep internal files organized; no redundant sections within the same assistant.  \n- Ensure equivalent coverage across assistants, adapted to their layout.  \n- Translate frontmatter or scoping rules into equivalent notations for each tool.  \n- If conflicts arise, prefer the newer change and resolve by clarifying scope.  \n- Make edits idempotent (repeatable without drift).  \n\nCRITICAL: Never proceed past the summary step until you receive the exact confirmation token 'CONFIRM UPDATE'. This confirmation step is mandatory and idempotent."
+  }
+}

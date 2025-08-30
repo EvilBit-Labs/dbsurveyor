@@ -19,10 +19,10 @@ Toolchain for surveying database servers, extracting schema and sample data, and
 
 - **NO CREDENTIALS IN OUTPUTS**: Database credentials never stored in output files
 - **AES-GCM ENCRYPTION**: Industry-standard authenticated encryption for sensitive outputs
-  - Random nonce generation for each encryption operation
-  - Embedded Key Derivation Function (KDF) parameters in encrypted files
-  - Authenticated headers prevent tampering and ensure data integrity
-  - 256-bit keys derived from user-provided passwords using PBKDF2/Argon2
+    - Random nonce generation for each encryption operation
+    - Embedded Key Derivation Function (KDF) parameters in encrypted files
+    - Authenticated headers prevent tampering and ensure data integrity
+    - 256-bit keys derived from user-provided passwords using PBKDF2/Argon2
 - **SENSITIVE DATA WARNINGS**: Explicit warnings about sensitive data in sample outputs
 - **CONFIGURABLE REDACTION**: Pattern-based redaction for PII, SSN, credit cards, etc.
 
@@ -54,10 +54,10 @@ WARNING: Sample data may contain sensitive information. Use `--redact-samples` f
 - **Rationale:** FOSSA integration requires organization-level GitHub App setup
 - **Duration:** Until FOSSA GitHub App is configured for the repository
 - **Compensating Controls:**
-  - Manual license review via cargo-deny.toml configuration
-  - Pre-commit license validation hooks
-  - Regular dependency auditing with cargo-audit
-  - License information included in generated SBOMs
+    - Manual license review via cargo-deny.toml configuration
+    - Pre-commit license validation hooks
+    - Regular dependency auditing with cargo-audit
+    - License information included in generated SBOMs
 - **Tracking:** Will be resolved once FOSSA GitHub App is installed
 
 ### Migration Status
