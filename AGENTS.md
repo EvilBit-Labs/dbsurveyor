@@ -71,9 +71,9 @@ The preferred technology stack is consistent across the project:
 ### Commit Messages
 
 - **Conventional Commits**: All commit messages must adhere to the [Conventional Commits](https://www.conventionalcommits.org) specification
-  - **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`
-  - **Scopes**: `(collector)`, `(processor)`, `(shared)`, `(security)`, `(cli)`, etc.
-  - **Breaking Changes**: Indicated with `!` in the header or `BREAKING CHANGE:` in the footer
+    - **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`
+    - **Scopes**: `(collector)`, `(processor)`, `(shared)`, `(security)`, `(cli)`, etc.
+    - **Breaking Changes**: Indicated with `!` in the header or `BREAKING CHANGE:` in the footer
 
 ## 5. Security Requirements
 

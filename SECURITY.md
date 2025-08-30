@@ -25,10 +25,10 @@ This document provides comprehensive security guarantees for the dbsurveyor proj
 
 - [x] **NO CREDENTIALS IN OUTPUTS**: Database credentials never appear in output files, logs, or debug information
 - [x] **AES-GCM ENCRYPTION**: Industry-standard authenticated encryption for sensitive outputs
-  - Random nonce generation for each encryption operation
-  - Embedded Key Derivation Function (KDF) parameters using Argon2
-  - Authenticated headers prevent tampering and ensure data integrity
-  - 256-bit keys with configurable iteration counts for future-proofing
+    - Random nonce generation for each encryption operation
+    - Embedded Key Derivation Function (KDF) parameters using Argon2
+    - Authenticated headers prevent tampering and ensure data integrity
+    - 256-bit keys with configurable iteration counts for future-proofing
 - [x] **SENSITIVE DATA WARNINGS**: Explicit warnings about sensitive data in sample outputs
 - [x] **CONFIGURABLE REDACTION**: Pattern-based redaction for PII, SSN, credit cards, etc.
 
@@ -188,55 +188,55 @@ These parameters provide strong resistance against:
 
 1. **Credential Security Tests**
 
-   ```bash
-   just test-credential-security
-   ```
+    ```bash
+    just test-credential-security
+    ```
 
-   Verifies no credentials appear in any output files or logs.
+    Verifies no credentials appear in any output files or logs.
 
 1. **Encryption Security Tests**
 
-   ```bash
-   just test-encryption
-   ```
+    ```bash
+    just test-encryption
+    ```
 
-   Validates AES-GCM implementation with random nonce generation.
+    Validates AES-GCM implementation with random nonce generation.
 
 1. **Offline Operation Tests**
 
-   ```bash
-   just test-offline
-   ```
+    ```bash
+    just test-offline
+    ```
 
-   Confirms zero network calls during operation.
+    Confirms zero network calls during operation.
 
 1. **Full Security Suite**
 
-   ```bash
-   just security-full
-   ```
+    ```bash
+    just security-full
+    ```
 
-   Runs complete security validation including external tools.
+    Runs complete security validation including external tools.
 
 ### Manual Security Verification
 
 1. **Network Isolation Test**
 
-   - Disconnect network interface
-   - Run dbsurveyor operations
-   - Verify successful operation without connectivity
+    - Disconnect network interface
+    - Run dbsurveyor operations
+    - Verify successful operation without connectivity
 
 1. **Output Analysis**
 
-   - Generate various output formats
-   - Search for credential patterns using regex
-   - Verify redaction is working correctly
+    - Generate various output formats
+    - Search for credential patterns using regex
+    - Verify redaction is working correctly
 
 1. **Encryption Verification**
 
-   - Encrypt output with known password
-   - Decrypt and verify integrity
-   - Confirm nonce uniqueness across operations
+    - Encrypt output with known password
+    - Decrypt and verify integrity
+    - Confirm nonce uniqueness across operations
 
 ## Security Incident Response
 
@@ -308,9 +308,9 @@ The RSA crate v0.9.8 used by SQLx for MySQL connections contains a vulnerability
 1. Explicitly enable MySQL feature: `cargo build --features mysql`
 1. **Security Recommendation**: Use PostgreSQL or SQLite instead when possible
 1. If MySQL is required, ensure connections use:
-   - Strong network security (VPN, private networks)
-   - Regular key rotation
-   - Monitoring for timing attacks
+    - Strong network security (VPN, private networks)
+    - Regular key rotation
+    - Monitoring for timing attacks
 
 #### Alternative Solutions
 
