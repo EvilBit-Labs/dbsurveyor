@@ -2,8 +2,7 @@
 name: Bug Report
 about: Create a report to help us improve DBSurveyor
 title: '[BUG] '
-labels: [bug, needs-triage]
-assignees: [unclesp1d3r]
+labels: [bug]
 ---
 
 ## Bug Description

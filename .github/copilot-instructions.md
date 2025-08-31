@@ -16,20 +16,21 @@ DBSurveyor is a security-focused database documentation tool written in Rust tha
 1. **OFFLINE-ONLY OPERATION**: No network calls except to target databases for schema collection
 2. **NO TELEMETRY**: Zero data collection or external reporting mechanisms
 3. **CREDENTIAL PROTECTION**: Database credentials never appear in any output files, logs, or artifacts
-4. **ENCRYPTION**: AES-GCM with random nonce, embedded KDF params, authenticated headers
+4. **ENCRYPTION**: AES-GCM with random nonce, Argon2id KDF (min 64MB memory, 3 iterations, 4 parallelism), embedded deterministic test vectors, authenticated headers
 5. **AIRGAP COMPATIBILITY**: Full functionality in air-gapped environments
+6. **NO HTTP(S) EGRESS**: No HTTP(S) egress in CI/tests except to approved DB targets
 
 ## Technology Stack
 
-| Layer             | Technology                               | Notes                                       |
-| ----------------- | ---------------------------------------- | ------------------------------------------- |
-| **Language**      | Rust 2021 Edition                        | Modern Rust with idiomatic patterns         |
-| **CLI**           | Clap v4 with derive macros               | Clean, user-friendly command-line interface |
-| **Async Runtime** | Tokio                                    | For async database operations               |
-| **Database**      | SQLx with async drivers                  | Type-safe database access                   |
-| **Serialization** | Serde with JSON support                  | Data interchange and file I/O               |
-| **Encryption**    | AES-GCM with random nonce                | Secure data at rest                         |
-| **Testing**       | Built-in test framework + testcontainers | Unit and integration testing                |
+| Layer             | Technology                               | Notes                                               |
+| ----------------- | ---------------------------------------- | --------------------------------------------------- |
+| **Language**      | Rust 2021 Edition                        | Modern Rust with idiomatic patterns                 |
+| **CLI**           | Clap v4 with derive macros               | Clean, user-friendly command-line interface         |
+| **Async Runtime** | Tokio                                    | For async database operations                       |
+| **Database**      | SQLx with async drivers                  | Type-safe database access                           |
+| **Serialization** | Serde with JSON support                  | Data interchange and file I/O                       |
+| **Encryption**    | AES-GCM with Argon2id KDF                | Secure data at rest with deterministic test vectors |
+| **Testing**       | Built-in test framework + testcontainers | Unit and integration testing                        |
 
 ## Rust Coding Standards
 
@@ -200,8 +201,9 @@ mod tests {
 1. **No Network Access**: Except to target databases for schema collection
 2. **No Telemetry**: Zero external data collection or reporting
 3. **Credential Security**: Database credentials never stored, logged, or output
-4. **Encryption**: Proper AES-GCM implementation with random nonces
+4. **Encryption**: Proper AES-GCM implementation with Argon2id KDF (min 64MB memory, 3 iterations, 4 parallelism) and deterministic test vectors
 5. **Offline Ready**: Full functionality in air-gapped environments
+6. **No HTTP(S) Egress**: No HTTP(S) egress in CI/tests except to approved DB targets
 
 ### Security Testing
 

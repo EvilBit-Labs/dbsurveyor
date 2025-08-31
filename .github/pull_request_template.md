@@ -34,6 +34,7 @@ Brief description of changes made and why they are needed.
 - [ ] Input validation and sanitization implemented
 - [ ] Error messages are sanitized (no credential exposure)
 - [ ] Offline operation capability maintained
+- [ ] No telemetry added
 
 ## Testing
 

@@ -48,16 +48,19 @@ The release process is fully automated through GitHub Actions:
    ```
 
 2. **Create GitHub Tap Repository**:
+
    - Repository: `EvilBit-Labs/homebrew-tap`
    - Purpose: Host Homebrew formula
    - Access: Public repository for formula distribution
 
 3. **Update Release Workflow**:
+
    - Add Homebrew formula generation step
    - Configure formula metadata and dependencies
    - Set up automated formula publishing
 
 4. **Formula Configuration**:
+
    - Define dependencies and requirements
    - Configure installation paths and permissions
    - Set up proper versioning and updates
@@ -75,14 +78,15 @@ The release process is fully automated through GitHub Actions:
    Add to `.github/workflows/release.yml`:
 
    ```yaml
-   - name: Generate Homebrew Formula
-     if: matrix.target == 'x86_64-apple-darwin'  # Only for macOS x86_64
-     run: |
-       cargo dist generate-homebrew-formula
-       # Copy formula to tap repository
+     - name: Generate Homebrew Formula
+       if: matrix.target == 'x86_64-apple-darwin' # Only for macOS x86_64
+       run: |
+         cargo dist generate-homebrew-formula
+         # Copy formula to tap repository
    ```
 
 3. **Configure Formula Metadata**:
+
    - Package name: `dbsurveyor`
    - Description: "Secure database schema documentation tool"
    - Homepage: Project repository URL
