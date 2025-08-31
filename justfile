@@ -330,7 +330,9 @@ sbom:
     fi
     ~/.local/bin/syft dir:. -o json > sbom.json
     ~/.local/bin/syft dir:. -o spdx-json > sbom.spdx.json
-    @echo "✅ SBOM generated: sbom.json, sbom.spdx.json"
+    @echo "📋 Generating SBOM provenance metadata..."
+    @./scripts/generate-sbom-metadata.sh
+    @echo "✅ SBOM generated: sbom.json, sbom.spdx.json, sbom.metadata.json"
 
 # Simulate release process without publishing (required by standard)
 release-dry:
@@ -355,12 +357,16 @@ install-tools:
     @if ! command -v cargo-llvm-cov > /dev/null 2>&1; then \
         cargo install cargo-llvm-cov; \
     fi
+    @if ! command -v just > /dev/null 2>&1; then \
+        echo "Installing just task runner..."; \
+        cargo install --locked just; \
+    fi
     @echo "✅ Rust tools installed"
 
 # Run dependency audit
 audit:
     @echo "📊 Auditing dependencies for security vulnerabilities..."
-    @echo "🔍 Ignoring whitelisted RUSTSEC-2023-0071 (RSA vulnerability, see SECURITY.md)"
+    @echo "🔍 Ignoring RUSTSEC-2023-0071 (RSA vulnerability) - See SECURITY.md for rationale and mitigation details"
     cargo audit --ignore RUSTSEC-2023-0071
     @echo "✅ Dependency audit complete"
 
@@ -376,7 +382,7 @@ check-advisories:
 clean:
     @echo "🧹 Cleaning build artifacts (security: removing any cached sensitive data)..."
     cargo clean
-    rm -f sbom.json sbom.spdx.json grype-report.json lcov.info
+    rm -f sbom.json sbom.spdx.json sbom.metadata.json grype-report.json lcov.info
     @echo "✅ Clean complete - no sensitive data in cache"
 
 # Update dependencies
