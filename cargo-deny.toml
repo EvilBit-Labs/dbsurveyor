@@ -17,11 +17,14 @@ targets = [
 [advisories]
 # Security Control: Vulnerability scanning per Pipeline Standard
 version = 2
-yanked = "deny"                      # Deny yanked crates
+yanked = "deny" # Deny yanked crates
 ignore = [
     # Add specific advisory IDs here if needed for temporary exceptions
     # Example: "RUSTSEC-2023-0001"
-    "RUSTSEC-2023-0071",  # RSA Marvin Attack - no fix available yet
+    # TODO: Review RUSTSEC-2023-0071 by 2025-06-19 - Check if SQLx has updated RSA crate or alternative TLS implementation
+    # TASK: Create follow-up task to re-evaluate this advisory by the review date
+    # Current status: MySQL feature disabled by default, PostgreSQL/SQLite recommended
+    "RUSTSEC-2023-0071", # RSA Marvin Attack - MySQL support disabled by default as mitigation
 ]
 
 [licenses]
@@ -44,9 +47,9 @@ name = "unicode-ident"
 
 [bans]
 # Security Control: Dependency banning for security reasons
-multiple-versions = "warn"  # Warn about multiple versions (supply chain bloat)
-wildcards = "deny"          # Deny wildcard versions (security risk)
-highlight = "all"           # Highlight all issues
+multiple-versions = "warn" # Warn about multiple versions (supply chain bloat)
+wildcards = "deny"         # Deny wildcard versions (security risk)
+highlight = "all"          # Highlight all issues
 
 # Security: Ban known problematic crates
 deny = [
@@ -85,18 +88,18 @@ skip = [
 
 # Skip files/directories from being scanned
 skip-tree = [
-    "target",        # Skip build artifacts
-    ".git",          # Skip git metadata
-    "docs",          # Skip documentation
+    "target", # Skip build artifacts
+    ".git",   # Skip git metadata
+    "docs",   # Skip documentation
 ]
 
 [sources]
 # Security Control: Source validation per Pipeline Standard
-unknown-registry = "deny"       # Only allow known registries
-unknown-git = "deny"           # Only allow known git sources
+unknown-registry = "deny" # Only allow known registries
+unknown-git = "deny"      # Only allow known git sources
 
 allow-registry = [
-    "https://github.com/rust-lang/crates.io-index"  # Only official crates.io
+    "https://github.com/rust-lang/crates.io-index", # Only official crates.io
 ]
 
 allow-git = [
