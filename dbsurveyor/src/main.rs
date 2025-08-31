@@ -547,6 +547,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unwrap_used)]
     fn test_command_factory_create_process_command() {
         let temp_dir = tempdir().unwrap();
         let test_file = temp_dir.path().join("test.json");
@@ -568,6 +569,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
     fn test_command_factory_no_command() {
         let cli = Cli { command: None };
 
@@ -583,6 +585,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unwrap_used)]
     fn test_process_command_executor() {
         let temp_dir = tempdir().unwrap();
         let test_file = temp_dir.path().join("test.json");
