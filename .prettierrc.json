@@ -9,7 +9,7 @@
   "trailingComma": "es5",
   "bracketSpacing": true,
   "bracketSameLine": false,
-  "arrowParens": "avoid",
+  "arrowParens": "always",
   "endOfLine": "lf",
   "insertPragma": false,
   "requirePragma": false,
@@ -31,16 +31,6 @@
         "*.json"
       ],
       "options": {
-        "tabWidth": 2
-      }
-    },
-    {
-      "files": [
-        "*.md"
-      ],
-      "options": {
-        "printWidth": 119,
-        "proseWrap": "preserve",
         "tabWidth": 2
       }
     }
