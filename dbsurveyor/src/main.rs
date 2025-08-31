@@ -47,6 +47,87 @@ pub enum OutputFormat {
     Sql,
 }
 
+/// Command executor trait for implementing the command pattern
+pub trait CommandExecutor: std::fmt::Debug {
+    /// Execute the command and return a result message
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Input file validation fails
+    /// - Output path validation fails
+    /// - Processing operation fails
+    fn execute(&self) -> Result<String, ExecuteError>;
+}
+
+/// Process command implementation
+#[derive(Debug)]
+pub struct ProcessCommand {
+    input: PathBuf,
+    #[allow(dead_code)] // Will be used when processing functionality is implemented
+    format: OutputFormat,
+    output: Option<PathBuf>,
+}
+
+impl ProcessCommand {
+    /// Create a new process command
+    #[must_use]
+    pub const fn new(input: PathBuf, format: OutputFormat, output: Option<PathBuf>) -> Self {
+        Self {
+            input,
+            format,
+            output,
+        }
+    }
+}
+
+impl CommandExecutor for ProcessCommand {
+    fn execute(&self) -> Result<String, ExecuteError> {
+        // Validate input file exists and is readable
+        check_input_file_readable(&self.input)?;
+
+        // Validate output path is writable if specified
+        if let Some(output_path) = &self.output {
+            check_output_path_writable(output_path)?;
+        }
+
+        let version = env!("CARGO_PKG_VERSION");
+        Ok(format!(
+            "dbsurveyor v{version}\nDatabase survey postprocessing and documentation tool\n✅ Input file validated: {}\n✅ Output path validated: {}\n⚠️  Processing functionality will be implemented in future tasks",
+            self.input.display(),
+            self.output.as_ref().map_or_else(|| std::path::Path::new("stdout").display(), |p| p.display())
+        ))
+    }
+}
+
+/// Command factory for creating command executors
+pub struct CommandFactory;
+
+impl CommandFactory {
+    /// Create a command executor from CLI arguments
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - No command is specified in the CLI arguments
+    /// - The specified command is not supported
+    pub fn create_command(cli: &Cli) -> Result<Box<dyn CommandExecutor>, ExecuteError> {
+        match &cli.command {
+            Some(Commands::Process {
+                input,
+                format,
+                output,
+            }) => {
+                let command = ProcessCommand::new(input.clone(), format.clone(), output.clone());
+                Ok(Box::new(command))
+            }
+            None => Err(ExecuteError::InvalidCommand {
+                message: "No command specified".to_string(),
+            }),
+        }
+    }
+}
+
 /// Security validation error types
 #[derive(Debug, thiserror::Error)]
 pub enum PathValidationError {
@@ -271,13 +352,6 @@ pub fn validate_cli_paths(cli: &Cli) -> Result<Cli, PathValidationError> {
     }
 }
 
-/// Execute the CLI command with the given arguments
-///
-/// # Arguments
-///
-/// * `cli` - The parsed CLI arguments
-///
-/// # Returns
 /// Check if a file exists and is readable
 ///
 /// # Arguments
@@ -373,7 +447,7 @@ fn check_output_path_writable(path: &Path) -> Result<(), ExecuteError> {
     Ok(())
 }
 
-/// Execute CLI commands with robust error handling
+/// Execute CLI commands using the command pattern
 ///
 /// # Arguments
 ///
@@ -386,38 +460,21 @@ fn check_output_path_writable(path: &Path) -> Result<(), ExecuteError> {
 /// # Errors
 ///
 /// This function will return an error if:
-/// - Input file does not exist or is not readable
-/// - Output path is not writable
-/// - Processing operation fails
-/// - Invalid command or arguments are provided
+/// - No command is specified
+/// - Command creation fails
+/// - Command execution fails
 pub fn execute_cli(cli: &Cli) -> Result<String, ExecuteError> {
-    match cli.command {
-        Some(Commands::Process {
-            ref input,
-            format: _,
-            ref output,
-        }) => {
-            // Validate input file exists and is readable
-            check_input_file_readable(input)?;
+    if cli.command.is_some() {
+        // Create command executor using factory
+        let command = CommandFactory::create_command(cli)?;
 
-            // Validate output path is writable if specified
-            if let Some(output_path) = output {
-                check_output_path_writable(output_path)?;
-            }
-
-            let version = env!("CARGO_PKG_VERSION");
-            Ok(format!(
-                "dbsurveyor v{version}\nDatabase survey postprocessing and documentation tool\n✅ Input file validated: {}\n✅ Output path validated: {}\n⚠️  Processing functionality will be implemented in future tasks",
-                input.display(),
-                output.as_ref().map_or_else(|| std::path::Path::new("stdout").display(), |p| p.display())
-            ))
-        }
-        None => {
-            let version = env!("CARGO_PKG_VERSION");
-            Ok(format!(
-                "dbsurveyor v{version}\nDatabase survey postprocessing and documentation tool\nUse --help for available commands"
-            ))
-        }
+        // Execute the command
+        command.execute()
+    } else {
+        let version = env!("CARGO_PKG_VERSION");
+        Ok(format!(
+            "dbsurveyor v{version}\nDatabase survey postprocessing and documentation tool\nUse --help for available commands"
+        ))
     }
 }
 
@@ -486,6 +543,64 @@ mod tests {
             assert!(output.contains("dbsurveyor v"));
             assert!(output.contains("Database survey postprocessing and documentation tool"));
             assert!(output.contains("Processing functionality will be implemented in future tasks"));
+        }
+    }
+
+    #[test]
+    fn test_command_factory_create_process_command() {
+        let temp_dir = tempdir().unwrap();
+        let test_file = temp_dir.path().join("test.json");
+        fs::write(&test_file, "test content").unwrap();
+
+        let cli = Cli {
+            command: Some(Commands::Process {
+                input: test_file,
+                format: OutputFormat::Json,
+                output: None,
+            }),
+        };
+
+        let command = CommandFactory::create_command(&cli);
+        assert!(command.is_ok());
+
+        let result = command.unwrap().execute();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_command_factory_no_command() {
+        let cli = Cli { command: None };
+
+        let command = CommandFactory::create_command(&cli);
+        assert!(command.is_err());
+
+        match command.unwrap_err() {
+            ExecuteError::InvalidCommand { message } => {
+                assert_eq!(message, "No command specified");
+            }
+            _ => panic!("Expected InvalidCommand error"),
+        }
+    }
+
+    #[test]
+    fn test_process_command_executor() {
+        let temp_dir = tempdir().unwrap();
+        let test_file = temp_dir.path().join("test.json");
+        fs::write(&test_file, "test content").unwrap();
+
+        let command = ProcessCommand::new(
+            test_file,
+            OutputFormat::Markdown,
+            Some(temp_dir.path().join("output.md")),
+        );
+
+        let result = command.execute();
+        assert!(result.is_ok());
+
+        if let Ok(output) = result {
+            assert!(output.contains("dbsurveyor v"));
+            assert!(output.contains("Input file validated"));
+            assert!(output.contains("Output path validated"));
         }
     }
 
