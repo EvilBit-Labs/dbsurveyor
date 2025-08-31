@@ -6,7 +6,6 @@
   "when": {
     "type": "fileEdited",
     "patterns": [
-      "**/*.md",
       "**/*.rs",
       "**/*.toml",
       "**/*.yaml",
