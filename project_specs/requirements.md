@@ -585,8 +585,9 @@ None identified. This project fully complies with all applicable EvilBit Labs st
 | **Related Documents** | [user_stories.md](user_stories.md) - Comprehensive user stories with requirement mappings<br/>[tasks.md](tasks.md) - Detailed implementation tasks with acceptance criteria |
 | **Repository**        | dbsurveyor                                                                                                                                                                  |
 | **Branch**            | main                                                                                                                                                                        |
-| **Commit SHA**        | TBD                                                                                                                                                                         |
-| **Last Modified**     | 2025-08-12 (Updated to align with ~/Documents/Business Stuff/EvilBit Labs/Product Plans/dbsurveyor/dbsurveyor_requirements.md)                                              |
+| **Commit SHA**        | 2025-08-28 (Updated to align with dbsurveyor_requirements.md)                                              |
+| **Last Modified**     | 2025-08-28 (Updated to align with dbsurveyor_requirements.md)                                              |
+| **Change Rationale**  | Updated requirements to align with business requirements document and ensure consistency with project specifications                                                                                    |
 
 ---
 
