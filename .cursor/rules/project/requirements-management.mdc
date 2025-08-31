@@ -23,11 +23,11 @@ The `project_spec/` directory contains three essential documents that work toget
   - Includes document metadata for version control and change tracking
   - This document is the source of truth for the project and should be updated as the project evolves
   - Requirements should be written using **EARS notation** (Easy Approach to Requirements Syntax)
-    - **Ubiquitous**: Always-occurring fundamental system properties (e.g., "The software shall be written in Go")
-    - **Event-driven**: Triggered by specific events (e.g., "When the convert command is executed, then the system shall parse the XML file")
-    - **Unwanted behaviors**: Error handling and failure management (e.g., "If the XML file is invalid, then the system shall display an error message")
-    - **State-driven**: Behavior while in specific states (e.g., "When in validation mode, then the system shall check all configuration elements")
-    - **Optional features**: Conditional functionality (e.g., "Where audit plugins are enabled, then the system shall run compliance checks")
+    - **Ubiquitous**: Always-occurring fundamental system properties (e.g., "The software shall be written in Rust using Cargo for dependency management")
+    - **Event-driven**: Triggered by specific events (e.g., "When the collect command is executed, then the system shall establish a database connection and extract schema metadata")
+    - **Unwanted behaviors**: Error handling and failure management (e.g., "If the database connection fails, then the system shall display a sanitized error message without exposing credentials")
+    - **State-driven**: Behavior while in specific states (e.g., "When in read-only mode, then the system shall enforce read-only database operations and reject any write attempts")
+    - **Optional features**: Conditional functionality (e.g., "Where encryption is enabled, then the system shall encrypt all schema data using AES-GCM with random nonce")
 
 - **[tasks.md](project_spec/tasks.md)** - **Detailed implementation plan**
   - Breaks down requirements into discrete, trackable tasks and sub-tasks
@@ -208,6 +208,8 @@ grep -n "TASK-" project_spec/tasks.md | wc -l
 ## Requirement Traceability
 
 ### Traceability Matrix
+
+alwaysApply: true
 
 - **Requirements to Tasks**: Every requirement must have corresponding implementation tasks
 - **Requirements to User Stories**: Link requirements to user stories that drive them
