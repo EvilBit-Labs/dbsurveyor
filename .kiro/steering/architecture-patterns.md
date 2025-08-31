@@ -5,431 +5,147 @@ inclusion: always
 
 # Architecture Patterns for DBSurveyor
 
-## Core Architecture Philosophy
+## Core Principles
 
-DBSurveyor follows three fundamental principles:
+DBSurveyor follows these non-negotiable architectural principles:
 
 1. **Security-First**: Every design decision prioritizes security and privacy
-2. **Offline-Capable**: Zero external dependencies after database connection
-3. **Database-Agnostic**: Unified interface across PostgreSQL, MySQL, and SQLite
+2. **Offline-Capable**: Zero external dependencies after database connection  
+3. **Database-Agnostic**: Unified interface across all supported databases
 
-## High-Level Architecture
+## Workspace Structure
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                          DBSurveyor                            │
-│                                                                 │
-│  ┌─────────────┐    ┌──────────────────┐    ┌─────────────────┐ │
-│  │     CLI     │───▶│  Schema Collector │───▶│ Output Generator│ │
-│  │             │    │                  │    │                 │ │
-│  │ • Args      │    │ • PostgreSQL     │    │ • Markdown      │ │
-│  │ • Config    │    │ • MySQL          │    │ • JSON          │ │
-│  │ • Security  │    │ • SQLite         │    │ • Encrypted     │ │
-│  └─────────────┘    └──────────────────┘    └─────────────────┘ │
-│                                │                                │
-│                                ▼                                │
-│                     ┌──────────────────┐                       │
-│                     │  Security Layer   │                       │
-│                     │                  │                       │
-│                     │ • Encryption     │                       │
-│                     │ • Sanitization   │                       │
-│                     │ • Access Control │                       │
-│                     └──────────────────┘                       │
-└─────────────────────────────────────────────────────────────────┘
-```
+DBSurveyor uses a multi-crate workspace with clear separation of concerns:
 
-## Module Organization
+- **`dbsurveyor-collect/`**: Database collection binary (CLI + collectors)
+- **`dbsurveyor/`**: Postprocessor binary (report generation)  
+- **`dbsurveyor-core/`**: Shared library (models, encryption, utilities)
 
-### Crate Structure
+## Required Design Patterns
 
-```text
-dbsurveyor/
-├── Cargo.toml                 # Workspace configuration
-├── dbsurveyor-collect/        # Database collection binary
-│   ├── src/
-│   │   ├── main.rs           # CLI entry point
-│   │   ├── collectors/       # Database-specific collectors
-│   │   └── config.rs         # Configuration management
-│   └── Cargo.toml
-├── dbsurveyor/               # Postprocessor binary
-│   ├── src/
-│   │   ├── main.rs           # Report generation entry
-│   │   ├── output/           # Documentation generators
-│   │   └── templates/        # Output templates
-│   └── Cargo.toml
-└── dbsurveyor-core/          # Shared library
-    ├── src/
-    │   ├── lib.rs            # Public API exports
-    │   ├── models/           # Data structures
-    │   ├── encryption/       # Security and encryption
-    │   └── error.rs          # Error types
-    └── Cargo.toml
-```
+### Repository Pattern (REQUIRED)
 
-## Design Patterns
-
-### Repository Pattern
-
-Database access abstraction layer:
+Use for all database access with this trait structure:
 
 ```rust
 #[async_trait]
 pub trait SchemaCollector {
     type Error: std::error::Error + Send + Sync + 'static;
-
-    async fn new(connection_string: &str) -> Result<Self, Self::Error>
-    where
-        Self: Sized;
-
+    
+    async fn new(connection_string: &str) -> Result<Self, Self::Error> where Self: Sized;
     async fn collect_schema(&self) -> Result<DatabaseSchema, Self::Error>;
-
     async fn test_connection(&self) -> Result<(), Self::Error>;
-
-    async fn get_metadata(&self) -> Result<DatabaseMetadata, Self::Error>;
 }
 ```
 
-### Service Pattern
+### Factory Pattern (REQUIRED)
 
-Business logic encapsulation:
+Use for database-specific collector instantiation:
 
 ```rust
-pub struct SchemaService {
-    collector: Box<dyn SchemaCollector>,
-    config: ServiceConfig,
-}
-
-impl SchemaService {
-    pub async fn collect_and_process(&self) -> Result<ProcessedSchema> {
-        let raw_schema = self.collector.collect_schema().await?;
-        let processed = self.process_schema(raw_schema)?;
-        Ok(processed)
-    }
-
-    fn process_schema(&self, schema: DatabaseSchema) -> Result<ProcessedSchema> {
-        // Business logic for schema processing
-    }
-}
+pub async fn create_collector(
+    database_type: DatabaseType,
+    connection_string: &str,
+) -> Result<Box<dyn SchemaCollector>>
 ```
 
-### Factory Pattern
+### Command Pattern (REQUIRED)
 
-Database driver instantiation:
-
-```rust
-pub struct CollectorFactory;
-
-impl CollectorFactory {
-    pub async fn create_collector(
-        database_type: DatabaseType,
-        connection_string: &str,
-    ) -> Result<Box<dyn SchemaCollector>> {
-        match database_type {
-            DatabaseType::PostgreSQL => {
-                Ok(Box::new(PostgresCollector::new(connection_string).await?))
-            }
-            DatabaseType::MySQL => {
-                Ok(Box::new(MySqlCollector::new(connection_string).await?))
-            }
-            DatabaseType::SQLite => {
-                Ok(Box::new(SqliteCollector::new(connection_string).await?))
-            }
-        }
-    }
-}
-```
-
-### Command Pattern
-
-CLI command organization:
+Use clap derive macros for CLI structure:
 
 ```rust
-use clap::{Parser, Subcommand};
-
 #[derive(Parser)]
-#[command(name = "dbsurveyor")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
 }
-
-#[derive(Subcommand)]
-pub enum Commands {
-    Collect(CollectCommand),
-    Process(ProcessCommand),
-    Encrypt(EncryptCommand),
-}
-
-#[derive(Parser)]
-pub struct CollectCommand {
-    #[arg(long)]
-    pub database_url: String,
-    
-    #[arg(long)]
-    pub output: PathBuf,
-    
-    #[arg(long)]
-    pub encrypt: bool,
-}
 ```
 
-## Data Flow Architecture
+## Data Flow Requirements
 
-### Schema Collection Pipeline
+### Collection Pipeline (MANDATORY STEPS)
 
-```text
-1. Connection Establishment
-   ┌─────────────────────┐
-   │ Connection String   │ → Sanitize credentials
-   │ "postgres://..."    │   Remove from logs/errors
-   └─────────────────────┘
-            │
-            ▼
-2. Database Introspection
-   ┌─────────────────────┐
-   │ System Tables       │ → Read-only queries
-   │ information_schema  │   Minimal privileges
-   │ pg_catalog, etc.    │   Timeout protection
-   └─────────────────────┘
-            │
-            ▼
-3. Schema Processing
-   ┌─────────────────────┐
-   │ Raw Schema Data     │ → Normalize structure
-   │ Tables, columns     │   Validate data types
-   │ Indexes, constraints│   Calculate metadata
-   └─────────────────────┘
-            │
-            ▼
-4. Security Layer
-   ┌─────────────────────┐
-   │ Unified Schema      │ → Optional encryption
-   │ DatabaseSchema      │   Credential sanitization
-   │ struct              │   Access control
-   └─────────────────────┘
-            │
-            ▼
-5. Output Generation
-   ┌─────────────────────┐
-   │ Documentation       │ → Multiple formats
-   │ Markdown, JSON      │   Template-based
-   │ Encrypted binary    │   Offline-capable
-   └─────────────────────┘
-```
+1. **Connection**: Sanitize credentials immediately, never log connection strings
+2. **Introspection**: Use read-only queries with 30s timeouts
+3. **Processing**: Normalize to unified `DatabaseSchema` struct
+4. **Security**: Apply credential sanitization and optional encryption
+5. **Output**: Generate multiple formats (JSON, Markdown, encrypted)
 
-## Error Handling Architecture
+## Error Handling Rules
 
-### Comprehensive Error Types
+### Error Type Structure (REQUIRED)
+
+Use `thiserror::Error` with this hierarchy:
 
 ```rust
 #[derive(Debug, thiserror::Error)]
 pub enum DbSurveyorError {
     #[error("Database connection failed")]
     Connection(#[from] ConnectionError),
-
-    #[error("Schema collection failed")]
+    #[error("Schema collection failed")]  
     Collection(#[from] CollectionError),
-
     #[error("Encryption operation failed")]
     Encryption(#[from] EncryptionError),
-
-    #[error("Output generation failed")]
-    Output(#[from] OutputError),
 }
 ```
 
-### Security-Conscious Error Messages
+### Security Requirements (MANDATORY)
 
-```rust
-impl ConnectionError {
-    pub fn sanitized_message(&self) -> String {
-        match self {
-            ConnectionError::DatabaseUnreachable { host, port, .. } => {
-                format!("Cannot connect to database at {}:{}", host, port)
-            }
-            ConnectionError::AuthenticationFailed => {
-                "Invalid credentials".to_string() // No specifics
-            }
-            ConnectionError::Timeout { duration } => {
-                format!("Connection timed out after {:?}", duration)
-            }
-        }
-    }
-}
-```
+- **NEVER** include credentials in error messages
+- **ALWAYS** sanitize connection strings in logs
+- **ALWAYS** provide generic error messages for authentication failures
 
-## Security Architecture
+## Security Architecture (NON-NEGOTIABLE)
 
-### Credential Management
+### Credential Management Rules
 
-```rust
-pub struct ConnectionConfig {
-    host: String,
-    port: u16,
-    database: String,
-    // Credentials are never stored in structs
-}
+- **NEVER** store credentials in structs or configuration
+- **ALWAYS** separate connection config from credentials
+- **ALWAYS** implement `Drop` trait to zero out sensitive data
+- **ALWAYS** parse credentials separately from connection config
 
-impl ConnectionConfig {
-    pub fn from_url(url: &str) -> Result<(Self, Credentials), ConnectionError> {
-        let parsed = Url::parse(url)?;
+### Encryption Requirements
 
-        let config = Self {
-            host: parsed.host_str().unwrap_or("localhost").to_string(),
-            port: parsed.port().unwrap_or(5432),
-            database: parsed.path().trim_start_matches('/').to_string(),
-        };
-
-        let credentials = Credentials {
-            username: parsed.username().to_string(),
-            password: parsed.password().map(String::from),
-        };
-
-        Ok((config, credentials))
-    }
-}
-
-impl Drop for Credentials {
-    fn drop(&mut self) {
-        // Zero out sensitive data
-        self.username.zeroize();
-        if let Some(ref mut password) = self.password {
-            password.zeroize();
-        }
-    }
-}
-```
-
-### Encryption Architecture
+- **MUST** use AES-GCM-256 with random nonces
+- **MUST** include authentication tags
+- **MUST** support key derivation parameters
+- **NEVER** reuse nonces
 
 ```rust
 pub struct EncryptedData {
-    pub algorithm: String,           // "AES-GCM-256"
-    pub nonce: Vec<u8>,             // 96-bit random nonce
-    pub ciphertext: Vec<u8>,        // Encrypted data
-    pub tag: Vec<u8>,               // Authentication tag
-    pub kdf_params: Option<KdfParams>, // Key derivation parameters
-}
-
-pub async fn encrypt_schema_data(
-    plaintext: &[u8],
-    key: Option<&EncryptionKey>,
-) -> Result<EncryptedData, EncryptionError> {
-    let encryption_key = match key {
-        Some(k) => k.clone(),
-        None => EncryptionKey::derive_from_entropy().await?,
-    };
-
-    let nonce = generate_random_nonce()?;
-    let cipher = Aes256Gcm::new(&encryption_key.as_bytes());
-    let ciphertext = cipher.encrypt(&nonce, plaintext)?;
-
-    Ok(EncryptedData {
-        algorithm: "AES-GCM-256".to_string(),
-        nonce: nonce.to_vec(),
-        ciphertext,
-        tag: vec![], // Included in ciphertext for AES-GCM
-        kdf_params: Some(encryption_key.kdf_params()),
-    })
+    pub algorithm: String,    // Always "AES-GCM-256"
+    pub nonce: Vec<u8>,      // 96-bit random nonce
+    pub ciphertext: Vec<u8>, // Encrypted data + auth tag
 }
 ```
 
-## Performance Architecture
+## Performance Requirements
 
-### Connection Pooling
+### Connection Pooling (REQUIRED)
 
-```rust
-pub struct CollectorPool {
-    postgres_pools: HashMap<String, PgPool>,
-    mysql_pools: HashMap<String, MySqlPool>,
-    sqlite_pools: HashMap<String, SqlitePool>,
-    config: PoolConfig,
-}
+- Use SQLx connection pools with max 5-10 connections
+- Implement 30-second connection timeouts
+- Cache pools by sanitized connection string (no credentials)
 
-impl CollectorPool {
-    pub async fn get_postgres_collector(
-        &mut self,
-        connection_string: &str,
-    ) -> Result<PostgresCollector, ConnectionError> {
-        let pool = match self.postgres_pools.get(connection_string) {
-            Some(pool) => pool.clone(),
-            None => {
-                let pool = PgPoolOptions::new()
-                    .max_connections(self.config.max_connections)
-                    .connect_timeout(self.config.connect_timeout)
-                    .connect(connection_string)
-                    .await?;
+### Memory Management (REQUIRED)  
 
-                self.postgres_pools.insert(connection_string.to_string(), pool.clone());
-                pool
-            }
-        };
+- Stream large result sets instead of loading into memory
+- Use batch processing for databases with >1000 tables
+- Implement explicit `drop()` for large data structures
+- Monitor memory usage in benchmarks
 
-        Ok(PostgresCollector::from_pool(pool))
-    }
-}
-```
+## Configuration Rules
 
-### Memory Management
+### Configuration Structure (REQUIRED)
 
-```rust
-pub struct StreamingCollector<T> {
-    inner: T,
-    batch_size: usize,
-    memory_limit: usize,
-}
+- Use hierarchical config with `serde` derive macros
+- Support environment variables with `DBSURVEYOR_` prefix
+- **NEVER** store credentials in configuration files
+- Load from: defaults → system config → user config → env vars
 
-impl<T: SchemaCollector> StreamingCollector<T> {
-    pub async fn collect_schema_streaming(
-        &self,
-        mut writer: impl AsyncWrite + Unpin,
-    ) -> Result<(), T::Error> {
-        let table_count = self.inner.count_tables().await?;
-        let batch_count = (table_count + self.batch_size - 1) / self.batch_size;
+### Key Constraints
 
-        for batch_index in 0..batch_count {
-            let offset = batch_index * self.batch_size;
-            let batch_tables = self.inner
-                .collect_tables_batch(offset, self.batch_size)
-                .await?;
-
-            let batch_json = serde_json::to_vec(&batch_tables)?;
-            writer.write_all(&batch_json).await?;
-
-            drop(batch_tables); // Force garbage collection
-        }
-
-        Ok(())
-    }
-}
-```
-
-## Configuration Architecture
-
-### Hierarchical Configuration
-
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DbSurveyorConfig {
-    pub database: DatabaseConfig,
-    pub security: SecurityConfig,
-    pub output: OutputConfig,
-    pub performance: PerformanceConfig,
-}
-
-impl DbSurveyorConfig {
-    pub fn load() -> Result<Self, ConfigError> {
-        let mut config = Config::builder()
-            .add_source(config::File::from_str(DEFAULT_CONFIG, FileFormat::Toml))
-            .add_source(config::File::with_name("/etc/dbsurveyor/config").required(false))
-            .add_source(config::File::with_name("~/.config/dbsurveyor/config").required(false))
-            .add_source(config::File::with_name("dbsurveyor.toml").required(false))
-            .add_source(config::Environment::with_prefix("DBSURVEYOR"))
-            .build()?;
-
-        config.try_deserialize()
-    }
-}
-```
-
-This architecture ensures DBSurveyor maintains its security-first principles while providing a clean, maintainable, and extensible codebase.
+- All database operations must be read-only
+- All network calls must timeout within 30 seconds  
+- All sensitive data must be sanitized before logging
+- All encryption must use AES-GCM with random nonces
