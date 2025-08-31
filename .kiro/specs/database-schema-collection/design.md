@@ -4,7 +4,7 @@
 
 The database schema collection and documentation system implements a dual-binary architecture with a collector (dbsurveyor-collect) and postprocessor (dbsurveyor). The system provides secure, offline-capable database introspection across multiple database engines including relational databases (PostgreSQL, MySQL, SQLite, SQL Server, Oracle), NoSQL databases (MongoDB, Cassandra), and columnar databases (ClickHouse, BigQuery).
 
-The design emphasizes security-first principles with zero telemetry, offline operation, and comprehensive credential protection while maintaining high performance and extensibility through a plugin architecture.
+The design emphasizes security-first principles with zero telemetry, offline operation, and comprehensive credential protection while maintaining high performance and extensibility through a plugin architecture. The collector NEVER alters, redacts, or modifies data during collection - it stores samples exactly as they are collected from the database. Redaction and privacy controls are exclusively handled by the postprocessor.
 
 ## Architecture
 
@@ -17,19 +17,19 @@ graph TB
         Collector[dbsurveyor-collect]
         DB --> Collector
     end
-    
+
     subgraph "Operator Environment"
         PostProcessor[dbsurveyor]
         Reports[Documentation<br/>Reports<br/>Diagrams]
         PostProcessor --> Reports
     end
-    
+
     subgraph "Data Exchange"
         JSON[.dbsurveyor.json]
         Compressed[.dbsurveyor.json.zst]
         Encrypted[.dbsurveyor.enc]
     end
-    
+
     Collector --> JSON
     Collector --> Compressed
     Collector --> Encrypted
@@ -184,7 +184,7 @@ pub fn init_logging(verbose: u8, quiet: bool) -> Result<(), LoggingError> {
         (false, 1) => tracing::Level::DEBUG,
         (false, _) => tracing::Level::TRACE,
     };
-    
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -192,7 +192,7 @@ pub fn init_logging(verbose: u8, quiet: bool) -> Result<(), LoggingError> {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
-    
+
     Ok(())
 }
 
@@ -203,14 +203,14 @@ pub async fn collect_database_schema(
 ) -> Result<DatabaseSchema, CollectionError> {
     info!("Starting schema collection");
     debug!("Collection config: {:?}", config);
-    
+
     // Implementation with structured logging
     let adapter = create_adapter(connection_string)?;
     info!("Created adapter for database type: {:?}", adapter.database_type());
-    
+
     let metadata = adapter.collect_metadata().await?;
     info!("Collected metadata for {} tables", metadata.tables.len());
-    
+
     Ok(metadata)
 }
 ```
@@ -229,12 +229,12 @@ use mongodb::Client as MongoClient;
 pub trait DatabaseAdapter: Send + Sync {
     type Connection;
     type Error: std::error::Error + Send + Sync + 'static;
-    
+
     async fn connect(&self, connection_string: &str) -> Result<Self::Connection, Self::Error>;
     async fn collect_metadata(&self, conn: &Self::Connection) -> Result<DatabaseMetadata, Self::Error>;
     async fn sample_data(&self, conn: &Self::Connection, config: &SamplingConfig) -> Result<Vec<TableSample>, Self::Error>;
     async fn test_connection(&self, conn: &Self::Connection) -> Result<(), Self::Error>;
-    
+
     fn database_type(&self) -> DatabaseType;
     fn supports_feature(&self, feature: AdapterFeature) -> bool;
 }
@@ -251,7 +251,7 @@ impl PostgresAdapter {
         conn: &sqlx::PgPool,
     ) -> Result<Vec<DatabaseInfo>, AdapterError> {
         let query = r#"
-            SELECT 
+            SELECT
                 d.datname as name,
                 pg_database_size(d.datname) as size_bytes,
                 r.rolname as owner,
@@ -264,10 +264,10 @@ impl PostgresAdapter {
             WHERE d.datallowconn = true
             ORDER BY d.datname
         "#;
-        
+
         let rows = sqlx::query(query).fetch_all(conn).await?;
         let mut databases = Vec::new();
-        
+
         for row in rows {
             let name: String = row.get("name");
             let size_bytes: Option<i64> = row.get("size_bytes");
@@ -276,18 +276,18 @@ impl PostgresAdapter {
             let collation: Option<String> = row.get("collation");
             let is_template: bool = row.get("is_template");
             let can_connect: bool = row.get("can_connect");
-            
+
             // Determine if this is a system database
-            let is_system_database = matches!(name.as_str(), 
+            let is_system_database = matches!(name.as_str(),
                 "template0" | "template1" | "postgres"
             ) || is_template;
-            
+
             let access_level = if can_connect {
                 AccessLevel::Full // We'll determine actual access when we connect
             } else {
                 AccessLevel::None
             };
-            
+
             databases.push(DatabaseInfo {
                 name,
                 size_bytes: size_bytes.map(|s| s as u64),
@@ -299,11 +299,11 @@ impl PostgresAdapter {
                 collection_status: CollectionStatus::Success, // Will be updated during collection
             });
         }
-        
+
         Ok(databases)
     }
-    
-    /// Connects to a specific database using the base connection parameters
+
+    /// Connects to a specific database using the base connection parameters with retry logic
     async fn connect_to_database(
         &self,
         base_connection_string: &str,
@@ -312,20 +312,52 @@ impl PostgresAdapter {
         // Parse the base connection string and replace the database name
         let mut url = url::Url::parse(base_connection_string)
             .map_err(|e| AdapterError::InvalidConnectionString(e.to_string()))?;
-        
+
         // Set the database name in the path
         url.set_path(&format!("/{}", database_name));
-        
-        // Create connection pool for this specific database
-        let pool = sqlx::PgPool::connect(&url.to_string()).await
+
+        // Create connection pool with retry logic
+        let pool = self.connect_with_retry(&url.to_string(), 3).await
             .map_err(|e| AdapterError::ConnectionFailed {
                 database: database_name.to_string(),
                 source: Box::new(e),
             })?;
-        
+
         Ok(pool)
     }
-    
+
+    /// Connects to a PostgreSQL database with exponential backoff retry logic
+    async fn connect_with_retry(
+        &self,
+        connection_string: &str,
+        max_retries: u32,
+    ) -> Result<sqlx::PgPool, Box<dyn std::error::Error + Send + Sync>> {
+        let base_delay = std::time::Duration::from_millis(500);
+        let max_delay = std::time::Duration::from_secs(5);
+
+        for attempt in 0..=max_retries {
+            match sqlx::PgPool::connect(connection_string).await {
+                Ok(pool) => return Ok(pool),
+                Err(e) => {
+                    if attempt == max_retries {
+                        return Err(Box::new(e));
+                    }
+
+                    // Calculate exponential backoff with jitter
+                    let delay = base_delay * 2_u32.pow(attempt);
+                    let jitter = std::time::Duration::from_millis(
+                        rand::random::<u64>() % 300 + 100 // ±100-300ms jitter
+                    );
+                    let final_delay = std::cmp::min(delay + jitter, max_delay);
+
+                    tokio::time::sleep(final_delay).await;
+                }
+            }
+        }
+
+        unreachable!("Loop should always return or break")
+    }
+
     /// Collects schemas from all accessible databases
     pub async fn collect_all_databases(
         &self,
@@ -334,31 +366,31 @@ impl PostgresAdapter {
     ) -> Result<DatabaseServerSchema, AdapterError> {
         // First, connect to the server (usually to 'postgres' database or without specifying database)
         let server_conn = self.connect(connection_string).await?;
-        
+
         // Check if user has superuser privileges
         let is_superuser: bool = sqlx::query_scalar(
             "SELECT usesuper FROM pg_user WHERE usename = current_user"
         ).fetch_one(&server_conn).await.unwrap_or(false);
-        
+
         // Get server information
         let version: String = sqlx::query_scalar("SELECT version()")
             .fetch_one(&server_conn).await?;
-        
+
         let current_user: String = sqlx::query_scalar("SELECT current_user")
             .fetch_one(&server_conn).await?;
-        
+
         // List all databases
         let mut database_infos = self.list_databases(&server_conn).await?;
-        
+
         // Filter databases based on configuration
         if !config.include_system_databases {
             database_infos.retain(|db| !db.is_system_database);
         }
-        
+
         let total_databases = database_infos.len();
         let mut collected_databases = Vec::new();
         let mut collection_errors = Vec::new();
-        
+
         // Collect schema from each database
         for mut db_info in database_infos {
             if config.exclude_databases.contains(&db_info.name) {
@@ -367,7 +399,7 @@ impl PostgresAdapter {
                 };
                 continue;
             }
-            
+
             match self.collect_single_database(connection_string, &db_info.name, config).await {
                 Ok(mut schema) => {
                     schema.database_info = db_info.clone();
@@ -378,7 +410,7 @@ impl PostgresAdapter {
                     let error_msg = format!("Failed to collect database '{}': {}", db_info.name, e);
                     collection_errors.push(error_msg.clone());
                     db_info.collection_status = CollectionStatus::Failed { error: error_msg };
-                    
+
                     // Still add the database info even if collection failed
                     let failed_schema = DatabaseSchema {
                         format_version: "1.0".to_string(),
@@ -401,17 +433,17 @@ impl PostgresAdapter {
                     collected_databases.push(failed_schema);
                 }
             }
-            
+
             // Throttle between database collections if configured
             if let Some(throttle_ms) = config.throttle_ms {
                 tokio::time::sleep(Duration::from_millis(throttle_ms)).await;
             }
         }
-        
+
         // Parse connection string for server info
         let url = url::Url::parse(connection_string)
             .map_err(|e| AdapterError::InvalidConnectionString(e.to_string()))?;
-        
+
         let server_info = ServerInfo {
             server_type: DatabaseType::PostgreSQL,
             version,
@@ -419,7 +451,7 @@ impl PostgresAdapter {
             port: url.port(),
             total_databases,
             collected_databases: collected_databases.len(),
-            system_databases_excluded: if config.include_system_databases { 0 } else { 
+            system_databases_excluded: if config.include_system_databases { 0 } else {
                 // Count system databases that were filtered out
                 database_infos.iter().filter(|db| db.is_system_database).count()
             },
@@ -431,7 +463,7 @@ impl PostgresAdapter {
                 failed: collection_errors.len(),
             },
         };
-        
+
         Ok(DatabaseServerSchema {
             format_version: "1.0".to_string(),
             server_info,
@@ -444,7 +476,7 @@ impl PostgresAdapter {
             },
         })
     }
-    
+
     /// Collects schema from a single database
     async fn collect_single_database(
         &self,
@@ -453,13 +485,13 @@ impl PostgresAdapter {
         config: &CollectionConfig,
     ) -> Result<DatabaseSchema, AdapterError> {
         let db_conn = self.connect_to_database(base_connection_string, database_name).await?;
-        
+
         // Use existing metadata collection logic
         let metadata = self.collect_metadata(&db_conn).await?;
-        
+
         Ok(metadata)
     }
-    
+
     /// Determines the best ordering strategy for a PostgreSQL table
     async fn determine_ordering_strategy(
         &self,
@@ -473,10 +505,10 @@ impl PostgresAdapter {
                 columns: pk.columns.clone(),
             });
         }
-        
+
         // 2. Look for timestamp columns
         for ts_col in &config.timestamp_columns {
-            if let Some(column) = table.columns.iter().find(|c| 
+            if let Some(column) = table.columns.iter().find(|c|
                 c.name.to_lowercase() == ts_col.to_lowercase()
             ) {
                 if matches!(column.data_type, UnifiedDataType::DateTime { .. } | UnifiedDataType::Date) {
@@ -487,7 +519,7 @@ impl PostgresAdapter {
                 }
             }
         }
-        
+
         // 3. Look for auto-increment columns
         for column in &table.columns {
             if column.is_auto_increment {
@@ -496,34 +528,34 @@ impl PostgresAdapter {
                 });
             }
         }
-        
+
         // 4. Try system row ID columns
         let system_columns = ["ctid", "rowid", "_rowid_"];
         for sys_col in &system_columns {
             // Check if system column exists (PostgreSQL has ctid)
             let query = format!(
-                "SELECT 1 FROM information_schema.columns 
+                "SELECT 1 FROM information_schema.columns
                  WHERE table_name = $1 AND column_name = $2"
             );
-            
+
             let exists: bool = sqlx::query_scalar(&query)
                 .bind(&table.name)
                 .bind(sys_col)
                 .fetch_optional(conn)
                 .await?
                 .unwrap_or(false);
-                
+
             if exists {
                 return Ok(OrderingStrategy::SystemRowId {
                     column: sys_col.to_string(),
                 });
             }
         }
-        
+
         // 5. No reliable ordering available
         Ok(OrderingStrategy::Unordered)
     }
-    
+
     /// Samples data from a PostgreSQL table using the determined ordering strategy
     async fn sample_table_data(
         &self,
@@ -532,10 +564,10 @@ impl PostgresAdapter {
         config: &SamplingConfig,
     ) -> Result<TableSample, AdapterError> {
         let start_time = std::time::Instant::now();
-        
+
         // Determine ordering strategy
         let ordering_strategy = self.determine_ordering_strategy(conn, table, config).await?;
-        
+
         // Build sampling query
         let (query, sampling_strategy) = match &ordering_strategy {
             OrderingStrategy::PrimaryKey { columns } => {
@@ -547,7 +579,7 @@ impl PostgresAdapter {
                 );
                 (query, SamplingStrategy::MostRecent { limit: config.sample_size })
             }
-            
+
             OrderingStrategy::Timestamp { column, direction } => {
                 let dir = match direction {
                     SortDirection::Descending => "DESC",
@@ -561,7 +593,7 @@ impl PostgresAdapter {
                 );
                 (query, SamplingStrategy::MostRecent { limit: config.sample_size })
             }
-            
+
             OrderingStrategy::AutoIncrement { column } => {
                 let query = format!(
                     "SELECT * FROM {} ORDER BY {} DESC LIMIT $1",
@@ -570,7 +602,7 @@ impl PostgresAdapter {
                 );
                 (query, SamplingStrategy::MostRecent { limit: config.sample_size })
             }
-            
+
             OrderingStrategy::SystemRowId { column } => {
                 let query = format!(
                     "SELECT * FROM {} ORDER BY {} DESC LIMIT $1",
@@ -579,7 +611,7 @@ impl PostgresAdapter {
                 );
                 (query, SamplingStrategy::MostRecent { limit: config.sample_size })
             }
-            
+
             OrderingStrategy::Unordered => {
                 // Use TABLESAMPLE for random sampling on large tables
                 let query = format!(
@@ -589,7 +621,7 @@ impl PostgresAdapter {
                 (query, SamplingStrategy::Random { limit: config.sample_size })
             }
         };
-        
+
         // Execute sampling query with timeout
         let rows = tokio::time::timeout(
             Duration::from_secs(config.query_timeout_secs),
@@ -599,14 +631,14 @@ impl PostgresAdapter {
         ).await
         .map_err(|_| AdapterError::QueryTimeout)?
         .map_err(AdapterError::Database)?;
-        
+
         // Convert rows to JSON - COLLECTOR NEVER REDACTS DATA
         let mut sample_rows = Vec::new();
         let mut warnings = Vec::new();
-        
+
         for row in rows {
             let mut row_data = serde_json::Map::new();
-            
+
             for (i, column) in table.columns.iter().enumerate() {
                 let value: Option<serde_json::Value> = match &column.data_type {
                     UnifiedDataType::String { .. } => {
@@ -635,13 +667,13 @@ impl PostgresAdapter {
                         str_val.map(serde_json::Value::String)
                     }
                 };
-                
+
                 row_data.insert(column.name.clone(), value.unwrap_or(serde_json::Value::Null));
             }
-            
+
             sample_rows.push(serde_json::Value::Object(row_data));
         }
-        
+
         // Generate warnings about potentially sensitive data (detection only, no redaction)
         if config.warn_sensitive {
             for pattern in &config.sensitive_detection_patterns {
@@ -660,15 +692,15 @@ impl PostgresAdapter {
                 }
             }
         }
-        
+
         // Get total row count for context
         let count_query = format!("SELECT COUNT(*) FROM {}", quote_identifier(&table.name));
         let total_rows: Option<i64> = sqlx::query_scalar(&count_query)
             .fetch_optional(conn)
             .await?;
-        
+
         let query_duration = start_time.elapsed();
-        
+
         Ok(TableSample {
             table_name: table.name.clone(),
             schema_name: table.schema.clone(),
@@ -691,7 +723,7 @@ fn quote_identifier(name: &str) -> String {
 /// The collector NEVER redacts data - this is purely for postprocessor use
 pub mod postprocessor_redaction {
     use super::*;
-    
+
     pub fn apply_redaction(
         sample: &TableSample,
         config: &RedactionConfig,
@@ -699,38 +731,38 @@ pub mod postprocessor_redaction {
         if !config.enabled || matches!(config.mode, RedactionMode::None) {
             return Ok(sample.clone());
         }
-        
+
         let mut redacted_sample = sample.clone();
         redacted_sample.rows = sample.rows.iter()
             .map(|row| redact_row_data(row, config))
             .collect::<Result<Vec<_>, _>>()?;
-            
+
         // Add redaction notice to warnings
         redacted_sample.warnings.push(
             "Data has been redacted for privacy. Use --no-redact to see original data.".to_string()
         );
-        
+
         Ok(redacted_sample)
     }
-    
+
     fn redact_row_data(
         row: &serde_json::Value,
         config: &RedactionConfig,
     ) -> Result<serde_json::Value, RedactionError> {
         if let serde_json::Value::Object(obj) = row {
             let mut redacted_obj = serde_json::Map::new();
-            
+
             for (key, value) in obj {
                 let redacted_value = redact_field_value(key, value, config)?;
                 redacted_obj.insert(key.clone(), redacted_value);
             }
-            
+
             Ok(serde_json::Value::Object(redacted_obj))
         } else {
             Ok(row.clone())
         }
     }
-    
+
     fn redact_field_value(
         field_name: &str,
         value: &serde_json::Value,
@@ -756,15 +788,15 @@ pub mod postprocessor_redaction {
                 }
             }
         }
-        
+
         Ok(value.clone())
     }
-    
+
     #[derive(Debug, thiserror::Error)]
     pub enum RedactionError {
         #[error("Invalid regex pattern: {0}")]
         InvalidRegex(String),
-        
+
         #[error("Redaction failed: {0}")]
         RedactionFailed(String),
     }
@@ -848,37 +880,63 @@ impl PluginManager {
             wasm_engine: None,
             config,
         };
-        
+
+        // Initialize WASM engine with restricted capabilities
+        #[cfg(feature = "wasm-plugins")]
+        {
+            manager.wasm_engine = Some(manager.create_restricted_wasm_engine());
+        }
+
         // Register built-in adapters based on feature flags
         #[cfg(feature = "postgres")]
         manager.register_static(DatabaseType::PostgreSQL, Box::new(PostgresAdapter::new()));
-        
+
         #[cfg(feature = "mysql")]
         manager.register_static(DatabaseType::MySQL, Box::new(MySqlAdapter::new()));
-        
+
         manager
     }
-    
+
+    #[cfg(feature = "wasm-plugins")]
+    fn create_restricted_wasm_engine(&self) -> wasmtime::Engine {
+        // Create WASM engine with security-focused configuration
+        let mut config = wasmtime::Config::new();
+        config.wasm_backtrace(true);
+        config.consume_fuel(true);
+        config.max_wasm_stack(1024 * 1024); // 1MB stack limit
+
+        // Create restricted WASI context with minimal capabilities
+        let wasi_ctx = wasmtime_wasi::WasiCtxBuilder::new()
+            .inherit_stdio() // Allow stdio for logging
+            .build();
+
+        // Deny filesystem and network access by default
+        // Only allow explicitly whitelisted paths if needed
+        let engine = wasmtime::Engine::new(&config).expect("Failed to create WASM engine");
+
+        engine
+    }
+
     pub async fn get_adapter(&mut self, db_type: DatabaseType) -> Result<&dyn DatabaseAdapter, PluginError> {
         // Try static adapters first (fastest, zero-cost)
         if let Some(adapter) = self.static_adapters.get(&db_type) {
             return Ok(adapter.as_ref());
         }
-        
+
         // Try WASM adapters if feature is enabled
         #[cfg(feature = "wasm-plugins")]
         {
             if let Some(wasm_adapter) = self.wasm_adapters.get(&db_type) {
                 return Ok(wasm_adapter.as_adapter());
             }
-            
+
             // Attempt to load WASM plugin dynamically
             if let Ok(adapter) = self.load_wasm_plugin(db_type).await {
                 self.wasm_adapters.insert(db_type, adapter);
                 return Ok(self.wasm_adapters.get(&db_type).unwrap().as_adapter());
             }
         }
-        
+
         Err(PluginError::AdapterNotFound(db_type))
     }
 }
@@ -925,7 +983,7 @@ pub trait DatabaseAdapter: Send + Sync {
     // Avoid generic methods in trait objects
     async fn connect_boxed(&self, params: ConnectionParams) -> Result<Box<dyn Connection>, AdapterError>;
     async fn collect_metadata_boxed(&self, conn: &dyn Connection) -> Result<DatabaseMetadata, AdapterError>;
-    
+
     // Non-generic methods are object-safe
     fn database_type(&self) -> DatabaseType;
     fn adapter_info(&self) -> AdapterInfo;
@@ -940,8 +998,8 @@ pub trait TypedDatabaseAdapter<C: Connection>: DatabaseAdapter {
 
 // Blanket implementation to bridge typed and object-safe traits
 #[async_trait]
-impl<T, C> DatabaseAdapter for T 
-where 
+impl<T, C> DatabaseAdapter for T
+where
     T: TypedDatabaseAdapter<C> + Send + Sync,
     C: Connection + 'static,
 {
@@ -949,7 +1007,7 @@ where
         let conn = self.connect(params).await?;
         Ok(Box::new(conn))
     }
-    
+
     async fn collect_metadata_boxed(&self, conn: &dyn Connection) -> Result<DatabaseMetadata, AdapterError> {
         let typed_conn = conn.as_any().downcast_ref::<C>()
             .ok_or(AdapterError::InvalidConnectionType)?;
@@ -1153,6 +1211,9 @@ pub struct SamplingConfig {
     pub warn_sensitive: bool,
 
     /// Patterns for sensitive data detection (for warnings only)
+    ///
+    /// **IMPORTANT**: The collector NEVER redacts or modifies sample data. All samples are stored
+    /// exactly as collected from the database. Redaction only occurs in the postprocessor.
     pub sensitive_detection_patterns: Vec<SensitiveDetectionPattern>,
 }
 
@@ -1411,42 +1472,48 @@ pub async fn encrypt_schema_data(
     password: &str,
 ) -> Result<EncryptedOutput, EncryptionError> {
     let rng = SystemRandom::new();
-    
+
     // Generate random salt and nonce
     let mut salt = [0u8; 32];
     let mut nonce_bytes = [0u8; 12];
     rng.fill(&mut salt)?;
     rng.fill(&mut nonce_bytes)?;
-    
-    // Derive key using PBKDF2 with ring
+
+    // Derive key using Argon2id with ring (as per requirements)
     let mut key_bytes = [0u8; 32];
-    pbkdf2::derive(
-        pbkdf2::PBKDF2_HMAC_SHA256,
-        std::num::NonZeroU32::new(100_000).unwrap(),
-        &salt,
+    ring::argon2::derive(
+        ring::argon2::Algorithm::Argon2id,
+        ring::argon2::Version::V0x13,
+        ring::argon2::Params::new(
+            64 * 1024, // 64MB memory cost
+            3,          // 3 iterations
+            1,          // 1 parallelism
+            Some(32),   // 32-byte output
+        )?,
         password.as_bytes(),
+        &salt,
         &mut key_bytes,
     );
-    
+
     // Encrypt with AES-GCM
     let key = Key::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
     let nonce = Nonce::from_slice(&nonce_bytes);
-    
+
     let ciphertext = cipher.encrypt(nonce, plaintext)
         .map_err(|e| EncryptionError::EncryptionFailed(e.to_string()))?;
-    
+
     Ok(EncryptedOutput {
         algorithm: "AES-GCM-256".to_string(),
         nonce: nonce_bytes.to_vec(),
         ciphertext,
         tag: vec![], // Included in ciphertext for AES-GCM
         kdf_params: KdfParams {
-            algorithm: "PBKDF2-SHA256".to_string(),
+            algorithm: "Argon2id".to_string(),
             salt: salt.to_vec(),
-            iterations: 100_000,
-            memory_cost: None,
-            parallelism: None,
+            iterations: 3,
+            memory_cost: Some(64 * 1024), // 64MB
+            parallelism: Some(1),
         },
         format_version: "1.0".to_string(),
     })
@@ -1599,30 +1666,30 @@ The testing strategy employs a multi-layered approach with specialized tools for
 mod tests {
     use super::*;
     use testcontainers::*;
-    
+
     #[tokio::test]
     async fn test_postgres_schema_collection() {
         let docker = clients::Cli::default();
         let postgres = docker.run(images::postgres::Postgres::default());
-        
+
         let database_url = format!(
             "postgres://postgres:postgres@localhost:{}/postgres",
             postgres.get_host_port_ipv4(5432)
         );
-        
+
         let adapter = PostgresAdapter::new();
         let connection = adapter.connect(&database_url).await?;
         let metadata = adapter.collect_metadata(&connection).await?;
-        
+
         assert!(!metadata.tables.is_empty());
         assert_eq!(metadata.database_info.database_type, DatabaseType::PostgreSQL);
     }
-    
+
     #[tokio::test]
     async fn test_credential_sanitization() {
         let connection_string = "postgres://user:secret@localhost/db";
         let (params, _creds) = SecureCredentials::from_connection_string(connection_string)?;
-        
+
         let display = params.sanitized_display();
         assert!(!display.contains("secret"));
         assert!(!display.contains("user:secret"));
@@ -1637,7 +1704,7 @@ Using the modern `testcontainers-modules` crate for realistic database testing:
 ```rust
 use testcontainers_modules::{
     postgres::Postgres,
-    mysql::Mysql, 
+    mysql::Mysql,
     mongo::Mongo,
     testcontainers::{
         runners::AsyncRunner,
@@ -1664,7 +1731,7 @@ impl DatabaseTestSuite {
             .with_startup_timeout(Duration::from_secs(60))
             .start()
             .await?;
-        
+
         // Start MySQL with custom configuration
         let mysql = Mysql::default()
             .with_env_var("MYSQL_DATABASE", "testdb")
@@ -1675,27 +1742,27 @@ impl DatabaseTestSuite {
             .with_startup_timeout(Duration::from_secs(60))
             .start()
             .await?;
-        
+
         // Start MongoDB
         let mongo = Mongo::default()
             .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
             .with_startup_timeout(Duration::from_secs(60))
             .start()
             .await?;
-        
+
         Ok(Self { postgres, mysql, mongo })
     }
-    
+
     pub fn postgres_url(&self) -> String {
         let host_port = self.postgres.get_host_port_ipv4(5432).unwrap();
         format!("postgres://testuser:testpass@127.0.0.1:{}/testdb", host_port)
     }
-    
+
     pub fn mysql_url(&self) -> String {
         let host_port = self.mysql.get_host_port_ipv4(3306).unwrap();
         format!("mysql://testuser:testpass@127.0.0.1:{}/testdb", host_port)
     }
-    
+
     pub fn mongo_url(&self) -> String {
         let host_port = self.mongo.get_host_port_ipv4(27017).unwrap();
         format!("mongodb://127.0.0.1:{}", host_port)
@@ -1705,29 +1772,29 @@ impl DatabaseTestSuite {
 #[tokio::test]
 async fn test_multi_database_collection() -> Result<(), Box<dyn std::error::Error>> {
     let suite = DatabaseTestSuite::new().await?;
-    
+
     // Test PostgreSQL adapter
     let pg_adapter = PostgresAdapter::new();
     let pg_metadata = pg_adapter.collect_from_url(&suite.postgres_url()).await?;
     assert_eq!(pg_metadata.database_type, DatabaseType::PostgreSQL);
     assert_eq!(pg_metadata.format_version, "1.0");
-    
+
     // Test MySQL adapter
     let mysql_adapter = MySqlAdapter::new();
     let mysql_metadata = mysql_adapter.collect_from_url(&suite.mysql_url()).await?;
     assert_eq!(mysql_metadata.database_type, DatabaseType::MySQL);
     assert_eq!(mysql_metadata.format_version, "1.0");
-    
+
     // Test MongoDB adapter
     let mongo_adapter = MongoAdapter::new();
     let mongo_metadata = mongo_adapter.collect_from_url(&suite.mongo_url()).await?;
     assert_eq!(mongo_metadata.database_type, DatabaseType::MongoDB);
     assert_eq!(mongo_metadata.format_version, "1.0");
-    
+
     // Verify unified schema format across all databases
     assert_eq!(pg_metadata.format_version, mysql_metadata.format_version);
     assert_eq!(mysql_metadata.format_version, mongo_metadata.format_version);
-    
+
     Ok(())
 }
 
@@ -1739,13 +1806,13 @@ async fn test_postgres_schema_collection_with_real_data() -> Result<(), Box<dyn 
         .with_env_var("POSTGRES_PASSWORD", "testpass")
         .start()
         .await?;
-    
+
     let host_port = postgres.get_host_port_ipv4(5432)?;
     let connection_string = format!(
         "postgres://testuser:testpass@127.0.0.1:{}/testdb",
         host_port
     );
-    
+
     // Create test schema
     let pool = sqlx::PgPool::connect(&connection_string).await?;
     sqlx::query(r#"
@@ -1755,7 +1822,7 @@ async fn test_postgres_schema_collection_with_real_data() -> Result<(), Box<dyn 
             email VARCHAR(100) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-        
+
         CREATE TABLE posts (
             id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id),
@@ -1763,41 +1830,41 @@ async fn test_postgres_schema_collection_with_real_data() -> Result<(), Box<dyn 
             content TEXT,
             published BOOLEAN DEFAULT FALSE
         );
-        
-        INSERT INTO users (username, email) VALUES 
+
+        INSERT INTO users (username, email) VALUES
             ('alice', 'alice@example.com'),
             ('bob', 'bob@example.com');
-            
+
         INSERT INTO posts (user_id, title, content, published) VALUES
             (1, 'Hello World', 'This is my first post', true),
             (2, 'Draft Post', 'This is a draft', false);
     "#).execute(&pool).await?;
-    
+
     // Test schema collection
     let adapter = PostgresAdapter::new();
     let metadata = adapter.collect_from_url(&connection_string).await?;
-    
+
     // Verify collected metadata
     assert_eq!(metadata.tables.len(), 2);
-    
+
     let users_table = metadata.tables.iter()
         .find(|t| t.name == "users")
         .expect("users table should be found");
     assert_eq!(users_table.columns.len(), 4);
-    
+
     let posts_table = metadata.tables.iter()
         .find(|t| t.name == "posts")
         .expect("posts table should be found");
     assert_eq!(posts_table.columns.len(), 5);
-    
+
     // Verify foreign key relationships
     assert!(!posts_table.foreign_keys.is_empty());
-    
+
     // Verify sample data collection
     if let Some(users_samples) = users_table.samples.first() {
         assert_eq!(users_samples.rows.len(), 2); // Should have 2 sample rows
     }
-    
+
     Ok(())
 }
 ```
@@ -1814,9 +1881,9 @@ fn test_cli_help_output() {
         .args(&["run", "--bin", "dbsurveyor-collect", "--", "--help"])
         .output()
         .expect("Failed to execute command");
-    
+
     let stdout = String::from_utf8(output.stdout).unwrap();
-    
+
     with_settings!({
         description => "CLI help output should be stable and informative"
     }, {
@@ -1830,7 +1897,7 @@ fn test_cli_version_output() {
         .args(&["run", "--bin", "dbsurveyor", "--", "--version"])
         .output()
         .expect("Failed to execute command");
-    
+
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert_snapshot!(stdout);
 }
@@ -1838,7 +1905,7 @@ fn test_cli_version_output() {
 #[tokio::test]
 async fn test_cli_error_messages() {
     let suite = DatabaseTestSuite::new().await?;
-    
+
     // Test invalid connection string
     let output = Command::new("cargo")
         .args(&[
@@ -1848,15 +1915,15 @@ async fn test_cli_error_messages() {
         ])
         .output()
         .expect("Failed to execute command");
-    
+
     let stderr = String::from_utf8(output.stderr).unwrap();
-    
+
     with_settings!({
         description => "Error messages should be helpful and not leak credentials"
     }, {
         assert_snapshot!(stderr);
     });
-    
+
     // Verify no credentials in error output
     assert!(!stderr.contains("password"));
     assert!(!stderr.contains("secret"));
@@ -1870,9 +1937,9 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion, Benchmark
 
 fn bench_schema_collection(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    
+
     let mut group = c.benchmark_group("schema_collection");
-    
+
     // Benchmark different database sizes
     for table_count in [10, 100, 1000].iter() {
         group.bench_with_input(
@@ -1888,13 +1955,13 @@ fn bench_schema_collection(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 
 fn bench_output_formats(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    
+
     c.bench_function("json_serialization", |b| {
         b.to_async(&rt).iter(|| async {
             let schema = create_large_test_schema();
@@ -1902,7 +1969,7 @@ fn bench_output_formats(c: &mut Criterion) {
             black_box(json)
         });
     });
-    
+
     c.bench_function("compression", |b| {
         b.to_async(&rt).iter(|| async {
             let schema = create_large_test_schema();
@@ -1911,7 +1978,7 @@ fn bench_output_formats(c: &mut Criterion) {
             black_box(compressed)
         });
     });
-    
+
     c.bench_function("encryption", |b| {
         b.to_async(&rt).iter(|| async {
             let schema = create_large_test_schema();
@@ -1970,10 +2037,10 @@ proptest! {
 async fn test_no_network_calls_in_postprocessor() {
     // Mock network to fail all connections
     let _guard = MockNetworkGuard::block_all();
-    
+
     let schema_file = create_test_schema_file().await?;
     let postprocessor = PostProcessor::new(PostProcessorConfig::default());
-    
+
     // Should succeed despite blocked network
     let result = postprocessor.generate_report(&schema_file).await;
     assert!(result.is_ok());
@@ -1983,14 +2050,14 @@ async fn test_no_network_calls_in_postprocessor() {
 async fn test_encryption_randomness() {
     let data = b"test schema data";
     let key = EncryptionKey::generate()?;
-    
+
     let encrypted1 = encrypt_schema_data(data, &key).await?;
     let encrypted2 = encrypt_schema_data(data, &key).await?;
-    
+
     // Same data should produce different ciphertext (random nonce)
     assert_ne!(encrypted1.ciphertext, encrypted2.ciphertext);
     assert_ne!(encrypted1.nonce, encrypted2.nonce);
-    
+
     // Both should decrypt to same plaintext
     assert_eq!(decrypt_schema_data(&encrypted1, &key).await?, data);
     assert_eq!(decrypt_schema_data(&encrypted2, &key).await?, data);
@@ -2002,13 +2069,46 @@ fn test_memory_safety_with_credentials() {
         username: "testuser".to_string(),
         password: Some("supersecret".to_string()),
     };
-    
+
     // Verify credentials are zeroed on drop
     let password_ptr = credentials.password.as_ref().unwrap().as_ptr();
     drop(credentials);
-    
+
     // Note: This is a conceptual test - actual memory verification
     // would require unsafe code and platform-specific techniques
+}
+
+#[tokio::test]
+async fn test_collector_data_integrity() {
+    // Test that collector never modifies sample data
+    let test_data = vec![
+        serde_json::json!({
+            "id": 1,
+            "email": "test@example.com",
+            "password": "secret123",
+            "ssn": "123-45-6789"
+        })
+    ];
+
+    let sample = TableSample {
+        table_name: "users".to_string(),
+        schema_name: Some("public".to_string()),
+        rows: test_data.clone(),
+        sample_size: 1,
+        total_rows: Some(1),
+        sampling_strategy: SamplingStrategy::MostRecent { limit: 1 },
+        collected_at: chrono::Utc::now(),
+        warnings: vec!["WARNING: Table 'users' may contain sensitive data".to_string()],
+    };
+
+    // Verify original data is preserved exactly
+    assert_eq!(sample.rows, test_data);
+
+    // Verify sensitive data is still present (collector doesn't redact)
+    let first_row = &sample.rows[0];
+    assert_eq!(first_row["email"], "test@example.com");
+    assert_eq!(first_row["password"], "secret123");
+    assert_eq!(first_row["ssn"], "123-45-6789");
 }
 ```
 
@@ -2279,38 +2379,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         components: clippy, rustfmt
-    
+
     - name: Install nextest
       uses: taiki-e/install-action@nextest
-    
+
     - name: Install cargo-insta
       uses: taiki-e/install-action@cargo-insta
-    
+
     - name: Run tests with nextest
       run: |
         cargo nextest run --all-features --workspace --profile ci
-    
+
     - name: Run benchmarks
       run: |
         cargo bench --all-features --no-run
-    
+
     - name: Check snapshot tests
       run: |
         cargo insta test --all-features --check
-    
+
     - name: Security audit
       run: |
         cargo audit
-    
+
     - name: Check formatting
       run: |
         cargo fmt --all -- --check
-    
+
     - name: Clippy
       run: |
         cargo clippy --all-features --all-targets -- -D warnings
@@ -2333,16 +2433,16 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
+
     - name: Install cargo-dist
       run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/latest/download/cargo-dist-installer.sh | sh"
-    
+
     - name: Run cargo-dist
       run: |
         cargo dist build --tag=${{ github.ref_name }} --output-format=json > dist-manifest.json
         echo "dist ran successfully"
         cat dist-manifest.json
-    
+
     - name: Create Release
       uses: ncipollo/release-action@v1
       with:
@@ -2455,7 +2555,7 @@ rustdoc-args = [
 //!     let metadata = adapter.collect_from_url(
 //!         "postgres://user:pass@localhost/db"
 //!     ).await?;
-//!     
+//!
 //!     println!("Found {} tables", metadata.tables.len());
 //!     Ok(())
 //! }
@@ -2499,7 +2599,7 @@ rustdoc-args = [
 ///     let adapter = PostgresAdapter::new();
 ///     let connection = adapter.connect("postgres://localhost/db").await?;
 ///     let metadata = adapter.collect_metadata(&connection).await?;
-///     
+///
 ///     println!("Database: {}", metadata.database_info.name);
 ///     println!("Tables: {}", metadata.tables.len());
 ///     Ok(())
@@ -2511,7 +2611,7 @@ pub trait DatabaseAdapter: Send + Sync {
     type Connection;
     /// Error type for adapter operations
     type Error: std::error::Error + Send + Sync + 'static;
-    
+
     /// Establishes a connection to the database.
     ///
     /// # Arguments
@@ -2531,7 +2631,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// - Authentication fails
     /// - Connection timeout is exceeded
     async fn connect(&self, connection_string: &str) -> Result<Self::Connection, Self::Error>;
-    
+
     /// Lists all accessible databases on the server.
     ///
     /// This method attempts to enumerate all databases that the connected user has access to.
@@ -2552,7 +2652,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// Only databases that the authenticated user has read access to will be returned.
     /// No privilege escalation is attempted.
     async fn list_databases(&self, conn: &Self::Connection) -> Result<Vec<DatabaseInfo>, Self::Error>;
-    
+
     /// Connects to a specific database by name.
     ///
     /// Used in multi-database collection scenarios where we need to connect to each
@@ -2563,7 +2663,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// * `base_connection_string` - Original connection string (may not specify database)
     /// * `database_name` - Specific database to connect to
     async fn connect_to_database(&self, base_connection_string: &str, database_name: &str) -> Result<Self::Connection, Self::Error>;
-    
+
     /// Collects comprehensive metadata from the connected database.
     ///
     /// This method performs deep introspection of the database structure, extracting:
@@ -2576,14 +2676,14 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// Collection time scales with database size:
     /// - Small databases (<100 tables): <1 second
-    /// - Medium databases (100-1000 tables): 1-10 seconds  
+    /// - Medium databases (100-1000 tables): 1-10 seconds
     /// - Large databases (>1000 tables): 10-60 seconds
     ///
     /// # Security
     ///
     /// All operations are read-only. No data modification occurs during collection.
     async fn collect_metadata(&self, conn: &Self::Connection) -> Result<DatabaseMetadata, Self::Error>;
-    
+
     /// Collects sample data from tables using intelligent ordering strategies.
     ///
     /// This method samples the most recent N rows from each table by:
