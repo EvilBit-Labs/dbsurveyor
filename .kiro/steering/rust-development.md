@@ -9,7 +9,7 @@ fileMatchPattern: '**/*.rs'
 
 - **Rust Version**: 1.77+ (MSRV as specified in workspace Cargo.toml)
 - **Edition**: 2021
-- **Toolchain**: Stable channel preferred
+- **Toolchain**: Version 1.89.0 (pinned to MSRV)
 
 ## Code Quality Standards
 
