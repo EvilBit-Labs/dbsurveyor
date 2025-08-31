@@ -32,14 +32,15 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 
-# Secure credential handling
-rpassword = "7.3"
+# URL parsing for secure database connection handling
+url = "2.5.7"
 
 # Database drivers (feature-gated)
 # Note: MySQL support completely disabled to prevent RSA vulnerability (RUSTSEC-2023-0071)
 # SQLx with minimal features - specific database support added via feature flags only
+# Using rustls for better security and cross-platform compatibility
 sqlx = { version = "0.8.6", features = [
-    "runtime-tokio-native-tls",
+    "runtime-tokio-rustls",
 ], optional = true }
 mongodb = { version = "3.2.5", optional = true }
 tiberius = { version = "0.12.3", optional = true }

@@ -13,6 +13,7 @@ rust-version = "1.89"
 authors = ["UncleSp1d3r"]
 license = "Apache-2.0"
 repository = "https://github.com/EvilBit-Labs/dbsurveyor"
+homepage = "https://evilbitlabs.io/dbsurveyor"
 keywords = ["database", "documentation", "schema", "offline", "security"]
 categories = ["command-line-utilities", "database"]
 
@@ -88,6 +89,12 @@ overflow-checks = true # Runtime integer overflow detection
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[workspace.metadata.release]
+shared-version = true
+tag-name = "v{{version}}"
+sign-commit = true
+sign-tag = true
 
 # ⚠️ SECURITY NOTICE: This Cargo.toml enforces the following security guarantees:
 #

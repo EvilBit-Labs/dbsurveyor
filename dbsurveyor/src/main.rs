@@ -95,7 +95,9 @@ impl CommandExecutor for ProcessCommand {
         Ok(format!(
             "dbsurveyor v{version}\nDatabase survey postprocessing and documentation tool\n✅ Input file validated: {}\n✅ Output path validated: {}\n⚠️  Processing functionality will be implemented in future tasks",
             self.input.display(),
-            self.output.as_ref().map_or_else(|| std::path::Path::new("stdout").display(), |p| p.display())
+            self.output
+                .as_ref()
+                .map_or_else(|| std::path::Path::new("stdout").display(), |p| p.display())
         ))
     }
 }
@@ -256,34 +258,7 @@ pub fn validate_file_path(path: &Path, base_dir: &Path) -> Result<PathBuf, PathV
         });
     }
 
-    // Resolve the path relative to base directory
-    let resolved_path = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        base_dir.join(path)
-    };
-
-    // For absolute paths, check if they're within the base directory
-    if path.is_absolute() && !resolved_path.starts_with(base_dir) {
-        return Err(PathValidationError::OutsideBaseDirectory {
-            path: resolved_path.to_string_lossy().to_string(),
-        });
-    }
-
-    // Try to canonicalize the path if it exists
-    let canonical_path = if resolved_path.exists() {
-        resolved_path
-            .canonicalize()
-            .map_err(|e| PathValidationError::CanonicalizationFailed {
-                path: path_str.to_string(),
-                source: e,
-            })?
-    } else {
-        // For non-existent paths, just use the resolved path
-        resolved_path
-    };
-
-    // Canonicalize the base directory as well for comparison
+    // Canonicalize base directory for consistent comparison
     let canonical_base_dir =
         base_dir
             .canonicalize()
@@ -292,12 +267,71 @@ pub fn validate_file_path(path: &Path, base_dir: &Path) -> Result<PathBuf, PathV
                 source: e,
             })?;
 
-    // Final check: ensure the canonicalized path is within the canonicalized base directory
-    if !canonical_path.starts_with(&canonical_base_dir) {
+    // Resolve the path relative to base directory
+    let resolved_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        base_dir.join(path)
+    };
+
+    // For absolute paths, check if they're within the canonical base directory
+    if path.is_absolute() && !resolved_path.starts_with(&canonical_base_dir) {
         return Err(PathValidationError::OutsideBaseDirectory {
-            path: canonical_path.to_string_lossy().to_string(),
+            path: resolved_path.to_string_lossy().to_string(),
         });
     }
+
+    // Safely resolve symlinks and validate path
+    let canonical_path = if resolved_path.exists() {
+        // Target exists, canonicalize and validate it stays within base directory
+        let canonical = resolved_path.canonicalize().map_err(|e| {
+            PathValidationError::CanonicalizationFailed {
+                path: path_str.to_string(),
+                source: e,
+            }
+        })?;
+
+        // Canonicalize base directory for comparison
+        let canonical_base_dir =
+            base_dir
+                .canonicalize()
+                .map_err(|e| PathValidationError::CanonicalizationFailed {
+                    path: base_dir.to_string_lossy().to_string(),
+                    source: e,
+                })?;
+
+        // Validate canonical path is within canonical base directory
+        if !canonical.starts_with(&canonical_base_dir) {
+            return Err(PathValidationError::OutsideBaseDirectory {
+                path: canonical.to_string_lossy().to_string(),
+            });
+        }
+        canonical
+    } else {
+        // Target doesn't exist, canonicalize nearest existing parent directory
+        let parent = resolved_path.parent().unwrap_or(base_dir);
+        let canonical_parent =
+            parent
+                .canonicalize()
+                .map_err(|e| PathValidationError::CanonicalizationFailed {
+                    path: parent.to_string_lossy().to_string(),
+                    source: e,
+                })?;
+
+        // Join with final component and validate
+        let final_component = resolved_path
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new(""));
+        let joined_path = canonical_parent.join(final_component);
+
+        // Validate joined path stays within canonical base directory
+        if !joined_path.starts_with(&canonical_base_dir) {
+            return Err(PathValidationError::OutsideBaseDirectory {
+                path: joined_path.to_string_lossy().to_string(),
+            });
+        }
+        joined_path
+    };
 
     Ok(canonical_path)
 }
@@ -433,14 +467,18 @@ fn check_output_path_writable(path: &Path) -> Result<(), ExecuteError> {
                 }
                 // Try to create a temporary file to test write permissions
                 let temp_path = parent.join(".dbsurveyor_write_test");
-                if let Err(e) = std::fs::write(&temp_path, b"test") {
+                let write_result = std::fs::write(&temp_path, b"test");
+
+                // Always attempt to clean up test file
+                let _ = std::fs::remove_file(&temp_path);
+
+                // Check write result after cleanup
+                if let Err(e) = write_result {
                     return Err(ExecuteError::OutputDirectoryNotWritable {
                         path: parent.to_string_lossy().to_string(),
                         source: e,
                     });
                 }
-                // Clean up test file
-                let _ = std::fs::remove_file(&temp_path);
             } else {
                 return Err(ExecuteError::OutputDirectoryNotWritable {
                     path: parent.to_string_lossy().to_string(),
@@ -551,7 +589,9 @@ mod tests {
         if let Ok(output) = result {
             assert!(output.contains("dbsurveyor v"));
             assert!(output.contains("Database survey postprocessing and documentation tool"));
-            assert!(output.contains("Processing functionality will be implemented in future tasks"));
+            assert!(
+                output.contains("Processing functionality will be implemented in future tasks")
+            );
         }
     }
 
@@ -646,13 +686,18 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
 
-        // Create a test file
-        let test_file = base_dir.join("test.json");
+        // Create a subdirectory for the test file (not in base_dir directly)
+        let sub_dir = base_dir.join("subdir");
+        fs::create_dir(&sub_dir).unwrap();
+        let test_file = sub_dir.join("test.json");
         fs::write(&test_file, "test content").unwrap();
 
-        // Use relative path for validation
-        let relative_path = PathBuf::from("test.json");
+        // Use relative path for validation (relative to base_dir)
+        let relative_path = PathBuf::from("subdir").join("test.json");
         let result = validate_file_path(&relative_path, base_dir);
+        if let Err(ref e) = result {
+            println!("Validation failed: {e:?}");
+        }
         assert!(result.is_ok());
 
         let canonical_path = result.unwrap();
