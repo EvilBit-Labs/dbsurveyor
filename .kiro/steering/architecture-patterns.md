@@ -155,20 +155,20 @@ struct ConnectionConfig {
 
 ```rust
 pub struct EncryptedData {
-    pub algorithm: String,           // "AES-GCM-256"
-    pub nonce: Vec<u8>,             // 96-bit random nonce
-    pub ciphertext: Vec<u8>,        // Raw encrypted payload
-    pub auth_tag: Vec<u8>,          // Separate authentication tag
-    pub kdf: String,                // Key derivation function (e.g., "Argon2id")
-    pub kdf_params: KdfParams,      // KDF parameters (salt, iterations, memory, etc.)
+    pub algorithm: String,     // "AES-GCM-256"
+    pub nonce: Vec<u8>,        // 96-bit random nonce
+    pub ciphertext: Vec<u8>,   // Raw encrypted payload
+    pub auth_tag: Vec<u8>,     // Separate authentication tag
+    pub kdf: String,           // Key derivation function (e.g., "Argon2id")
+    pub kdf_params: KdfParams, // KDF parameters (salt, iterations, memory, etc.)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KdfParams {
-    pub salt: Vec<u8>,              // 32-byte random salt
-    pub memory_cost: u32,           // Memory cost in KiB (e.g., 65536)
-    pub time_cost: u32,             // Time cost iterations (e.g., 3)
-    pub parallelism: u32,           // Parallelism factor (e.g., 4)
+    pub salt: Vec<u8>,    // 32-byte random salt
+    pub memory_cost: u32, // Memory cost in KiB (e.g., 65536)
+    pub time_cost: u32,   // Time cost iterations (e.g., 3)
+    pub parallelism: u32, // Parallelism factor (e.g., 4)
 }
 ```
 
