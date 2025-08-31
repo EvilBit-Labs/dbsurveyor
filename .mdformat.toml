@@ -1,4 +1,4 @@
-# Exclude patterns not supported in python earlier than 3.13
+# Exclude patterns for sensitive files and build artifacts
 exclude = [
     "venv/**",
     "**/node_modules/**",
@@ -7,6 +7,21 @@ exclude = [
     "**/*.tpl.md",
     "**/CHANGELOG.md",
     "rust_migration/index.md",
+    "**/.env",
+    "**/*.env",
+    "**/*.sql",
+    "**/*.sql.gz",
+    "**/*.dump",
+    "**/*.sqlite",
+    "**/*.db",
+    "**/*.bak",
+    "**/*.backup",
+    "**/*.pem",
+    "**/*.key",
+    "**/*.crt",
+    "**/*.pgpass",
+    "**/dump/**",
+    "**/backups/**",
 ]
 validate = true
 number = true
