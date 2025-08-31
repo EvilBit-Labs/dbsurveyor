@@ -22,6 +22,15 @@ assignees: [unclesp1d3r]
 
 A clear and concise description of the security vulnerability.
 
+## Affected Versions/Commits
+
+**Please list affected versions, commits, or tags to speed triage:**
+
+- **DBSurveyor Version**: [e.g., 0.1.0, 0.2.0, commit hash]
+- **Affected Commits**: [Specific commit hashes if known]
+- **Release Tags**: [e.g., v0.1.0, v0.2.0]
+- **Date Range**: [When the vulnerability was introduced/fixed]
+
 ## Vulnerability Type
 
 - [ ] Credential exposure or leakage
