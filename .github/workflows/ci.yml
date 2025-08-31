@@ -1,218 +1,241 @@
 name: CI
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+    push:
+        branches: [main, develop]
+    pull_request:
+        branches: [main, develop]
 
 env:
-  CARGO_TERM_COLOR: never
-  TERM: dumb
+    CARGO_TERM_COLOR: never
+    TERM: dumb
+
+permissions:
+    contents: read
 
 jobs:
-  # Check PR titles follow conventional commits
-  semantic-pr:
-    if: github.event_name == 'pull_request'
-    name: Semantic PR Title
-    runs-on: ubuntu-latest
-    steps:
-      - uses: amannn/action-semantic-pull-request@v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          types: |
-            feat
-            fix
-            docs
-            style
-            refactor
-            perf
-            test
-            build
-            ci
-            chore
-          requireScope: false
-          subjectPattern: ^(?![A-Z]).+$
-          subjectPatternError: |
-            The subject "{subject}" found in the pull request title "{title}"
-            doesn't match the configured pattern. Please ensure that the subject
-            doesn't start with an uppercase character.
+    # Check PR titles follow conventional commits
+    semantic-pr:
+        if: github.event_name == 'pull_request'
+        name: Semantic PR Title
+        runs-on: ubuntu-latest
+        steps:
+            - uses: amannn/action-semantic-pull-request@v5
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  types: |
+                      feat
+                      fix
+                      docs
+                      style
+                      refactor
+                      perf
+                      test
+                      build
+                      ci
+                      chore
+                  requireScope: false
+                  subjectPattern: ^(?![A-Z]).+$
+                  subjectPatternError: |
+                      The subject "{subject}" found in the pull request title "{title}"
+                      doesn't match the configured pattern. Please ensure that the subject
+                      doesn't start with an uppercase character.
 
-  # Linting job
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    # Linting job
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
+            - name: Setup Rust
+              uses: dtolnay/rust-toolchain@1.89.0
+              with:
+                  components: clippy, rustfmt
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: lint-${{ hashFiles('**/Cargo.toml') }}
+            - name: Cache Rust dependencies
+              uses: Swatinem/rust-cache@v2
+              with:
+                  key: lint-${{ hashFiles('**/Cargo.toml') }}
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+            - name: Check formatting
+              run: cargo fmt --all -- --check
 
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+            - name: Run clippy
+              run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
+            - name: Install cargo-audit
+              run: cargo install --version 0.18.0 cargo-audit
 
-      - name: Run security audit
-        run: cargo audit --ignore RUSTSEC-2023-0071
+            - name: Run security audit
+              run: cargo audit --ignore RUSTSEC-2023-0071
 
-  # Testing and coverage job
-  test-and-coverage:
-    name: Test and Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    # Testing and coverage job
+    test-and-coverage:
+        name: Test and Coverage
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
+            - name: Setup Rust
+              uses: dtolnay/rust-toolchain@1.89.0
+              with:
+                  components: llvm-tools-preview
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+            - name: Install cargo-llvm-cov
+              uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: test-${{ hashFiles('**/Cargo.toml') }}
+            - name: Cache Rust dependencies
+              uses: Swatinem/rust-cache@v2
+              with:
+                  key: test-${{ hashFiles('**/Cargo.toml') }}
 
-      - name: Run tests with coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info --fail-under-lines 75 -- --test-threads=1
-        env:
-          CARGO_TERM_COLOR: never
-          TERM: dumb
+            - name: Run tests with coverage
+              run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info --fail-under-lines 75 -- --test-threads=1
+              env:
+                  CARGO_TERM_COLOR: never
+                  TERM: dumb
 
-      - name: Generate HTML coverage report
-        run: cargo llvm-cov --all-features --workspace --html -- --test-threads=1
-        env:
-          CARGO_TERM_COLOR: never
-          TERM: dumb
+            - name: Generate HTML coverage report
+              run: cargo llvm-cov --all-features --workspace --html -- --test-threads=1
+              env:
+                  CARGO_TERM_COLOR: never
+                  TERM: dumb
 
-      - name: Upload lcov.info as artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: lcov-report
-          path: lcov.info
-          retention-days: 30
+            - name: Upload lcov.info as artifact
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: lcov-report
+                  path: lcov.info
+                  retention-days: 30
 
-      - name: Upload HTML coverage report as artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: html-coverage-report
-          path: target/llvm-cov/html/
-          retention-days: 30
+            - name: Upload HTML coverage report as artifact
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: html-coverage-report
+                  path: target/llvm-cov/html/
+                  retention-days: 30
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: lcov.info
-          flags: rust
-          name: rust-coverage
-          fail_ci_if_error: false
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v4
+              if: always()
+              with:
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  file: lcov.info
+                  flags: rust
+                  name: rust-coverage
+                  fail_ci_if_error: false
 
-  # Security scanning with CodeQL and supply chain security
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    # Security scanning with CodeQL and supply chain security
+    security-scan:
+        name: Security Scan
+        runs-on: ubuntu-latest
+        permissions:
+            security-events: write
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
 
-      # CodeQL static analysis (required per standard)
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: rust
+            # CodeQL static analysis (required per standard)
+            - name: Initialize CodeQL
+              uses: github/codeql-action/init@v3
+              with:
+                  languages: rust
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+            - name: Setup Rust
+              uses: dtolnay/rust-toolchain@1.89.0
 
-      - name: Build for CodeQL analysis
-        run: cargo build --all-features
+            - name: Build for CodeQL analysis
+              # Use minimal feature set to avoid database drivers requiring system libs
+              # This ensures CodeQL analysis is deterministic and air-gap friendly
+              run: cargo build --no-default-features --features compression
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:rust"
+            - name: Perform CodeQL Analysis
+              uses: github/codeql-action/analyze@v3
+              with:
+                  category: '/language:rust'
 
-      # SBOM generation with Syft
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0.17.6
-        with:
-          path: .
-          format: spdx-json
-          output-file: sbom.spdx.json
+            # SBOM generation with Syft
+            - name: Generate SBOM
+              uses: anchore/sbom-action@v0.17.6
+              with:
+                  path: .
+                  format: spdx-json
+                  output-file: sbom.spdx.json
 
-      - name: Upload SBOM as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-report
-          path: sbom.spdx.json
-          retention-days: 30
+            - name: Create SBOM metadata
+              run: |
+                  cat > sbom-metadata.json << EOF
+                  {
+                    "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                    "commit_sha": "${{ github.sha }}",
+                    "workflow_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                    "repository": "${{ github.repository }}",
+                    "workflow_name": "${{ github.workflow }}",
+                    "job_name": "${{ github.job }}",
+                    "sbom_file": "sbom.spdx.json",
+                    "sbom_format": "SPDX-JSON",
+                    "sbom_generator": "syft"
+                  }
+                  EOF
 
-      # Vulnerability scanning with Grype
-      - name: Run Grype vulnerability scanner
-        uses: anchore/scan-action@v4
-        id: scan
-        with:
-          path: "."
-          fail-build: true
-          severity-cutoff: high
-          output-format: sarif
+            - name: Upload SBOM and metadata as artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: sbom-report
+                  path: |
+                      sbom.spdx.json
+                      sbom-metadata.json
+                  retention-days: 30
 
-      - name: Verify SARIF file exists
-        run: test -f grype-results.sarif
-        if: always()
+            # Vulnerability scanning with Grype
+            - name: Run Grype vulnerability scanner
+              uses: anchore/scan-action@v4
+              id: scan
+              with:
+                  path: '.'
+                  fail-build: true
+                  severity-cutoff: high
+                  output-format: sarif
 
-      - name: Upload vulnerability scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: grype-results.sarif
+            - name: Verify SARIF file exists
+              run: test -f grype-results.sarif
+              if: always()
 
-  # Build validation (Linux only)
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+            - name: Upload vulnerability scan results
+              uses: github/codeql-action/upload-sarif@v3
+              if: always()
+              with:
+                  sarif_file: grype-results.sarif
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+    # Build validation (Linux only)
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: build-${{ hashFiles('**/Cargo.toml') }}
+            - name: Setup Rust
+              uses: dtolnay/rust-toolchain@1.89.0
 
-      - name: Build
-        run: cargo build --release --all-features
+            - name: Cache Rust dependencies
+              uses: Swatinem/rust-cache@v2
+              with:
+                  key: build-${{ hashFiles('**/Cargo.toml') }}
 
-      - name: Test binaries exist
-        run: |
-          # Verify that binaries were created
-          test -f target/release/dbsurveyor-collect
-          test -f target/release/dbsurveyor
+            - name: Build
+              run: cargo build --release --all-features
+
+            - name: Test binaries exist
+              run: |
+                  # Verify that binaries were created
+                  test -f target/release/dbsurveyor-collect
+                  test -f target/release/dbsurveyor
