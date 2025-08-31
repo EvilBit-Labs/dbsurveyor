@@ -1,12 +1,20 @@
 ---
 name: Security Report
 about: Report a security vulnerability in DBSurveyor
-title: '[SECURITY] '
+title: '[SECURITY] Private report — do not open publicly'
 labels: [security, confidential]
-assignees: [UncleSp1d3r]
+assignees: [unclesp1d3r]
 ---
 
 ## Security Vulnerability Report
+
+**CRITICAL**: Security vulnerabilities must be reported privately via email to <support@evilbitlabs.io>. Do NOT create public GitHub issues for security reports.
+
+**PRIVATE REPORTING REQUIRED**:
+
+- Email: <support@evilbitlabs.io>
+- Include: Steps to reproduce, impact assessment, proposed fix (if available)
+- Response: Acknowledgment within 48 hours
 
 **IMPORTANT**: This issue will be kept confidential until resolved. Please do not disclose details publicly.
 
@@ -44,21 +52,43 @@ A clear and concise description of the security vulnerability.
 
 ## Steps to Reproduce
 
-**WARNING**: Do not include actual credentials, connection strings, or sensitive data.
+**CRITICAL SECURITY**: Sanitize all sensitive data before submitting this report.
 
-1. Environment setup: [Generic description]
-2. Database configuration: [Sanitized connection details]
-3. Command executed: [Command without sensitive data]
-4. Vulnerability trigger: [What causes the issue]
-5. Observed behavior: [What happens when exploited]
+**REQUIRED SANITIZATION**:
+
+- Remove/redact: Passwords, API keys, connection strings, IP addresses, hostnames
+- Replace with: Placeholders like `[REDACTED]`, `user:pass@host/db`, `192.168.x.x`
+- Sanitize: Stack traces, error messages, configuration files, log outputs
+- Use: Generic descriptions that preserve the vulnerability without exposing sensitive details
+
+**PRIVATE ARTIFACT SUBMISSION**:
+
+- Sensitive artifacts (logs, configs, full stack traces): Email to security@[project-domain]
+- Mark subject: `[PRIVATE] DBSurveyor Security Report - [Brief Description]`
+- Include: Reference to this GitHub issue number for correlation
+
+1. Environment setup: [Generic description - no specific IPs/hostnames]
+2. Database configuration: [Sanitized connection details - use placeholders]
+3. Command executed: [Command without sensitive data - redact credentials]
+4. Vulnerability trigger: [What causes the issue - no sensitive paths/values]
+5. Observed behavior: [What happens when exploited - sanitize any output]
 
 ## Proof of Concept
 
 **IMPORTANT**: Provide a minimal, safe proof of concept that demonstrates the vulnerability without exposing sensitive data.
 
+**SANITIZATION CHECKLIST**:
+
+- [ ] No real credentials or connection strings
+- [ ] No actual IP addresses or hostnames
+- [ ] No sensitive file paths or configuration details
+- [ ] No stack traces with sensitive information
+- [ ] All output sanitized for sensitive data
+
 ```bash
-# Safe reproduction steps (no real credentials)
+# Safe reproduction steps (use placeholders for sensitive data)
 dbsurveyor [command] [options]
+# Example: dbsurveyor collect --database-url "postgres://user:pass@host/db"
 ```
 
 ## Impact Analysis
@@ -78,10 +108,12 @@ If you have suggestions for fixing the vulnerability:
 
 ## Environment Information
 
+**SANITIZATION**: Use generic descriptions that preserve context without exposing sensitive details.
+
 - **DBSurveyor Version**: [Version or commit hash]
-- **OS**: [Operating system]
-- **Database**: [Database type and version]
-- **Network Environment**: [Local/Network/Air-gapped]
+- **OS**: [Operating system - no specific hostnames/IPs]
+- **Database**: [Database type and version - no connection details]
+- **Network Environment**: [Local/Network/Air-gapped - no specific network details]
 
 ## Additional Context
 
@@ -97,6 +129,12 @@ If you have suggestions for fixing the vulnerability:
 - [ ] I understand this may take time to investigate and fix properly
 
 ## Contact Information
+
+**PRIVATE SECURITY REPORTING**:
+
+- **Email**: security@[project-domain]
+- **Response Time**: Acknowledgment within 48 hours
+- **Do NOT**: Create public GitHub issues for security vulnerabilities
 
 **Optional**: If you'd like to be contacted about the resolution:
 

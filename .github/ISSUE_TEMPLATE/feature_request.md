@@ -3,7 +3,7 @@ name: Feature Request
 about: Suggest an idea for DBSurveyor
 title: '[FEATURE] '
 labels: [enhancement, needs-triage]
-assignees: [UncleSp1d3r]
+assignees: [unclesp1d3r]
 ---
 
 ## Feature Description
@@ -36,12 +36,14 @@ Describe specific scenarios where this feature would be valuable:
    - Who: [Target user]
    - When: [When they would use this]
    - How: [How they would use this]
+   - **Security**: Use redacted placeholders (e.g., `user:pass@host/db`) instead of real credentials
 
 2. **Use Case 2**: [Description]
 
    - Who: [Target user]
    - When: [When they would use this]
    - How: [How they would use this]
+   - **Security**: Use redacted placeholders (e.g., `user:pass@host/db`) instead of real credentials
 
 ## Security Considerations
 
