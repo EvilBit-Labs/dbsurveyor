@@ -1,8 +1,6 @@
 language: en-US
 tone_instructions: >-
-  Focus on database security, schema analysis accuracy, and offline operation guarantees. Prioritize credential protection, encryption implementation, and airgap compatibility. Database security tool - enforce read-only operations and secure defaults.
-
-
+  Focus on database security, credential protection, encryption, read-only defaults, and airgap/offline compatibility.
 early_access: true
 enable_free_tier: false
 reviews:
