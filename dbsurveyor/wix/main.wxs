@@ -69,7 +69,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='Database metadata processor and report generator'
+            Description='Database schema postprocessor and documentation generator for dbsurveyor toolchain'
             Manufacturer='UncleSp1d3r'
             InstallerVersion='450'
             Languages='1033'
@@ -173,7 +173,7 @@
         <!--<Icon Id='ProductICO' SourceFile='wix\Product.ico'/>-->
         <!--<Property Id='ARPPRODUCTICON' Value='ProductICO' />-->
 
-        <Property Id='ARPHELPLINK' Value='https://github.com/UncleSp1d3r/dbsurveyor'/>
+        <Property Id='ARPHELPLINK' Value='https://github.com/EvilBit-Labs/dbsurveyor'/>
         
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>

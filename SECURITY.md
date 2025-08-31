@@ -245,7 +245,7 @@ These parameters provide strong resistance against:
 If you discover a security vulnerability in dbsurveyor:
 
 1. **DO NOT** open a public GitHub issue
-2. **Email**: security@[project-domain] with details
+2. **Email**: <support@evilbitlabs.io> with details (PGP: 0x8F71D62BF4382BC0)
 3. **Include**: Steps to reproduce, impact assessment, proposed fix (if available)
 4. **Response Time**: We commit to acknowledging within 48 hours
 
@@ -314,9 +314,9 @@ The RSA crate v0.9.8 used by SQLx for MySQL connections contains a vulnerability
 
 #### Alternative Solutions
 
-1. **PostgreSQL**: Full support, no security vulnerabilities
-2. **SQLite**: Full support, no network dependencies
-3. **MongoDB**: Full support with secure authentication
+1. **PostgreSQL**: Full support, no known vulnerabilities in our supported configuration as of 2025-08-31; tracked via cargo-audit/grype
+2. **SQLite**: Full support, no network dependencies, no known vulnerabilities in our supported configuration as of 2025-08-31; tracked via cargo-audit/grype
+3. **MongoDB**: Full support with secure authentication, no known vulnerabilities in our supported configuration as of 2025-08-31; tracked via cargo-audit/grype
 
 #### Status Updates
 

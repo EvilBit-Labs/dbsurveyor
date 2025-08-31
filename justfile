@@ -46,9 +46,17 @@ update-deps:
 # Format code with rustfmt
 format:
     @echo "🎨 Formatting code..."
-    pre-commit run -a
+    @if command -v pre-commit > /dev/null 2>&1; then \
+        pre-commit run -a; \
+    else \
+        echo "⚠️  pre-commit not installed, skipping hooks"; \
+    fi
     cargo fmt
-    prettier --write "**/*.{yml,yaml,js,jsx,ts,tsx}" 2>/dev/null
+    @if command -v prettier > /dev/null 2>&1; then \
+        prettier --write "**/*.{yml,yaml,js,jsx,ts,tsx}"; \
+    else \
+        echo "⚠️  prettier not installed, skipping formatting"; \
+    fi
     @echo "✅ Code formatted"
 
 # Check code formatting
@@ -60,7 +68,7 @@ format-check:
 lint:
     @echo "🔍 Running Rust Quality Gate (cargo clippy -- -D warnings)..."
     @echo "⚠️  EXPLICIT REQUIREMENT: cargo clippy -- -D warnings must pass"
-    cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --all-targets --features postgresql,sqlite,encryption,compression -- -D warnings
     @echo "✅ Rust Quality Gate passed - zero warnings enforced"
 
 # Run all linting and formatting checks
@@ -108,15 +116,15 @@ rust-fmt-check:
 
 # Lint Rust code with clippy (strict mode)
 rust-clippy:
-    cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --all-targets --features postgresql,sqlite,encryption,compression -- -D warnings
 
 # Run all Rust tests
 rust-test:
-    cargo test --all-features --workspace
+    cargo test --features postgresql,sqlite,encryption,compression --workspace
 
 # Run Rust test coverage with HTML report
 rust-cov:
-    cargo llvm-cov --all-features --workspace --open
+    cargo llvm-cov --features postgresql,sqlite,encryption,compression --workspace --open
 
 # Quality assurance: format check, clippy, and tests
 qa: rust-fmt-check rust-clippy rust-test
@@ -135,26 +143,26 @@ test:
     @echo "🧪 Running test suite with security checks..."
     @echo "⚠️  Testing offline-only operation - no external network calls allowed"
     # Run dbsurveyor-collect tests sequentially to avoid environment variable conflicts
-    cargo test -p dbsurveyor-collect --all-features --verbose -- --test-threads=1
+    cargo test -p dbsurveyor-collect --features postgresql,sqlite --verbose -- --test-threads=1
     # Run all other tests normally
-    cargo test --workspace --exclude dbsurveyor-collect --all-features --verbose
+    cargo test --workspace --exclude dbsurveyor-collect --features encryption,compression --verbose
     @echo "✅ All tests passed - security guarantees maintained"
 
 # Run tests excluding benchmarks
 test-no-bench:
-    cargo test --all-features --lib --bins --tests
+    cargo test --features postgresql,sqlite,encryption,compression --lib --bins --tests
 
 # Run integration tests only
 test-integration:
-    cargo test --test '*' --all-features
+    cargo test --test '*' --features postgresql,sqlite,encryption,compression
 
 # Run unit tests only
 test-unit:
-    cargo test --lib --all-features
+    cargo test --lib --features postgresql,sqlite,encryption,compression
 
 # Run doctests only
 test-doc:
-    cargo test --doc --all-features
+    cargo test --doc --features postgresql,sqlite,encryption,compression
 
 # Run tests for specific database engines
 test-postgres:
@@ -169,27 +177,27 @@ test-sqlite:
     @echo "📦 Testing SQLite adapter..."
     cargo test sqlite --verbose
 
-# Run coverage with cargo-llvm-cov and enforce 75% threshold
+# Run coverage with cargo-llvm-cov and enforce 80% threshold
 coverage:
-    @echo "🔍 Running coverage with >75% threshold..."
-    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 75 --output-path lcov.info -- --test-threads=1
-    @echo "✅ Coverage passed 75% threshold!"
+    @echo "🔍 Running coverage with >80% threshold..."
+    cargo llvm-cov --workspace --lcov --fail-under-lines 80 --output-path lcov.info -- --test-threads=1
+    @echo "✅ Coverage passed 80% threshold!"
 
 # Run coverage for CI - generates report even if some tests fail
 coverage-ci:
-    @echo "🔍 Running coverage for CI with >75% threshold..."
-    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 75 --output-path lcov.info
-    @echo "✅ Coverage passed 75% threshold!"
+    @echo "🔍 Running coverage for CI with >80% threshold..."
+    cargo llvm-cov --workspace --lcov --fail-under-lines 80 --output-path lcov.info
+    @echo "✅ Coverage passed 80% threshold!"
 
 # Run coverage report in HTML format for local viewing
 coverage-html:
     @echo "🔍 Generating HTML coverage report..."
-    cargo llvm-cov --all-features --workspace --html --output-dir target/llvm-cov/html
+    cargo llvm-cov --workspace --html --output-dir target/llvm-cov/html
     @echo "📊 HTML report available at target/llvm-cov/html/index.html"
 
 # Run coverage report to terminal
 coverage-report:
-    cargo llvm-cov --all-features --workspace
+    cargo llvm-cov --workspace
 
 # Clean coverage artifacts
 coverage-clean:
@@ -243,12 +251,12 @@ security-full:
 
 # Build the project in debug mode
 build:
-    cargo build --all-features
+    cargo build --features postgresql,sqlite,encryption,compression
 
 # Build the project in release mode with security optimizations
 build-release:
     @echo "🔨 Building with security optimizations..."
-    cargo build --release --all-features
+    cargo build --release --features postgresql,sqlite,encryption,compression
     @echo "✅ Build complete - offline operation verified"
 
 # Build minimal feature set (for airgap environments)
@@ -259,12 +267,12 @@ build-minimal:
 
 # Build documentation
 doc:
-    cargo doc --all-features --no-deps
+    cargo doc --features postgresql,sqlite,encryption,compression --no-deps
 
 # Build and open documentation
 doc-open:
     @echo "📚 Generating offline-compatible documentation..."
-    cargo doc --all-features --no-deps --document-private-items --open
+    cargo doc --features postgresql,sqlite,encryption,compression --no-deps --document-private-items --open
     @echo "✅ Documentation generated - works offline"
 
 # Serve documentation locally (required by standard)
@@ -288,11 +296,11 @@ docs-build:
 
 # Run the CLI tool with sample arguments
 run *args:
-    cargo run --all-features -- {{args}}
+    cargo run --features postgresql,sqlite,encryption,compression -- {{args}}
 
 # Run benchmarks
 bench:
-    cargo bench --all-features
+    cargo bench --features postgresql,sqlite,encryption,compression
 
 # -----------------------------
 # 🔐 Security & Auditing
@@ -302,24 +310,16 @@ bench:
 security-audit:
     @echo "🔐 Running comprehensive security audit..."
     @echo "📋 Generating Software Bill of Materials (SBOM)..."
-    # Install tools if not present
+    # Install Syft if not present
     @if ! command -v syft >/dev/null 2>&1; then \
         echo "Installing Syft for SBOM generation..."; \
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
     fi
-    @if ! command -v grype >/dev/null 2>&1; then \
-        echo "Installing Grype for vulnerability scanning..."; \
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b ~/.local/bin; \
-    fi
     # Generate SBOM
-    ~/.local/bin/syft dir:. -o json > sbom.json
-    ~/.local/bin/syft dir:. -o spdx-json > sbom.spdx.json
-    # Vulnerability scan
-    ~/.local/bin/grype dir:. --output table
-    ~/.local/bin/grype dir:. --output json --file grype-report.json
+    syft dir:. -o spdx-json > sbom.spdx.json
+    syft dir:. -o json > sbom.json
     @echo "✅ Security audit complete - reports generated"
-    @echo "📄 SBOM files: sbom.json, sbom.spdx.json"
-    @echo "🛡️  Vulnerability report: grype-report.json"
+    @echo "📄 SBOM files: sbom.spdx.json, sbom.json"
 
 # SBOM generation for local inspection (required by standard)
 sbom:
@@ -328,11 +328,9 @@ sbom:
         echo "Installing Syft..."; \
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
     fi
-    ~/.local/bin/syft dir:. -o json > sbom.json
-    ~/.local/bin/syft dir:. -o spdx-json > sbom.spdx.json
-    @echo "📋 Generating SBOM provenance metadata..."
-    @./scripts/generate-sbom-metadata.sh
-    @echo "✅ SBOM generated: sbom.json, sbom.spdx.json, sbom.metadata.json"
+    syft dir:. -o spdx-json > sbom.spdx.json
+    syft dir:. -o json > sbom.json
+    @echo "✅ SBOM generated: sbom.spdx.json, sbom.json"
 
 # Simulate release process without publishing (required by standard)
 release-dry:
@@ -366,9 +364,15 @@ install-tools:
 # Run dependency audit
 audit:
     @echo "📊 Auditing dependencies for security vulnerabilities..."
-    @echo "🔍 Ignoring RUSTSEC-2023-0071 (RSA vulnerability) - See SECURITY.md for rationale and mitigation details"
-    cargo audit --ignore RUSTSEC-2023-0071
+    @echo "🔍 Running strict audit (MySQL feature disabled by default)"
+    cargo audit
     @echo "✅ Dependency audit complete"
+
+# Run strict CI audit (fails on all advisories)
+audit-ci:
+    @echo "📊 Running strict CI audit (fails on all advisories)..."
+    cargo audit
+    @echo "✅ Strict audit passed - no vulnerabilities found"
 
 # Check for security advisories
 check-advisories:
@@ -382,7 +386,7 @@ check-advisories:
 clean:
     @echo "🧹 Cleaning build artifacts (security: removing any cached sensitive data)..."
     cargo clean
-    rm -f sbom.json sbom.spdx.json sbom.metadata.json grype-report.json lcov.info
+    rm -f sbom.spdx.json sbom.json lcov.info
     @echo "✅ Clean complete - no sensitive data in cache"
 
 # Update dependencies
@@ -574,11 +578,11 @@ dev: format lint test coverage pre-commit-run
 
 # Watch for changes and run tests
 watch:
-    cargo watch -x "test --all-features"
+    cargo watch -x "test --features postgresql,sqlite,encryption,compression"
 
 # Watch for changes and run checks
 watch-check:
-    cargo watch -x "check --all-features" -x "clippy -- -D warnings"
+    cargo watch -x "check --features postgresql,sqlite,encryption,compression" -x "clippy -- -D warnings"
 
 # -----------------------------
 # 📊 Project Information

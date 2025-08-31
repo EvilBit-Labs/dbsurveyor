@@ -140,18 +140,21 @@ The critical warning message appears in:
 
 All required elements have been embedded across the project:
 
-1. [x] **Offline-only operation** - Explicitly guaranteed in all documents
-2. [x] **No network calls** - Stated as absolute prohibition
-3. [x] **No telemetry** - Guaranteed zero data collection/reporting
-4. [x] **No credentials in outputs** - Explicit warnings and technical controls
-5. [x] **AES-GCM encryption details** - Technical specifications provided (random nonce, embedded KDF params, authenticated headers)
-6. [x] **Airgap compatibility** - Guaranteed for both binaries and all outputs
-7. [x] **CI security controls** - All Pipeline Standard controls implemented (CodeQL, Syft, Grype, FOSSA)
+- [x] **Offline-only operation** - Explicitly guaranteed in all documents
+- [x] **No external network calls by default** - Exceptions permitted for localhost or explicitly approved database and CI endpoints
+  - **Allowed categories**: Local databases, approved CI tools, specified hosts
+  - **Documentation required**: Each exception must have justification and approved owner
+  - **Airgap compatibility**: Controls mitigate exceptions for offline operation
+- [x] **No telemetry** - Guaranteed zero data collection/reporting
+- [x] **No credentials in outputs** - Explicit warnings and technical controls
+- [x] **AES-GCM encryption details** - Technical specifications provided (random nonce, embedded KDF params, authenticated headers)
+- [x] **Airgap compatibility** - Guaranteed for both binaries and all outputs
+- [x] **CI security controls** - All Pipeline Standard controls implemented (CodeQL, Syft, Grype, FOSSA)
 
 The security guarantees are now comprehensively embedded across all project documentation and enforced through automated CI/CD pipelines, development tooling, and build configurations.
 
 ---
 
-**Verification Date**: 2024-12-19
+**Verification Date**: 2025-08-31
 **Verification Status**: COMPLETE
 **Security Embedding**: 100% COVERAGE

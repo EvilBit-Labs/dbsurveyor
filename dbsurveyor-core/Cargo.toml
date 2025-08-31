@@ -20,12 +20,13 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-url = { version = "2", default-features = false, features = ["serde"] }
+url = { version = "2.5.7", default-features = false, features = ["serde"] }
+async-trait = "0.1.89"
 
 # Compression and encryption
-zstd = { version = "0.13", optional = true }
-aes-gcm = { version = "0.10", optional = true }
-ring = { version = "0.17", optional = true }
+zstd = { version = "0.13.3", optional = true }
+aes-gcm = { version = "0.10.3", optional = true }
+ring = { version = "0.17.14", optional = true }
 
 [features]
 default = ["compression"]

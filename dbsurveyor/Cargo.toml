@@ -1,6 +1,6 @@
 [package]
 name = "dbsurveyor"
-description = "Database metadata processor and report generator"
+description = "Database schema postprocessor and documentation generator for dbsurveyor toolchain"
 
 version.workspace = true
 edition.workspace = true

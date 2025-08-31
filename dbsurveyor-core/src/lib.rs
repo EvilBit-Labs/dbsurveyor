@@ -12,6 +12,158 @@ use uuid::Uuid;
 /// Version information for survey data format
 pub const SURVEY_FORMAT_VERSION: &str = "1.0";
 
+/// Database connection parameters with secure credential handling
+///
+/// This struct holds database connection information without
+/// embedding credentials in URLs, preventing exposure in logs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DatabaseConnection {
+    /// Database type (postgresql, mysql, sqlite, mongodb, etc.)
+    pub db_type: String,
+    /// Database host
+    pub host: String,
+    /// Database port
+    pub port: u16,
+    /// Database name
+    pub database: String,
+    /// Database username
+    pub username: String,
+    /// Database password (never logged or displayed)
+    pub password: String,
+}
+
+impl DatabaseConnection {
+    /// Create a new database connection with secure credential handling
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn new(
+        db_type: String,
+        host: String,
+        port: u16,
+        database: String,
+        username: String,
+        password: String,
+    ) -> Self {
+        Self {
+            db_type,
+            host,
+            port,
+            database,
+            username,
+            password,
+        }
+    }
+
+    /// Get a safe description for logging (no credentials)
+    #[must_use]
+    pub fn safe_description(&self) -> String {
+        format!(
+            "{} connection to {}:{}/{}",
+            self.db_type, self.host, self.port, self.database
+        )
+    }
+}
+
+/// Standardized trait for database adapters
+///
+/// This trait defines the interface that all database adapters must implement,
+/// enabling the plugin architecture specified in Requirement 7.
+#[async_trait::async_trait]
+pub trait DatabaseAdapter: Send + Sync {
+    /// Database type identifier
+    fn database_type(&self) -> &str;
+
+    /// Create a new adapter instance from connection parameters
+    async fn new(connection: DatabaseConnection) -> Result<Self, String>
+    where
+        Self: Sized;
+
+    /// Test database connectivity without collecting data
+    async fn test_connection(&self) -> Result<(), String>;
+
+    /// Get a safe description for logging (no credentials)
+    fn safe_description(&self) -> String;
+
+    /// Generate connection string for this database type
+    ///
+    /// This method allows each adapter to handle its own URL construction,
+    /// supporting database-specific connection string formats and security
+    /// requirements.
+    fn connection_string(&self) -> String;
+
+    /// Validate connection parameters for this database type
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection parameters are invalid
+    fn validate_connection(&self) -> Result<(), String>;
+}
+
+/// Database adapter registry for plugin management
+///
+/// This struct manages available database adapters and provides
+/// a unified interface for adapter creation and validation.
+pub struct DatabaseAdapterRegistry {
+    adapters: std::collections::HashMap<String, Box<dyn DatabaseAdapterFactory>>,
+}
+
+/// Factory trait for creating database adapters
+pub trait DatabaseAdapterFactory: Send + Sync {
+    /// Create a new adapter instance
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the adapter cannot be created
+    fn create(&self, connection: DatabaseConnection) -> Result<Box<dyn DatabaseAdapter>, String>;
+}
+
+impl DatabaseAdapterRegistry {
+    /// Create a new empty registry
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            adapters: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Register a database adapter factory
+    pub fn register<F>(&mut self, _factory: F)
+    where
+        F: DatabaseAdapterFactory + 'static,
+    {
+        // Note: This is a placeholder for the plugin architecture
+        // In a full implementation, this would support dynamic loading
+    }
+
+    /// Get a list of supported database types
+    #[must_use]
+    pub fn supported_types(&self) -> Vec<String> {
+        self.adapters.keys().cloned().collect()
+    }
+
+    /// Create an adapter for the specified database type
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database type is not supported
+    pub fn create_adapter(
+        &self,
+        db_type: &str,
+        connection: DatabaseConnection,
+    ) -> Result<Box<dyn DatabaseAdapter>, String> {
+        self.adapters
+            .get(db_type)
+            .ok_or_else(|| format!("Unsupported database type: {db_type}"))?
+            .create(connection)
+    }
+}
+
+impl Default for DatabaseAdapterRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Safe host representation that redacts credentials
 ///
 /// This newtype ensures that database hosts are always sanitized
@@ -192,6 +344,10 @@ pub struct ConnectionMetadata {
     pub connection_latency_ms: Option<u64>,
     /// Any connection warnings (sanitized)
     pub warnings: Vec<String>,
+    /// Number of failed connection attempts
+    pub failed_attempts: u32,
+    /// Reason for last connection failure (if any)
+    pub last_failure_reason: Option<String>,
 }
 
 impl ConnectionMetadata {
@@ -203,6 +359,8 @@ impl ConnectionMetadata {
             connected_at: Utc::now(),
             connection_latency_ms: None,
             warnings: Vec::new(),
+            failed_attempts: 0,
+            last_failure_reason: None,
         }
     }
 
@@ -214,6 +372,8 @@ impl ConnectionMetadata {
             connected_at: timestamp,
             connection_latency_ms: None,
             warnings: Vec::new(),
+            failed_attempts: 0,
+            last_failure_reason: None,
         }
     }
 }
@@ -449,6 +609,8 @@ mod tests {
                 connected_at: Utc::now(),
                 connection_latency_ms: Some(150),
                 warnings: vec!["Test warning".to_string()],
+                failed_attempts: 0,
+                last_failure_reason: None,
             },
         };
 
@@ -521,6 +683,8 @@ mod tests {
                 connected_at: Utc::now(),
                 connection_latency_ms: Some(25),
                 warnings: vec![],
+                failed_attempts: 0,
+                last_failure_reason: None,
             },
         });
 
