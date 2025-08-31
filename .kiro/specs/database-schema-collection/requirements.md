@@ -2,13 +2,15 @@
 
 ## Introduction
 
-This feature implements the core database schema collection and documentation functionality for DBSurveyor. The system provides secure, offline-capable database introspection with comprehensive metadata extraction and structured documentation generation across multiple database engines. The toolchain consists of two primary executables: a collector (dbsurveyor-collect) that enumerates databases and outputs structured files, and a postprocessor (dbsurveyor) that processes output files offline to generate reports, diagrams, and reconstructed SQL.
+This feature implements the core database schema collection and documentation functionality for dbsurveyor. The system provides secure, offline-capable database introspection with comprehensive metadata extraction and structured documentation generation across multiple database engines. The toolchain consists of two primary executables: a collector (dbsurveyor-collect) that enumerates databases and outputs structured files, and a postprocessor (dbsurveyor) that processes output files offline to generate reports, diagrams, and reconstructed SQL.
+
+**Data Integrity Principle**: The collector NEVER alters, redacts, or modifies data during collection. All sample data is stored exactly as retrieved from the database. If fields cannot serialize directly to JSON (e.g., binary data), they are encoded in appropriate formats (e.g., base64) to ensure exact reconstruction. Redaction and privacy controls are exclusively handled by the postprocessor during output generation.
 
 ## Requirements
 
 ### Requirement 1
 
-**User Story:** As a database administrator, I want to collect comprehensive schema information from multiple database types including relational (PostgreSQL, MySQL, SQLite, SQL Server, Oracle), NoSQL (MongoDB, Cassandra), and columnar databases (ClickHouse, BigQuery), so that I can generate complete documentation across diverse data platforms.
+**User Story:** As a database administrator, I want to collect comprehensive schema information from multiple database types including relational (PostgreSQL, MySQL, SQLite, SQL Server, Oracle) and NoSQL (MongoDB), so that I can generate complete documentation across diverse data platforms.
 
 #### Acceptance Criteria
 
@@ -19,6 +21,8 @@ This feature implements the core database schema collection and documentation fu
 5. WHEN processing any database type THEN the system SHALL operate in read-only mode with no write operations
 6. WHEN encountering NoSQL databases THEN the system SHALL infer schema from document structure and field patterns
 7. WHEN processing columnar databases THEN the system SHALL extract partition information and column statistics
+
+**Note:** Cassandra, ClickHouse, and BigQuery support are planned for future releases and will be implemented as Pro-tier features.
 
 ### Requirement 2
 
@@ -54,9 +58,10 @@ This feature implements the core database schema collection and documentation fu
 
 1. WHEN analyzing schema data THEN the system SHALL classify fields based on naming patterns and data types
 2. WHEN sensitive fields are detected THEN they SHALL be flagged with confidence scores
-3. WHEN sample data is collected THEN it SHALL be configurable and redactable for privacy
+3. WHEN sample data is collected THEN it SHALL be stored exactly as collected from database with no alteration, redaction, or modification
 4. IF compliance mode is enabled THEN the system SHALL generate audit-ready reports
-5. WHEN processing sensitive data THEN all sample values SHALL be redacted by default in outputs
+5. WHEN processing sensitive data THEN the collector SHALL store raw sample values without modification; redaction SHALL only occur in the postprocessor
+6. WHEN serializing data to JSON THEN the system SHALL encode non-serializable fields (e.g., binary data) in appropriate formats (e.g., base64) to ensure exact reconstruction
 
 ### Requirement 5
 
@@ -67,7 +72,7 @@ This feature implements the core database schema collection and documentation fu
 1. WHEN rate limiting is configured THEN the system SHALL throttle queries to the specified rate
 2. WHEN encryption is requested THEN output files SHALL be encrypted with AES-GCM
 3. WHEN operating covertly THEN the system SHALL minimize logging and resource usage
-4. IF connection fails THEN the system SHALL not retry aggressively to avoid detection
+4. IF connection fails THEN the system SHALL implement a bounded retry policy with maximum 3 attempts, exponential backoff (base delay 500ms), randomized jitter (±100-300ms), and hard cap of 5 seconds total retry time to avoid detection
 5. WHEN collection is complete THEN all operations SHALL have been read-only and non-intrusive
 
 ### Requirement 6
@@ -108,7 +113,9 @@ This feature implements the core database schema collection and documentation fu
 3. WHEN sampling is enabled THEN the system SHALL provide clear warnings about potentially sensitive data in samples (security awareness extending Requirement 2)
 4. IF no ordering is available THEN the system SHALL sample using available methods (timestamp, primary key, etc.) (fallback for Requirement 1 metadata)
 5. WHEN collection is complete THEN the system SHALL have operated without triggering slow query logs (stealth operation supporting Requirement 5)
-6. WHEN redaction is requested THEN the postprocessor SHALL allow user-configurable redaction of sensitive sample values (privacy control extending Requirement 4)
+6. WHEN redaction is requested THEN the postprocessor SHALL apply redaction to sample values during output generation while preserving original data in source files (privacy control extending Requirement 4)
+
+**Note**: The collector and postprocessor have distinct responsibilities: the collector samples and stores data exactly as retrieved from the database, while the postprocessor handles all data transformation, redaction, and output formatting. This separation ensures data integrity and allows the same collected data to be processed multiple times with different privacy settings.
 
 ### Requirement 9
 
@@ -118,9 +125,9 @@ This feature implements the core database schema collection and documentation fu
 
 1. WHEN collection is complete THEN the system SHALL generate .dbsurveyor.json with format_version "1.0" (structured output from Requirement 1)
 2. WHEN compression is requested THEN the system SHALL output .dbsurveyor.json.zst using Zstandard compression (efficiency for large schemas from Requirement 1)
-3. WHEN encryption is requested THEN the system SHALL output .dbsurveyor.enc using AES-GCM with random nonces (security extending Requirement 2)
-4. WHEN encrypting data THEN the system SHALL embed KDF parameters and use authenticated headers (security implementation for Requirement 2)
-5. WHEN providing encryption keys THEN the system SHALL support --key, --key-file, or stdin with TTY echo disabled (credential security from Requirement 2)
+3. WHEN encryption is requested THEN the system SHALL output .dbsurveyor.enc using AES-GCM with 96-bit (12-byte) unique nonces per file (security extending Requirement 2)
+4. WHEN encrypting data THEN the system SHALL use Argon2id as KDF with memory_size >= 64MB and iterations >= 3, require salt length >= 16 bytes, and embed version, KDF parameters, salt, and associated-data metadata in authenticated headers (security implementation for Requirement 2)
+5. WHEN providing encryption keys THEN the system SHALL support --key, --key-file, or stdin with TTY echo disabled, and zeroize derived keys and secret material in memory after use (credential security from Requirement 2)
 6. WHEN generating output THEN files SHALL remain under 10MB when possible for typical workloads (performance constraint supporting Requirement 1)
 
 ### Requirement 10
@@ -145,7 +152,7 @@ This feature implements the core database schema collection and documentation fu
 2. WHEN no primary key exists THEN the system SHALL detect timestamp columns (created_at, updated_at, etc.) for chronological ordering
 3. WHEN no timestamp columns exist THEN the system SHALL fall back to auto-increment columns or system row IDs
 4. IF no reliable ordering is available THEN the system SHALL use random sampling with appropriate warnings
-5. WHEN collecting samples THEN the collector SHALL never redact data but MAY warn about potentially sensitive content (maintains data integrity from Requirement 2)
+5. WHEN collecting samples THEN the collector SHALL store data exactly as stored in database with zero alteration, redaction, or modification (maintains data integrity from Requirement 2)
 6. WHEN configuring sampling THEN users SHALL be able to specify sample size, throttling, and exclusion patterns
 
 ### Requirement 12
@@ -186,3 +193,13 @@ This feature implements the core database schema collection and documentation fu
 4. IF contributing to the project THEN architecture and plugin development guides SHALL be available
 5. WHEN documentation is built THEN it SHALL be automatically deployed and kept current with releases
 6. WHEN examples are provided THEN they SHALL be tested to ensure accuracy and functionality
+
+## Future / Roadmap
+
+The following database engines are planned for future releases and will be implemented as Pro-tier features:
+
+- **Cassandra**: NoSQL wide-column database support with CQL schema extraction
+- **ClickHouse**: Columnar database support with partition and compression analysis
+- **BigQuery**: Cloud data warehouse integration with project/dataset discovery
+
+These features will maintain the same security guarantees and offline-first architecture as the baseline database engines.
