@@ -84,10 +84,10 @@ pub fn get_database_url(
     database_url_file: Option<PathBuf>,
 ) -> Result<(String, CredentialSource), String> {
     // 1. Try environment variable first
-    if let Ok(url) = env::var("DATABASE_URL") {
-        if validate_database_url(&url) {
-            return Ok((url, CredentialSource::Environment));
-        }
+    if let Ok(url) = env::var("DATABASE_URL")
+        && validate_database_url(&url)
+    {
+        return Ok((url, CredentialSource::Environment));
     }
 
     // 2. Try file if provided
@@ -375,7 +375,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
-    use temp_env;
+
     use tempfile::NamedTempFile;
 
     #[test]
