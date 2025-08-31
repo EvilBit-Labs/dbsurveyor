@@ -4,9 +4,9 @@ permissions:
 
 on:
   push:
-    branches: [ main, develop, "feature/*" ]
+    branches: [main, develop, "feature/*"]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
   CARGO_TERM_COLOR: always

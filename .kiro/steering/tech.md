@@ -149,26 +149,26 @@ encryption = ["aes-gcm", "ring"]
 
 ```toml
 [workspace.lints.rust]
-unsafe_code = "deny"           # No unsafe code allowed
-missing_docs = "warn"          # Documentation required
-unreachable_pub = "warn"       # No dead public APIs
+unsafe_code = "deny"     # No unsafe code allowed
+missing_docs = "warn"    # Documentation required
+unreachable_pub = "warn" # No dead public APIs
 
 [workspace.lints.clippy]
-all = "deny"                   # Strict linting
-arithmetic_side_effects = "deny"  # Prevent integer overflow
-panic = "deny"                 # No panic in production code
-expect_used = "deny"           # Use proper error handling
-unwrap_used = "deny"           # No unwrap in production code
+all = "deny"                     # Strict linting
+arithmetic_side_effects = "deny" # Prevent integer overflow
+panic = "deny"                   # No panic in production code
+expect_used = "deny"             # Use proper error handling
+unwrap_used = "deny"             # No unwrap in production code
 ```
 
 ### Release Profile (Security Optimized)
 
 ```toml
 [profile.release]
-lto = true              # Link-time optimization
-codegen-units = 1       # Better optimization
-panic = "abort"         # Smaller binary, immediate failure
-strip = "symbols"       # Remove debug symbols
+lto = true        # Link-time optimization
+codegen-units = 1 # Better optimization
+panic = "abort"   # Smaller binary, immediate failure
+strip = "symbols" # Remove debug symbols
 ```
 
 ## Architecture Patterns

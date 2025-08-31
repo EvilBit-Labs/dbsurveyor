@@ -25,10 +25,10 @@ This document provides comprehensive security guarantees for the dbsurveyor proj
 
 - [x] **NO CREDENTIALS IN OUTPUTS**: Database credentials never appear in output files, logs, or debug information
 - [x] **AES-GCM ENCRYPTION**: Industry-standard authenticated encryption for sensitive outputs
-    - Random nonce generation for each encryption operation
-    - Embedded Key Derivation Function (KDF) parameters using Argon2
-    - Authenticated headers prevent tampering and ensure data integrity
-    - 256-bit keys with configurable iteration counts for future-proofing
+  - Random nonce generation for each encryption operation
+  - Embedded Key Derivation Function (KDF) parameters using Argon2
+  - Authenticated headers prevent tampering and ensure data integrity
+  - 256-bit keys with configurable iteration counts for future-proofing
 - [x] **SENSITIVE DATA WARNINGS**: Explicit warnings about sensitive data in sample outputs
 - [x] **CONFIGURABLE REDACTION**: Pattern-based redaction for PII, SSN, credit cards, etc.
 
@@ -188,55 +188,55 @@ These parameters provide strong resistance against:
 
 1. **Credential Security Tests**
 
-    ```bash
-    just test-credential-security
-    ```
+   ```bash
+   just test-credential-security
+   ```
 
-    Verifies no credentials appear in any output files or logs.
+   Verifies no credentials appear in any output files or logs.
 
-1. **Encryption Security Tests**
+2. **Encryption Security Tests**
 
-    ```bash
-    just test-encryption
-    ```
+   ```bash
+   just test-encryption
+   ```
 
-    Validates AES-GCM implementation with random nonce generation.
+   Validates AES-GCM implementation with random nonce generation.
 
-1. **Offline Operation Tests**
+3. **Offline Operation Tests**
 
-    ```bash
-    just test-offline
-    ```
+   ```bash
+   just test-offline
+   ```
 
-    Confirms zero network calls during operation.
+   Confirms zero network calls during operation.
 
-1. **Full Security Suite**
+4. **Full Security Suite**
 
-    ```bash
-    just security-full
-    ```
+   ```bash
+   just security-full
+   ```
 
-    Runs complete security validation including external tools.
+   Runs complete security validation including external tools.
 
 ### Manual Security Verification
 
 1. **Network Isolation Test**
 
-    - Disconnect network interface
-    - Run dbsurveyor operations
-    - Verify successful operation without connectivity
+   - Disconnect network interface
+   - Run dbsurveyor operations
+   - Verify successful operation without connectivity
 
-1. **Output Analysis**
+2. **Output Analysis**
 
-    - Generate various output formats
-    - Search for credential patterns using regex
-    - Verify redaction is working correctly
+   - Generate various output formats
+   - Search for credential patterns using regex
+   - Verify redaction is working correctly
 
-1. **Encryption Verification**
+3. **Encryption Verification**
 
-    - Encrypt output with known password
-    - Decrypt and verify integrity
-    - Confirm nonce uniqueness across operations
+   - Encrypt output with known password
+   - Decrypt and verify integrity
+   - Confirm nonce uniqueness across operations
 
 ## Security Incident Response
 
@@ -245,17 +245,17 @@ These parameters provide strong resistance against:
 If you discover a security vulnerability in dbsurveyor:
 
 1. **DO NOT** open a public GitHub issue
-1. **Email**: security@[project-domain] with details
-1. **Include**: Steps to reproduce, impact assessment, proposed fix (if available)
-1. **Response Time**: We commit to acknowledging within 48 hours
+2. **Email**: security@[project-domain] with details
+3. **Include**: Steps to reproduce, impact assessment, proposed fix (if available)
+4. **Response Time**: We commit to acknowledging within 48 hours
 
 ### Security Update Process
 
 1. **Assessment**: Evaluate severity and impact
-1. **Fix Development**: Develop and test security fix
-1. **Advisory**: Prepare security advisory with CVE if applicable
-1. **Release**: Expedited release process for critical issues
-1. **Disclosure**: Coordinate public disclosure with reporter
+2. **Fix Development**: Develop and test security fix
+3. **Advisory**: Prepare security advisory with CVE if applicable
+4. **Release**: Expedited release process for critical issues
+5. **Disclosure**: Coordinate public disclosure with reporter
 
 ## Compliance & Auditing
 
@@ -306,17 +306,17 @@ The RSA crate v0.9.8 used by SQLx for MySQL connections contains a vulnerability
 **For users who need MySQL support**:
 
 1. Explicitly enable MySQL feature: `cargo build --features mysql`
-1. **Security Recommendation**: Use PostgreSQL or SQLite instead when possible
-1. If MySQL is required, ensure connections use:
-    - Strong network security (VPN, private networks)
-    - Regular key rotation
-    - Monitoring for timing attacks
+2. **Security Recommendation**: Use PostgreSQL or SQLite instead when possible
+3. If MySQL is required, ensure connections use:
+   - Strong network security (VPN, private networks)
+   - Regular key rotation
+   - Monitoring for timing attacks
 
 #### Alternative Solutions
 
 1. **PostgreSQL**: Full support, no security vulnerabilities
-1. **SQLite**: Full support, no network dependencies
-1. **MongoDB**: Full support with secure authentication
+2. **SQLite**: Full support, no network dependencies
+3. **MongoDB**: Full support with secure authentication
 
 #### Status Updates
 
@@ -345,10 +345,10 @@ cargo audit
 ### Best Practices
 
 1. **Use Encryption**: Always use `--encrypt` flag for sensitive environments
-1. **Limit Samples**: Use `--sample 0` or `--no-data` for maximum security
-1. **Regular Updates**: Keep dbsurveyor updated for latest security fixes
-1. **Audit Outputs**: Regularly audit output files for unintended data exposure
-1. **Secure Storage**: Store output files in secure, access-controlled locations
+2. **Limit Samples**: Use `--sample 0` or `--no-data` for maximum security
+3. **Regular Updates**: Keep dbsurveyor updated for latest security fixes
+4. **Audit Outputs**: Regularly audit output files for unintended data exposure
+5. **Secure Storage**: Store output files in secure, access-controlled locations
 
 ## Security Resources
 

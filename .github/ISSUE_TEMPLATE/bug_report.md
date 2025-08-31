@@ -13,10 +13,10 @@ A clear and concise description of what the bug is.
 ## Steps to Reproduce
 
 1. Database type: [PostgreSQL/MySQL/SQLite/SQL Server/MongoDB]
-1. Connection string format: `[database://user:pass@host:port/db]` (sanitize credentials)
-1. Command executed: `dbsurveyor [command] [options]`
-1. Expected behavior: What you expected to happen
-1. Actual behavior: What actually happened
+2. Connection string format: `[database://user:pass@host:port/db]` (sanitize credentials)
+3. Command executed: `dbsurveyor [command] [options]`
+4. Expected behavior: What you expected to happen
+5. Actual behavior: What actually happened
 
 ## Environment Information
 

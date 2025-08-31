@@ -37,7 +37,7 @@ Describe specific scenarios where this feature would be valuable:
    - When: [When they would use this]
    - How: [How they would use this]
 
-1. **Use Case 2**: [Description]
+2. **Use Case 2**: [Description]
 
    - Who: [Target user]
    - When: [When they would use this]

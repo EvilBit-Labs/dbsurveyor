@@ -5,6 +5,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
 ## Task List
 
 - [ ] 1. Set up project structure and core interfaces
+
   - Create Cargo workspace with three crates: dbsurveyor-core, dbsurveyor-collect, dbsurveyor
   - Define core traits: DatabaseAdapter, Connection with object-safe design
   - Implement basic error types with credential sanitization
@@ -13,6 +14,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 7.1, 7.2_
 
 - [ ] 2. Implement unified data models and serialization
+
   - Create DatabaseSchema, Table, Column, and related data structures
   - Implement UnifiedDataType enum for cross-database type mapping
   - Add serde serialization with format_version "1.0"
@@ -21,6 +23,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.3, 2.1, 9.1_
 
 - [ ] 3. Create PostgreSQL adapter with schema collection
+
   - Implement PostgresAdapter with sqlx integration
   - Add connection management with connection pooling
   - Implement schema enumeration using information_schema and pg_catalog
@@ -29,6 +32,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 4. Add intelligent data sampling to PostgreSQL adapter
+
   - Implement ordering strategy detection (primary key, timestamp, auto-increment)
   - Create sample_data method with configurable sampling
   - Add sensitive data detection patterns (warnings only, no redaction)
@@ -37,6 +41,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
 - [ ] 5. Implement multi-database collection for PostgreSQL
+
   - Add list_databases method to enumerate all accessible databases
   - Implement connect_to_database for specific database connections
   - Create collect_all_databases method with server-level schema collection
@@ -45,6 +50,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
 
 - [ ] 6. Create MySQL adapter with unified interface
+
   - Implement MySqlAdapter following the same patterns as PostgreSQL
   - Add MySQL-specific schema queries using information_schema
   - Implement data sampling with MySQL-specific ordering strategies (Requirement 11)
@@ -53,6 +59,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7, 11.1-11.6, 12.1-12.6_
 
 - [ ] 7. Create SQLite adapter with file-based handling
+
   - Implement SqliteAdapter for single-file databases
   - Use sqlite_master table for schema introspection
   - Handle SQLite-specific data types and constraints
@@ -61,6 +68,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7, 11.1-11.6_
 
 - [ ] 8. Create MongoDB adapter for NoSQL support
+
   - Implement MongoAdapter with mongodb crate
   - Add collection introspection and document schema inference
   - Implement field statistics and occurrence rate calculation
@@ -69,6 +77,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7, 11.1-11.6_
 
 - [ ] 9. Implement encryption and compression for output files
+
   - Create encryption module using aes-gcm and ring crates
   - Implement AES-GCM with random nonces and embedded KDF parameters
   - Add zstd compression support for .dbsurveyor.json.zst format
@@ -77,6 +86,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.1, 2.3, 9.3, 9.4, 9.5_
 
 - [ ] 10. Build collector CLI with clap integration
+
   - Create collector binary with comprehensive CLI using clap derive
   - Implement database type detection from connection strings
   - Add support for all output formats and encryption options
@@ -85,6 +95,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 8.1, 8.2, 9.1_
 
 - [ ] 11. Create postprocessor core with template engine
+
   - Implement postprocessor binary for offline documentation generation
   - Set up askama template engine for Markdown and HTML generation
   - Create input validation and format version checking
@@ -93,6 +104,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 3.3, 6.1_
 
 - [ ] 12. Implement data redaction in postprocessor
+
   - Create RedactionConfig and RedactionPattern structures
   - Implement configurable redaction with user override options
   - Add redaction modes: Conservative, Balanced, Minimal, None
@@ -101,6 +113,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 4.1, 4.2, 8.6, 11.5_
 
 - [ ] 13. Add SQL reconstruction and schema documentation
+
   - Implement SQL DDL generation from collected metadata
   - Create database-specific SQL dialect support
   - Generate CREATE TABLE statements with constraints and indexes
@@ -109,6 +122,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 3.3, 6.1_
 
 - [ ] 13.1. Implement Pro-tier features for advanced analysis
+
   - Add Mermaid.js and D2 visual schema diagram generation (Requirement 10.1)
   - Implement PII/PCI field classification with regex and naming heuristics (Requirement 10.2)
   - Create standalone HTML reports with search and filter capabilities (Requirement 10.3)
@@ -118,6 +132,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 10.1-10.5_
 
 - [ ] 14. Implement plugin architecture with WASM support
+
   - Create PluginManager with static and WASM adapter support
   - Implement object-safe trait design for dynamic dispatch
   - Add wasmtime integration for sandboxed plugin execution
@@ -126,6 +141,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 7.1, 7.2, 7.6, 7.8_
 
 - [ ] 15. Create specialized collector binaries
+
   - Configure cargo-dist for multiple binary variants (Requirement 13)
   - Create database-specific collectors (dbsurveyor-collect-postgres, etc.)
   - Implement conditional compilation with feature flags
@@ -135,6 +151,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 7.1, 7.2, 10.1, 13.1-13.6_
 
 - [ ] 16. Set up comprehensive testing framework
+
   - Configure nextest for parallel test execution
   - Set up testcontainers-modules for realistic database testing
   - Create integration tests for all database adapters
@@ -143,6 +160,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 2.1, 2.2_
 
 - [ ] 17. Add CLI snapshot testing with insta
+
   - Create snapshot tests for all CLI help output
   - Test error message formatting and credential sanitization
   - Add snapshot tests for generated documentation formats
@@ -151,6 +169,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 2.1, 8.1_
 
 - [ ] 18. Implement performance benchmarking
+
   - Create Criterion benchmarks for schema collection performance
   - Benchmark different database sizes and complexity levels
   - Add benchmarks for output format generation and compression
@@ -159,6 +178,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 9.6_
 
 - [ ] 19. Create documentation with rustdoc and mdbook
+
   - Set up comprehensive rustdoc with examples and security notes (Requirement 14.1)
   - Create mdbook user guide with installation and usage instructions (Requirement 14.2)
   - Document all CLI options and configuration parameters
@@ -171,6 +191,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 10.1, 14.1-14.6_
 
 - [ ] 20. Set up comprehensive cross-platform CI testing with GitHub Actions
+
   - Create matrix-based CI workflow for macOS, Windows, and Linux platforms
   - Configure macOS and Windows runners for build validation with SQLite-only testing
   - Set up Linux runners for comprehensive testing with all database types (PostgreSQL, MySQL, SQLite, MongoDB)
@@ -185,6 +206,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 2.1, 2.2, 7.1, 7.2_
 
 - [ ] 21. Configure distribution and release automation
+
   - Set up cargo-dist for cross-platform binary distribution with specialized collector variants
   - Configure GitHub Actions for automated testing and releases
   - Enable cargo-dist SBOM generation with cargo-cyclonedx

@@ -4,297 +4,214 @@ inclusion: always
 
 # Development Workflow for DBSurveyor
 
-## Pre-Development Checklist
+## Core Development Rules
 
-Before making any changes:
+### Security-First Requirements (NON-NEGOTIABLE)
 
-- [ ] Review `project_specs/requirements.md` for context
-- [ ] Check existing code patterns in similar components
-- [ ] Verify security implications of planned changes
-- [ ] Ensure changes align with offline-first architecture
+- **NEVER** log database connection strings or credentials
+- **ALWAYS** use read-only database operations (SELECT/DESCRIBE only)
+- **ALWAYS** sanitize credentials in error messages and logs
+- **ALWAYS** validate offline operation (no external network calls except to target databases)
+- **ALWAYS** use AES-GCM with random nonce for encryption
 
-## Development Process
+### Code Quality Gates (MANDATORY)
 
-### 1. Code Development
-
-Start with a clean environment:
-
-```bash
-# Format and lint first
-just format
-just lint
-
-# Implement changes following Rust patterns
-# - Use Result<T, E> for error handling
-# - Add comprehensive /// documentation
-# - Follow repository/service patterns
-# - Implement security-first database access
-```
-
-### 2. Testing Requirements
-
-All new code must include appropriate tests:
-
-```bash
-# Unit tests (required for all new code)
-cargo test --lib
-
-# Integration tests with testcontainers
-cargo test --test integration_tests
-
-# Security validation
-just test-credential-security
-just test-encryption
-just test-offline
-
-# Database-specific tests
-just test-postgres
-just test-mysql
-just test-sqlite
-```
-
-### 3. Quality Assurance
-
-Run comprehensive quality checks:
-
-```bash
-# Code quality gates
-just format-check
-just lint                # cargo clippy -- -D warnings
-just coverage           # >80% threshold required
-
-# Security audit
-just security-audit     # SBOM + vulnerability scan
-just security-full      # Complete security validation
-
-# CI validation
-just ci-check           # Full CI equivalent
-```
-
-## Code Review Checklist
-
-### Security Review
-
-- [ ] **No credential exposure**: Database URLs not logged or output
-- [ ] **Read-only operations**: All database queries are SELECT/DESCRIBE only
-- [ ] **Offline compatibility**: No external network calls except to databases
-- [ ] **Encryption compliance**: AES-GCM with random nonce if applicable
-- [ ] **Input validation**: All user inputs properly validated and sanitized
-
-### Rust Code Review
-
-- [ ] **Zero warnings**: `cargo clippy -- -D warnings` passes
-- [ ] **Error handling**: All `Result` types properly handled with `?` operator
-- [ ] **Documentation**: All public items have `///` documentation
-- [ ] **Testing**: Unit tests for logic, integration tests for database operations
-- [ ] **Type safety**: Leverages Rust's type system and SQLx compile-time checks
-
-### Architecture Review
-
-- [ ] **Pattern compliance**: Follows Repository/Service patterns
-- [ ] **Separation of concerns**: Database logic separated from business logic
-- [ ] **Async/await**: Proper async handling with Tokio
-- [ ] **Resource management**: Proper connection pooling and cleanup
-- [ ] **Configuration**: Secure configuration management without hardcoded values
+- Zero warnings policy: `cargo clippy -- -D warnings` must pass
+- Test coverage >80%: `just coverage` must pass
+- All public APIs must have `///` documentation
+- Use `Result<T, E>` for all error handling with `?` operator
+- Follow Repository/Service patterns for database access
 
 ## Essential Commands
 
-### Development Commands
+### Primary Development Workflow
 
 ```bash
-# Primary development workflow
-just dev                 # Run development checks (format, lint, test, coverage)
-just install            # Install dependencies and setup environment
-just build              # Complete build with security optimizations
-
-# Code quality
-just format             # Format code with cargo fmt
-just lint               # Run linting with strict warnings
-just check              # Run pre-commit hooks and comprehensive checks
-just ci-check           # Run CI-equivalent checks locally
-
-# Testing
-just test               # Run the full test suite with security verification
-just test-postgres      # Test PostgreSQL adapter specifically
-just test-mysql         # Test MySQL adapter specifically
-just test-sqlite        # Test SQLite adapter specifically
-just coverage           # Run test coverage with >80% threshold
-just coverage-html      # Generate HTML coverage report
-
-# Security validation
+just dev                 # Complete development cycle (format, lint, test, coverage)
+just format             # Format code with rustfmt
+just lint               # Run clippy with zero warnings policy
+just test               # Run full test suite with security verification
+just coverage           # Generate coverage report (>80% required)
 just security-full      # Complete security validation suite
-just test-encryption    # Verify AES-GCM encryption with random nonce
-just test-offline       # Test airgap compatibility
-just test-credential-security  # Verify no credential leakage
-just security-audit     # Generate SBOM and vulnerability reports
-
-# Building and packaging
-just build-release      # Build optimized release version
-just build-minimal      # Build minimal airgap-compatible version
-just package-airgap     # Create offline deployment package
+just ci-check           # Run CI-equivalent checks locally
 ```
 
-### Usage Examples
+### Security Validation (REQUIRED)
 
 ```bash
-# Primary use cases - Database schema collection and documentation
-cargo run --bin dbsurveyor-collect -- --database-url postgres://user:pass@localhost/db --output schema.json
-cargo run --bin dbsurveyor -- --input schema.json --format markdown --output schema.md
-
-# Security-focused operation
-export DATABASE_URL="postgres://user:pass@localhost/db"
-cargo run --bin dbsurveyor-collect -- --output encrypted_schema.bin --encrypt
-cargo run --bin dbsurveyor -- --input encrypted_schema.bin --decrypt --format json
+just test-credential-security  # Verify no credential leakage
+just test-encryption          # Test AES-GCM encryption
+just test-offline            # Verify airgap compatibility
+just security-audit          # SBOM + vulnerability scan
 ```
 
-## Testing Strategy
+### Database Testing
 
-### Unit Tests
+```bash
+just test-postgres      # PostgreSQL adapter tests
+just test-mysql         # MySQL adapter tests  
+just test-sqlite        # SQLite adapter tests
+```
+
+## Code Patterns (MANDATORY)
+
+### Error Handling
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
+// ✅ REQUIRED: Use thiserror with sanitized messages
+#[derive(Debug, thiserror::Error)]
+pub enum CollectorError {
+    #[error("Database connection failed")]  // Never include credentials
+    Connection(#[from] sqlx::Error),
+    
+    #[error("Schema collection failed: {context}")]
+    Collection { context: String },
+}
 
-    #[test]
-    fn test_function_name_expected_behavior() {
-        // Arrange
-        let input = create_test_input();
-
-        // Act
-        let result = function_under_test(input);
-
-        // Assert
-        assert_eq!(result, expected_output);
-    }
-
-    #[test]
-    fn test_credential_sanitization() {
-        let config = DatabaseConfig::new("postgres://user:secret@host/db");
-        let output = config.safe_display();
-        assert!(!output.contains("secret"));
-    }
+// ✅ REQUIRED: Proper Result handling
+pub async fn collect_schema(url: &str) -> Result<DatabaseSchema, CollectorError> {
+    let pool = create_pool(url).await?;  // Use ? operator
+    let schema = extract_schema(&pool).await?;
+    Ok(schema)
 }
 ```
 
-### Integration Tests
+### Repository Pattern (REQUIRED)
 
 ```rust
-#[tokio::test]
-async fn test_postgres_integration() {
-    let docker = testcontainers::clients::Cli::default();
-    let postgres = docker.run(testcontainers::images::postgres::Postgres::default());
-
-    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres",
-                              postgres.get_host_port_ipv4(5432));
-
-    let collector = PostgresCollector::new(&database_url).await?;
-    let schema = collector.collect_schema().await?;
-
-    assert!(!schema.tables.is_empty());
+#[async_trait]
+pub trait SchemaCollector {
+    async fn new(connection_string: &str) -> Result<Self, Self::Error> where Self: Sized;
+    async fn collect_schema(&self) -> Result<DatabaseSchema, Self::Error>;
+    async fn test_connection(&self) -> Result<(), Self::Error>;
 }
 ```
 
-### Security Tests
+### Documentation (REQUIRED)
 
 ```rust
-#[tokio::test]
-async fn test_no_credentials_in_output() {
-    let database_url = "postgres://testuser:secret@localhost/testdb";
-    let schema = collect_schema(database_url).await?;
-    let json_output = serde_json::to_string(&schema)?;
-
-    assert!(!json_output.contains("secret"));
-    assert!(!json_output.contains("testuser:secret"));
-}
-```
-
-## Performance Guidelines
-
-### Database Operations
-
-- Use connection pooling with reasonable limits (5-10 connections)
-- Implement query timeouts (30 seconds default)
-- Stream large result sets instead of loading into memory
-- Use prepared statements for repeated queries
-
-### Memory Management
-
-- Avoid cloning large data structures unnecessarily
-- Use `Arc<T>` for shared immutable data
-- Stream processing for large files
-- Monitor memory usage with benchmarks
-
-## Documentation Standards
-
-### Code Documentation
-
-```rust
-/// Collects comprehensive schema information from a PostgreSQL database.
-///
-/// This function connects to the database using the provided connection string
-/// and extracts table, column, index, and constraint information. All operations
-/// are read-only and safe for production environments.
-///
-/// # Arguments
-///
-/// * `database_url` - PostgreSQL connection string (credentials will not be logged)
-///
-/// # Returns
-///
-/// Returns `Ok(Schema)` containing the complete database schema, or an error
-/// if the connection fails or schema collection encounters issues.
+/// Collects database schema with security guarantees.
 ///
 /// # Security
+/// - Credentials never logged or stored
+/// - Read-only operations only
+/// - Connection strings sanitized in errors
 ///
-/// - Database credentials are never logged or stored
-/// - All database operations are read-only
-/// - Connection strings are sanitized in error messages
+/// # Arguments
+/// * `database_url` - Connection string (will be sanitized)
 ///
-/// # Examples
-///
-/// ```rust,no_run
-/// use dbsurveyor_shared::collect_postgres_schema;
-///
-/// let schema = collect_postgres_schema("postgres://user:pass@localhost/db").await?;
-/// println!("Found {} tables", schema.tables.len());
-/// ```
-pub async fn collect_postgres_schema(database_url: &str) -> Result<Schema> {
+/// # Errors
+/// Returns error if connection fails or insufficient privileges
+pub async fn collect_schema(database_url: &str) -> Result<DatabaseSchema> {
     // Implementation
 }
 ```
 
-## Final Checklist
+## Testing Requirements
 
-Before reporting completion:
+### Unit Tests (MANDATORY)
 
-- [ ] All tests pass (`just test`)
-- [ ] Security validation passes (`just security-full`)
-- [ ] Code coverage >80% (`just coverage`)
-- [ ] No clippy warnings (`just lint`)
-- [ ] Documentation updated for new features
+```rust
+#[test]
+fn test_credential_sanitization() {
+    let config = DatabaseConfig::new("postgres://user:secret@host/db");
+    let output = config.safe_display();
+    assert!(!output.contains("secret"));
+}
+```
+
+### Integration Tests (REQUIRED)
+
+```rust
+#[tokio::test]
+async fn test_postgres_integration() {
+    // Use testcontainers for real database testing
+    let docker = testcontainers::clients::Cli::default();
+    let postgres = docker.run(testcontainers::images::postgres::Postgres::default());
+    // Test implementation
+}
+```
+
+### Security Tests (MANDATORY)
+
+```rust
+#[tokio::test]
+async fn test_no_credentials_in_output() {
+    let schema = collect_schema("postgres://user:secret@localhost/db").await?;
+    let json = serde_json::to_string(&schema)?;
+    assert!(!json.contains("secret"));
+}
+```
+
+## Performance Requirements
+
+### Database Operations
+
+- Connection pooling: 5-10 connections max
+- Query timeouts: 30 seconds default
+- Stream large result sets (don't load into memory)
+- Use prepared statements for repeated queries
+
+### Memory Management
+
+- Use `Arc<T>` for shared immutable data
+- Implement explicit `drop()` for large structures
+- Stream processing for files >10MB
+- Monitor memory in benchmarks
+
+## Pre-Commit Checklist
+
+Before any commit:
+
+- [ ] `just lint` passes (zero warnings)
+- [ ] `just test` passes (all tests)
+- [ ] `just security-full` passes (security validation)
+- [ ] `just coverage` >80% (coverage threshold)
+- [ ] No credentials in logs/outputs
 - [ ] Offline operation verified
-- [ ] No credentials exposed in any output or logs
 
-## Common Pitfalls to Avoid
+## Anti-Patterns (NEVER DO)
 
-### Security Pitfalls
+### Security Anti-Patterns
 
-- ❌ Logging database connection strings
-- ❌ Exposing credentials in error messages
-- ❌ Making external network calls
-- ❌ Storing credentials in configuration files
+```rust
+// ❌ NEVER: Log connection strings
+log::info!("Connecting to {}", database_url);
 
-### Rust Pitfalls
+// ❌ NEVER: Include credentials in errors
+#[error("Failed to connect to {url}")]
+ConnectionError { url: String },
 
-- ❌ Ignoring clippy warnings
-- ❌ Using `.unwrap()` in production code
-- ❌ Missing error handling with `?` operator
-- ❌ Inadequate testing coverage
+// ❌ NEVER: Store credentials in structs
+pub struct Config {
+    pub password: String,  // FORBIDDEN
+}
+```
 
-### Database Pitfalls
+### Rust Anti-Patterns
 
-- ❌ Not using connection pooling
-- ❌ Forgetting query timeouts
-- ❌ Not handling connection failures gracefully
-- ❌ Performing write operations (this is a read-only tool)
+```rust
+// ❌ NEVER: Use unwrap in production
+let result = operation().unwrap();
+
+// ❌ NEVER: Ignore clippy warnings
+#[allow(clippy::all)]  // FORBIDDEN
+
+// ❌ NEVER: String concatenation for SQL
+let query = format!("SELECT * FROM {}", table);  // Use parameterized queries
+```
+
+## Architecture Compliance
+
+### Required Patterns
+
+- Repository pattern for database access
+- Factory pattern for collector instantiation
+- Command pattern for CLI (using clap derive)
+- Service pattern for business logic
+
+### Workspace Structure
+
+- `dbsurveyor-collect/`: Database collection binary
+- `dbsurveyor/`: Report generation binary
+- `dbsurveyor-core/`: Shared library (models, encryption, utilities)

@@ -59,7 +59,7 @@ Describe specific scenarios where better documentation would help:
    - Current difficulty: [What's hard to understand]
    - Desired outcome: [What should be clear after reading]
 
-1. **Use Case 2**: [Description]
+2. **Use Case 2**: [Description]
 
    - Current difficulty: [What's hard to understand]
    - Desired outcome: [What should be clear after reading]

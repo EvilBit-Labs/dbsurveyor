@@ -516,18 +516,18 @@ tui = ["ratatui"]                                  # Optional TUI preview (out-o
 #### Collection Phase
 
 1. **Database Connection**: Connect using sqlx, tiberius, or mongodb drivers
-1. **Metadata Extraction**: Comprehensive schema and statistics collection
-1. **Output Generation**: Structured files with "format_version": "1.0"
-    - `.dbsurveyor.json`: Uncompressed JSON metadata
-    - `.dbsurveyor.json.zst`: Zstandard compressed JSON
-    - `.dbsurveyor.enc`: AES-GCM encrypted JSON with embedded KDF parameters
+2. **Metadata Extraction**: Comprehensive schema and statistics collection
+3. **Output Generation**: Structured files with "format_version": "1.0"
+   - `.dbsurveyor.json`: Uncompressed JSON metadata
+   - `.dbsurveyor.json.zst`: Zstandard compressed JSON
+   - `.dbsurveyor.enc`: AES-GCM encrypted JSON with embedded KDF parameters
 
 #### Processing Phase
 
 1. **Input Validation**: Parse and validate collector output format
-1. **Template Processing**: Apply Askama/Tera templates for documentation
-1. **Analysis**: Generate insights, diagrams, and reports
-1. **Output Rendering**: Multi-format documentation generation
+2. **Template Processing**: Apply Askama/Tera templates for documentation
+3. **Analysis**: Generate insights, diagrams, and reports
+4. **Output Rendering**: Multi-format documentation generation
 
 ### 8.5 Cross-Platform Support
 

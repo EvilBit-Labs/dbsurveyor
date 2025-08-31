@@ -46,7 +46,9 @@ update-deps:
 # Format code with rustfmt
 format:
     @echo "🎨 Formatting code..."
+    pre-commit run -a
     cargo fmt
+    prettier --write "**/*.{yml,yaml,js,jsx,ts,tsx}" 2>/dev/null
     @echo "✅ Code formatted"
 
 # Check code formatting
