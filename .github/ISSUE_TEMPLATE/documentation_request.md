@@ -3,7 +3,7 @@ name: Documentation Request
 about: Request improvements to DBSurveyor documentation
 title: '[DOCS] '
 labels: [documentation, enhancement]
-assignees: [UncleSp1d3r]
+assignees: [unclesp1d3r]
 ---
 
 ## Documentation Request
