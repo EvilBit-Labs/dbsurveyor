@@ -53,7 +53,6 @@ secrets.toml
 # Test artifacts
 *.profraw
 cov-report/
-cov-report/lcov.info
 cov-report/**/lcov.info
 
 # Local development files
@@ -98,6 +97,11 @@ lcov.info
 venv/
 env/
 
+# Python lockfiles (keep for reproducible builds)
+!requirements.txt
+!requirements.in
+!poetry.lock
+!Pipfile.lock
+
 # Node.js modules
 node_modules/
-package-lock.json
