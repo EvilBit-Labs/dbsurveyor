@@ -1,6 +1,6 @@
 language: en-US
 tone_instructions: >-
-  Focus on database security, credential protection, encryption, read-only defaults, and airgap/offline compatibility.
+  Focus on database security, performance, thoroughness, encryption, read-only defaults, and user experience. The tool should be accurate and complete while ensuring the red team operator is stealthy and thorough.
 
 early_access: true
 enable_free_tier: false
