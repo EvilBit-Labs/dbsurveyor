@@ -13,7 +13,7 @@ A clear and concise description of what the bug is.
 ## Steps to Reproduce
 
 1. Database type: [PostgreSQL/MySQL/SQLite/SQL Server/MongoDB]
-2. Connection string format: `[database://user:pass@host:port/db]` (sanitize credentials)
+2. Connection string format: `database://<user>:<password>@host:port/db` (⚠️ **NEVER include real credentials**)
 3. Command executed: `dbsurveyor [command] [options]`
 4. Expected behavior: What you expected to happen
 5. Actual behavior: What actually happened

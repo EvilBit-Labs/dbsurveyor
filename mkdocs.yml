@@ -4,6 +4,7 @@ site_author: UncleSp1d3r
 site_url: https://dbsurveyor.evilbitlabs.io
 repo_name: EvilBit-Labs/dbsurveyor
 repo_url: https://github.com/EvilBit-Labs/dbsurveyor
+strict: true
 
 theme:
   name: material

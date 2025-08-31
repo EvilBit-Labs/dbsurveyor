@@ -284,9 +284,13 @@ pub fn validate_file_path(path: &Path, base_dir: &Path) -> Result<PathBuf, PathV
     };
 
     // Canonicalize the base directory as well for comparison
-    let canonical_base_dir = base_dir
-        .canonicalize()
-        .unwrap_or_else(|_| base_dir.to_path_buf());
+    let canonical_base_dir =
+        base_dir
+            .canonicalize()
+            .map_err(|e| PathValidationError::CanonicalizationFailed {
+                path: base_dir.to_string_lossy().to_string(),
+                source: e,
+            })?;
 
     // Final check: ensure the canonicalized path is within the canonicalized base directory
     if !canonical_path.starts_with(&canonical_base_dir) {
@@ -360,7 +364,7 @@ pub fn validate_cli_paths(cli: &Cli) -> Result<Cli, PathValidationError> {
 ///
 /// # Returns
 ///
-/// Returns `Ok(())` if the file exists and is readable, or an error if not
+/// Returns `Ok(())` if the file exists and is readable, or an `ExecuteError` variant on failure
 fn check_input_file_readable(path: &Path) -> Result<(), ExecuteError> {
     std::fs::metadata(path).map_err(|e| ExecuteError::InputFileNotFound {
         path: path.to_string_lossy().to_string(),
@@ -395,11 +399,16 @@ fn check_output_path_writable(path: &Path) -> Result<(), ExecuteError> {
             })?;
 
         if metadata.is_file() {
-            // Try to open for writing
-            std::fs::File::create(path).map_err(|e| ExecuteError::OutputFileNotWritable {
-                path: path.to_string_lossy().to_string(),
-                source: e,
-            })?;
+            // Try to open for writing without truncation
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(path)
+                .map_err(|e| ExecuteError::OutputFileNotWritable {
+                    path: path.to_string_lossy().to_string(),
+                    source: e,
+                })?;
         }
     } else {
         // File doesn't exist, check if parent directory is writable
@@ -654,7 +663,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::unwrap_used)]
+    #[allow(clippy::unwrap_used, clippy::panic)]
     fn test_validate_file_path_directory_traversal() {
         let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
@@ -672,7 +681,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::unwrap_used)]
+    #[allow(clippy::unwrap_used, clippy::panic)]
     fn test_validate_file_path_leading_separator_relative() {
         let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
@@ -692,7 +701,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::unwrap_used)]
+    #[allow(clippy::unwrap_used, clippy::panic)]
     fn test_validate_file_path_leading_separator() {
         let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
@@ -712,7 +721,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::unwrap_used)]
+    #[allow(clippy::unwrap_used, clippy::panic)]
     fn test_validate_file_path_outside_base_directory() {
         let temp_dir = tempdir().unwrap();
         let base_dir = temp_dir.path();
@@ -777,7 +786,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::unwrap_used)]
+    #[allow(clippy::unwrap_used, clippy::panic)]
     fn test_validate_cli_paths_failure() {
         // Create temp dir but don't use it in this test
         let _temp_dir = tempdir().unwrap();

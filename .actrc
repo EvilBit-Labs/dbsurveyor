@@ -17,7 +17,7 @@
 
 --env CARGO_TERM_COLOR=never
 --env TERM=dumb
---env RUST_LOG=debug
+--env RUST_LOG=info
 
 # Enable verbose logging for debugging
 
