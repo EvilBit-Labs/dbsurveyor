@@ -103,7 +103,7 @@ async fn test_sqlite_schema_collection() {
     let db_path = temp_dir.path().join("test.db");
 
     // Create test database
-    let conn = sqlx::SqlitePool::connect(&format!("sqlite:{}", db_path.display())).await?;
+    let conn = sqlx::SqlitePool::connect(&format!("sqlite:///{}", db_path.display())).await?;
 
     sqlx::query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
         .execute(&conn).await?;
@@ -111,7 +111,7 @@ async fn test_sqlite_schema_collection() {
     conn.close().await;
 
     // Test schema collection
-    let database_url = format!("sqlite:{}", db_path.display());
+    let database_url = format!("sqlite:///{}", db_path.display());
     let collector = SqliteCollector::new(&database_url).await
         .expect("Failed to create SQLite collector");
 

@@ -24,7 +24,8 @@
 ### Security & Encryption
 
 - **aes-gcm**: AES-GCM authenticated encryption with random nonces
-- **ring**: Cryptographic primitives and key derivation
+- **argon2**: Argon2id key derivation with configurable parameters (memory: 64MB, time: 3, parallelism: 1)
+- **ring**: Cryptographic primitives (HKDF, HMAC, low-level primitives) - does not provide Argon2
 - **zstd**: Optional compression for output files
 - **rpassword**: Secure credential input handling
 
@@ -32,7 +33,7 @@
 
 - **serde**: JSON/YAML serialization with security-conscious custom serializers
 - **askama**: Template engine for HTML/Markdown report generation
-- **markdown**: Markdown processing for documentation output
+- **pulldown-cmark**: Fast, safe Markdown parser and renderer (offline-safe, well-maintained)
 
 ## Build System & Tools
 
@@ -136,11 +137,11 @@ just validate-workflows  # Validate GitHub Actions syntax
 default = ["postgresql", "sqlite", "mongodb"]
 postgresql = ["dep:sqlx", "sqlx/postgres"]
 sqlite = ["dep:sqlx", "sqlx/sqlite"]
-# mysql = ["dep:sqlx", "sqlx/mysql"]  # Disabled due to RSA vulnerability
+mysql = ["dep:sqlx", "sqlx/mysql"]  # Intentionally excluded from default/CI for security
 mssql = ["tiberius"]
 mongodb = ["dep:mongodb"]
 compression = ["zstd"]
-encryption = ["aes-gcm", "ring"]
+encryption = ["aes-gcm", "argon2"]  # argon2 for KDF, not ring
 ```
 
 ## Security Configuration
