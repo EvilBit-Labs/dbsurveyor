@@ -44,12 +44,17 @@ ConnectionFailedWithUrl { url: String },
 Use AES-GCM with random nonce for all encrypted data:
 
 ```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Cipher {
+    AesGcm256,
+}
+
 pub struct EncryptedData {
-    pub algorithm: String,             // "AES-GCM-256"
-    pub nonce: Vec<u8>,                // 96-bit random nonce
+    pub algorithm: Cipher,             // Concrete enum type
+    pub nonce: [u8; 12],               // Fixed-size 96-bit nonce
     pub ciphertext: Vec<u8>,           // Encrypted data
-    pub tag: Vec<u8>,                  // Authentication tag
-    pub kdf_params: Option<KdfParams>, // Key derivation parameters
+    pub tag: [u8; 16],                 // Separate 128-bit authentication tag
+    pub kdf_params: KdfParams,         // Required KDF parameters
 }
 ```
 
@@ -67,15 +72,32 @@ pub struct EncryptedData {
 
 ```rust
 #[tokio::test]
-async fn test_no_credentials_in_schema_output() {
-    let database_url = "postgres://testuser:secretpass@localhost/testdb";
-    let schema = collect_schema(database_url).await?;
+async fn test_no_credentials_in_schema_output() -> Result<(), Box<dyn std::error::Error>> {
+    // Build config struct without storing credentials
+    let config = DatabaseConfig {
+        host: "localhost".to_string(),
+        port: 5432,
+        database: "testdb".to_string(),
+        username: "testuser".to_string(),
+    };
+
+    // Store password in secure type (not in struct)
+    let password = Zeroizing::new("secretpass".to_string());
+
+    // Call schema collector with sanitized config
+    let schema = collect_schema_with_config(&config, &password).await?;
     let json_output = serde_json::to_string(&schema)?;
 
     // Verify sensitive data is not present
     assert!(!json_output.contains("secretpass"));
     assert!(!json_output.contains("testuser:secretpass"));
     assert!(!json_output.contains("password"));
+
+    // Verify config doesn't contain credentials
+    let config_json = serde_json::to_string(&config)?;
+    assert!(!config_json.contains("secretpass"));
+
+    Ok(())
 }
 ```
 
@@ -141,9 +163,15 @@ ConnectionError { url: String },
 // ✅ Log without sensitive data
 log::info!("Establishing database connection");
 
-// ✅ Parameterized queries
+// ✅ Parameterized queries with timeout
 let query = "SELECT * FROM users WHERE id = $1";
-let result = sqlx::query(query).bind(id).fetch_all(&pool).await?;
+let result = sqlx::query(query)
+    .bind(id)
+    .fetch_all(&pool)
+    .await?;
+
+// Apply server-side timeout (PostgreSQL example)
+sqlx::query("SET LOCAL statement_timeout = '30s'").execute(&pool).await?;
 
 // ✅ Separate credentials from config
 pub struct Config {
