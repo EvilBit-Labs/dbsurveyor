@@ -8,11 +8,11 @@ resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.77"
+edition = "2024"
+rust-version = "1.89"
 authors = ["UncleSp1d3r"]
 license = "Apache-2.0"
-repository = "https://github.com/UncleSp1d3r/dbsurveyor"
+repository = "https://github.com/EvilBit-Labs/dbsurveyor"
 keywords = ["database", "documentation", "schema", "offline", "security"]
 categories = ["command-line-utilities", "database"]
 
@@ -38,7 +38,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Error handling
 anyhow = "1.0"
-thiserror = "2.0.14"
+thiserror = "2.0.16"
 
 # Logging (structured, no external reporting)
 tracing = "0.1"
@@ -83,6 +83,11 @@ opt-level = 3
 [profile.dev]
 debug = true           # Full debug info for security auditing
 overflow-checks = true # Runtime integer overflow detection
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
 
 # ⚠️ SECURITY NOTICE: This Cargo.toml enforces the following security guarantees:
 #
