@@ -27,13 +27,20 @@ DBSurveyor uses a multi-crate workspace with clear separation of concerns:
 Use for all database access with this trait structure:
 
 ```rust
-#[async_trait]
-pub trait SchemaCollector {
-    type Error: std::error::Error + Send + Sync + 'static;
-    
-    async fn new(connection_string: &str) -> Result<Self, Self::Error> where Self: Sized;
-    async fn collect_schema(&self) -> Result<DatabaseSchema, Self::Error>;
-    async fn test_connection(&self) -> Result<(), Self::Error>;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+pub trait SchemaCollector: Send + Sync {
+    fn collect_schema<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<DatabaseSchema, Box<dyn std::error::Error + Send + Sync>>> + Send + 'a>>;
+    fn test_connection<'a>(&'a self) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send + 'a>>;
+}
+
+// Concrete implementations provide async constructors
+impl PostgresCollector {
+    pub async fn new(connection_string: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        // Implementation
+    }
 }
 ```
 
@@ -42,10 +49,27 @@ pub trait SchemaCollector {
 Use for database-specific collector instantiation:
 
 ```rust
+use std::sync::Arc;
+
 pub async fn create_collector(
     database_type: DatabaseType,
     connection_string: &str,
-) -> Result<Box<dyn SchemaCollector>>
+) -> Result<Arc<dyn SchemaCollector + Send + Sync>, Box<dyn std::error::Error + Send + Sync>> {
+    match database_type {
+        DatabaseType::PostgreSQL => {
+            let collector = PostgresCollector::new(connection_string).await?;
+            Ok(Arc::new(collector))
+        }
+        DatabaseType::MySQL => {
+            let collector = MySqlCollector::new(connection_string).await?;
+            Ok(Arc::new(collector))
+        }
+        DatabaseType::SQLite => {
+            let collector = SqliteCollector::new(connection_string).await?;
+            Ok(Arc::new(collector))
+        }
+    }
+}
 ```
 
 ### Command Pattern (REQUIRED)
@@ -100,8 +124,27 @@ pub enum DbSurveyorError {
 
 - **NEVER** store credentials in structs or configuration
 - **ALWAYS** separate connection config from credentials
-- **ALWAYS** implement `Drop` trait to zero out sensitive data
+- **ALWAYS** use well-known crates for memory zeroing: prefer `Zeroizing<T>` wrappers or derive/implement the `Zeroize` trait from the [zeroize](https://crates.io/crates/zeroize) crate to ensure reliable memory zeroing
 - **ALWAYS** parse credentials separately from connection config
+
+```rust
+use zeroize::{Zeroize, Zeroizing};
+
+#[derive(Zeroize)]
+#[zeroize(drop)]
+struct Credentials {
+    username: Zeroizing<String>,
+    password: Zeroizing<Option<String>>,
+}
+
+// Or use Zeroizing wrapper for automatic zeroing
+struct ConnectionConfig {
+    host: String,
+    port: u16,
+    database: String,
+    // Credentials handled separately and immediately consumed
+}
+```
 
 ### Encryption Requirements
 
@@ -112,9 +155,20 @@ pub enum DbSurveyorError {
 
 ```rust
 pub struct EncryptedData {
-    pub algorithm: String,   // Always "AES-GCM-256"
-    pub nonce: Vec<u8>,      // 96-bit random nonce
-    pub ciphertext: Vec<u8>, // Encrypted data + auth tag
+    pub algorithm: String,           // "AES-GCM-256"
+    pub nonce: Vec<u8>,             // 96-bit random nonce
+    pub ciphertext: Vec<u8>,        // Raw encrypted payload
+    pub auth_tag: Vec<u8>,          // Separate authentication tag
+    pub kdf: String,                // Key derivation function (e.g., "Argon2id")
+    pub kdf_params: KdfParams,      // KDF parameters (salt, iterations, memory, etc.)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KdfParams {
+    pub salt: Vec<u8>,              // 32-byte random salt
+    pub memory_cost: u32,           // Memory cost in KiB (e.g., 65536)
+    pub time_cost: u32,             // Time cost iterations (e.g., 3)
+    pub parallelism: u32,           // Parallelism factor (e.g., 4)
 }
 ```
 
