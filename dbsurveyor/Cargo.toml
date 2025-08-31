@@ -9,6 +9,12 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[package.metadata.wix]
+upgrade-guid = "B40C5D05-D0BF-4B5A-92CE-FF1499EE16C5"
+path-guid = "6B91D0A6-AFEC-4CC8-A408-947D85EBB038"
+license = false
+eula = false
+
 [[bin]]
 name = "dbsurveyor"
 path = "src/main.rs"
@@ -27,13 +33,17 @@ tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 
 # Template engines for report generation
-askama = { version = "0.12", features = ["serde-json"] }
+askama = { version = "0.14.0", features = ["serde_json"] }
 # Note: Replaced comrak with markdown crate to avoid yaml-rust dependency vulnerability
-markdown = "1.0"
+markdown = "1.0.0"
 
 [dev-dependencies]
 # Testing utilities
-tempfile = "3.8"
+tempfile = "3.21.0"
+temp-env = "0.3.6"
+proptest = "1.7.0"
+criterion = "0.7.0"
+tokio-test = "0.4.4"
 
 [features]
 default = ["markdown", "sql-reconstruction"]

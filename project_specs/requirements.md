@@ -349,7 +349,7 @@ dbsurveyor html [OPTIONS] --input <FILE>          # Interactive HTML export (Pro
 
 ### 6.1 Language and Runtime
 
-- **Language**: Rust (stable channel, minimum version 1.70)
+- **Language**: Rust (version 1.89.0, minimum supported version 1.77)
 - **Runtime**: Native compiled binaries with no external runtime dependencies
 - **Architecture**: Cross-platform support (x86_64, aarch64)
 
