@@ -53,7 +53,8 @@ secrets.toml
 # Test artifacts
 *.profraw
 cov-report/
-lcov.info
+cov-report/lcov.info
+cov-report/**/lcov.info
 
 # Local development files
 .local/
@@ -90,8 +91,13 @@ site/
 # Coverage reports
 target/llvm-cov/
 *.profdata
+lcov.info
 
 # Python virtual environments
 .venv/
 venv/
 env/
+
+# Node.js modules
+node_modules/
+package-lock.json

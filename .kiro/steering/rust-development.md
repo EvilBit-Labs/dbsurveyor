@@ -76,7 +76,11 @@ pub struct DatabaseConfig {
 
 impl std::fmt::Display for DatabaseConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "DatabaseConfig({}:{}@{})", self.host, self.port, self.database)
+        write!(
+            f,
+            "DatabaseConfig({}:{}@{})",
+            self.host, self.port, self.database
+        )
         // Intentionally omit credentials
     }
 }

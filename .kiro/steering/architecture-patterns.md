@@ -2,7 +2,6 @@
 inclusion: always
 ---
 
-
 # Architecture Patterns for DBSurveyor
 
 ## Core Principles
@@ -10,7 +9,7 @@ inclusion: always
 DBSurveyor follows these non-negotiable architectural principles:
 
 1. **Security-First**: Every design decision prioritizes security and privacy
-2. **Offline-Capable**: Zero external dependencies after database connection  
+2. **Offline-Capable**: Zero external dependencies after database connection
 3. **Database-Agnostic**: Unified interface across all supported databases
 
 ## Workspace Structure
@@ -18,7 +17,7 @@ DBSurveyor follows these non-negotiable architectural principles:
 DBSurveyor uses a multi-crate workspace with clear separation of concerns:
 
 - **`dbsurveyor-collect/`**: Database collection binary (CLI + collectors)
-- **`dbsurveyor/`**: Postprocessor binary (report generation)  
+- **`dbsurveyor/`**: Postprocessor binary (report generation)
 - **`dbsurveyor-core/`**: Shared library (models, encryption, utilities)
 
 ## Required Design Patterns
@@ -82,7 +81,7 @@ Use `thiserror::Error` with this hierarchy:
 pub enum DbSurveyorError {
     #[error("Database connection failed")]
     Connection(#[from] ConnectionError),
-    #[error("Schema collection failed")]  
+    #[error("Schema collection failed")]
     Collection(#[from] CollectionError),
     #[error("Encryption operation failed")]
     Encryption(#[from] EncryptionError),
@@ -113,7 +112,7 @@ pub enum DbSurveyorError {
 
 ```rust
 pub struct EncryptedData {
-    pub algorithm: String,    // Always "AES-GCM-256"
+    pub algorithm: String,   // Always "AES-GCM-256"
     pub nonce: Vec<u8>,      // 96-bit random nonce
     pub ciphertext: Vec<u8>, // Encrypted data + auth tag
 }
@@ -127,7 +126,7 @@ pub struct EncryptedData {
 - Implement 30-second connection timeouts
 - Cache pools by sanitized connection string (no credentials)
 
-### Memory Management (REQUIRED)  
+### Memory Management (REQUIRED)
 
 - Stream large result sets instead of loading into memory
 - Use batch processing for databases with >1000 tables
@@ -146,6 +145,6 @@ pub struct EncryptedData {
 ### Key Constraints
 
 - All database operations must be read-only
-- All network calls must timeout within 30 seconds  
+- All network calls must timeout within 30 seconds
 - All sensitive data must be sanitized before logging
 - All encryption must use AES-GCM with random nonces

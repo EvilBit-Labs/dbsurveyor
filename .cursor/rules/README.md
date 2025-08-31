@@ -82,8 +82,8 @@ This directory contains Cursor AI development rules organized into logical subfo
 **CRITICAL - Rules are applied in the following order of precedence:**
 
 1. **Project-specific rules** (from project root instruction files like AGENTS.md or .cursor/rules/)
-1. **General development standards** (outlined in these rules)
-1. **Language-specific style guides** (Rust conventions, etc.)
+2. **General development standards** (outlined in these rules)
+3. **Language-specific style guides** (Rust conventions, etc.)
 
 When rules conflict, always follow the rule with higher precedence.
 
@@ -116,9 +116,9 @@ For comprehensive project information, also refer to:
 When updating cursor rules:
 
 1. **Maintain consistency** with AGENTS.md and GitHub Copilot instructions
-1. **Update related files** when making changes that affect multiple rule categories
-1. **Test rule application** to ensure no conflicts between rules
-1. **Document changes** in the appropriate category README if needed
+2. **Update related files** when making changes that affect multiple rule categories
+3. **Test rule application** to ensure no conflicts between rules
+4. **Document changes** in the appropriate category README if needed
 
 ## Benefits of This Organization
 

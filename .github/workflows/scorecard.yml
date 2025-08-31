@@ -3,7 +3,7 @@ name: Scorecard supply-chain security
 on:
   branch_protection_rule:
   schedule:
-    - cron: '25 14 * * 1'  # Weekly on Mondays
+    - cron: "25 14 * * 1" # Weekly on Mondays
   push:
     branches: ["main"]
 

@@ -45,10 +45,10 @@ Use AES-GCM with random nonce for all encrypted data:
 
 ```rust
 pub struct EncryptedData {
-    pub algorithm: String,           // "AES-GCM-256"
-    pub nonce: Vec<u8>,             // 96-bit random nonce
-    pub ciphertext: Vec<u8>,        // Encrypted data
-    pub tag: Vec<u8>,               // Authentication tag
+    pub algorithm: String,             // "AES-GCM-256"
+    pub nonce: Vec<u8>,                // 96-bit random nonce
+    pub ciphertext: Vec<u8>,           // Encrypted data
+    pub tag: Vec<u8>,                  // Authentication tag
     pub kdf_params: Option<KdfParams>, // Key derivation parameters
 }
 ```

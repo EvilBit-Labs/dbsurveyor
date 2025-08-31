@@ -243,15 +243,13 @@ pub fn create_test_table(name: &str) -> Table {
         name: name.to_string(),
         schema: "public".to_string(),
         table_type: TableType::BaseTable,
-        columns: vec![
-            Column {
-                name: "id".to_string(),
-                data_type: "INTEGER".to_string(),
-                is_nullable: false,
-                column_default: None,
-                is_primary_key: true,
-            },
-        ],
+        columns: vec![Column {
+            name: "id".to_string(),
+            data_type: "INTEGER".to_string(),
+            is_nullable: false,
+            column_default: None,
+            is_primary_key: true,
+        }],
         row_count: Some(100),
         size_bytes: Some(8192),
     }

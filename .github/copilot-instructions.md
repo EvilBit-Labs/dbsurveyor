@@ -14,10 +14,10 @@ DBSurveyor is a security-focused database documentation tool written in Rust tha
 ## Critical Security Rules (NON-NEGOTIABLE)
 
 1. **OFFLINE-ONLY OPERATION**: No network calls except to target databases for schema collection
-1. **NO TELEMETRY**: Zero data collection or external reporting mechanisms
-1. **CREDENTIAL PROTECTION**: Database credentials never appear in any output files, logs, or artifacts
-1. **ENCRYPTION**: AES-GCM with random nonce, embedded KDF params, authenticated headers
-1. **AIRGAP COMPATIBILITY**: Full functionality in air-gapped environments
+2. **NO TELEMETRY**: Zero data collection or external reporting mechanisms
+3. **CREDENTIAL PROTECTION**: Database credentials never appear in any output files, logs, or artifacts
+4. **ENCRYPTION**: AES-GCM with random nonce, embedded KDF params, authenticated headers
+5. **AIRGAP COMPATIBILITY**: Full functionality in air-gapped environments
 
 ## Technology Stack
 
@@ -198,10 +198,10 @@ mod tests {
 ### Critical Security Checks
 
 1. **No Network Access**: Except to target databases for schema collection
-1. **No Telemetry**: Zero external data collection or reporting
-1. **Credential Security**: Database credentials never stored, logged, or output
-1. **Encryption**: Proper AES-GCM implementation with random nonces
-1. **Offline Ready**: Full functionality in air-gapped environments
+2. **No Telemetry**: Zero external data collection or reporting
+3. **Credential Security**: Database credentials never stored, logged, or output
+4. **Encryption**: Proper AES-GCM implementation with random nonces
+5. **Offline Ready**: Full functionality in air-gapped environments
 
 ### Security Testing
 
@@ -249,12 +249,12 @@ Examples:
 ## Key Reminders
 
 1. **Security First**: Every change must maintain security guarantees
-1. **Zero Warnings**: `cargo clippy -- -D warnings` must pass
-1. **Offline Only**: No external dependencies at runtime
-1. **Database Safety**: Read-only operations with proper connection handling
-1. **Operator Focus**: Build for security professionals and database administrators
-1. **Documentation**: Comprehensive docs for all public APIs and CLI usage
-1. **Testing**: Include unit, integration, and security tests for all changes
+2. **Zero Warnings**: `cargo clippy -- -D warnings` must pass
+3. **Offline Only**: No external dependencies at runtime
+4. **Database Safety**: Read-only operations with proper connection handling
+5. **Operator Focus**: Build for security professionals and database administrators
+6. **Documentation**: Comprehensive docs for all public APIs and CLI usage
+7. **Testing**: Include unit, integration, and security tests for all changes
 
 ## Issue Resolution
 

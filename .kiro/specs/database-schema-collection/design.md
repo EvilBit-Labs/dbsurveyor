@@ -43,12 +43,14 @@ graph TB
 The system consists of two independent executables that communicate through structured file interchange:
 
 1. **Collector Binary (dbsurveyor-collect)**
+
    - Connects to target databases
    - Extracts comprehensive metadata
    - Generates structured output files
    - Operates with minimal network footprint
 
 2. **Postprocessor Binary (dbsurveyor)**
+
    - Processes collected metadata offline
    - Generates documentation and reports
    - Creates visualizations and diagrams
@@ -61,7 +63,7 @@ The system consists of two independent executables that communicate through stru
 Using `clap` with derive macros for command-line interface:
 
 ```rust
-use clap::{Parser, Subcommand, Args};
+use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -71,42 +73,42 @@ use std::path::PathBuf;
 pub struct CollectorCli {
     #[command(flatten)]
     pub global: GlobalArgs,
-    
+
     #[command(subcommand)]
     pub command: Option<CollectorCommand>,
-    
+
     /// Database connection URL
     #[arg(long, env = "DATABASE_URL")]
     pub database_url: Option<String>,
-    
+
     /// Output file path
     #[arg(short, long, default_value = "schema.dbsurveyor.json")]
     pub output: PathBuf,
-    
+
     /// Number of sample rows per table
     #[arg(long, default_value = "100")]
     pub sample: u32,
-    
+
     /// Throttle delay between operations (ms)
     #[arg(long)]
     pub throttle: Option<u64>,
-    
+
     /// Enable compression
     #[arg(long)]
     pub compress: bool,
-    
+
     /// Enable encryption
     #[arg(long)]
     pub encrypt: bool,
-    
+
     /// Collect all accessible databases (requires appropriate privileges)
     #[arg(long)]
     pub all_databases: bool,
-    
+
     /// Include system databases in collection
     #[arg(long)]
     pub include_system_databases: bool,
-    
+
     /// Exclude specific databases (comma-separated)
     #[arg(long, value_delimiter = ',')]
     pub exclude_databases: Vec<String>,
@@ -127,7 +129,7 @@ pub struct GlobalArgs {
     /// Increase verbosity
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
-    
+
     /// Suppress output
     #[arg(short, long)]
     pub quiet: bool,
@@ -887,6 +889,7 @@ impl PluginManager {
 For a single binary collector, we recommend two complementary plugin architectures:
 
 1. **Static Compilation (Primary Approach)**
+
    - Zero-cost abstraction using Cargo feature flags
    - Compile-time optimization and monomorphization
    - Best performance and security
@@ -895,6 +898,7 @@ For a single binary collector, we recommend two complementary plugin architectur
    - No runtime overhead or dynamic loading complexity
 
 2. **WASM Plugins (Extension Mechanism)**
+
    - Runtime loading via wasmtime for third-party adapters
    - Memory and capability isolation with WASI
    - Cross-platform compatibility
@@ -1013,7 +1017,7 @@ pub enum CollectionMode {
     /// Single database specified in connection string
     SingleDatabase,
     /// Multiple databases discovered via server enumeration
-    MultiDatabase { 
+    MultiDatabase {
         discovered: usize,
         collected: usize,
         failed: usize,
@@ -1082,7 +1086,10 @@ pub enum OrderingStrategy {
     /// Primary key ordering (preferred)
     PrimaryKey { columns: Vec<String> },
     /// Timestamp column ordering (second choice)
-    Timestamp { column: String, direction: SortDirection },
+    Timestamp {
+        column: String,
+        direction: SortDirection,
+    },
     /// Auto-increment column (third choice)
     AutoIncrement { column: String },
     /// Row ID or system column (fallback)
@@ -1117,34 +1124,34 @@ pub enum SamplingStrategy {
 pub struct SamplingConfig {
     /// Number of sample rows per table (default: 100)
     pub sample_size: usize,
-    
+
     /// Maximum total rows to sample across all tables
     pub max_total_samples: Option<usize>,
-    
+
     /// Tables to include (if empty, include all)
     pub include_tables: Vec<String>,
-    
+
     /// Tables to exclude
     pub exclude_tables: Vec<String>,
-    
+
     /// Patterns for tables to exclude (regex)
     pub exclude_patterns: Vec<String>,
-    
+
     /// Whether to sample system/internal tables
     pub include_system_tables: bool,
-    
+
     /// Throttle delay between sampling queries (ms)
     pub throttle_ms: Option<u64>,
-    
+
     /// Query timeout for sampling operations (seconds)
     pub query_timeout_secs: u64,
-    
+
     /// Preferred timestamp column names for ordering
     pub timestamp_columns: Vec<String>, // ["created_at", "updated_at", "timestamp", "date_created"]
-    
+
     /// Whether to warn about potentially sensitive data (collector only warns, never redacts)
     pub warn_sensitive: bool,
-    
+
     /// Patterns for sensitive data detection (for warnings only)
     pub sensitive_detection_patterns: Vec<SensitiveDetectionPattern>,
 }
@@ -1154,22 +1161,22 @@ pub struct SamplingConfig {
 pub struct CollectionConfig {
     /// Sampling configuration
     pub sampling: SamplingConfig,
-    
+
     /// Whether to collect all databases (multi-database mode)
     pub collect_all_databases: bool,
-    
+
     /// Whether to include system databases
     pub include_system_databases: bool,
-    
+
     /// Databases to exclude from collection
     pub exclude_databases: Vec<String>,
-    
+
     /// Throttle delay between database collections (ms)
     pub throttle_ms: Option<u64>,
-    
+
     /// Maximum concurrent database connections
     pub max_concurrent_connections: usize,
-    
+
     /// Connection timeout per database (seconds)
     pub connection_timeout_secs: u64,
 }
@@ -1181,7 +1188,7 @@ impl Default for CollectionConfig {
             collect_all_databases: false,
             include_system_databases: false,
             exclude_databases: Vec::new(),
-            throttle_ms: Some(1000), // 1 second between databases
+            throttle_ms: Some(1000),       // 1 second between databases
             max_concurrent_connections: 3, // Conservative for server load
             connection_timeout_secs: 30,
         }
@@ -1218,7 +1225,10 @@ impl Default for SamplingConfig {
                 SensitiveDetectionPattern::new("password_field", r"(?i)password|passwd|pwd"),
                 SensitiveDetectionPattern::new("email_field", r"(?i)email|e_mail"),
                 SensitiveDetectionPattern::new("ssn_field", r"(?i)ssn|social_security"),
-                SensitiveDetectionPattern::new("credit_card_field", r"(?i)credit_card|cc_number|card_num"),
+                SensitiveDetectionPattern::new(
+                    "credit_card_field",
+                    r"(?i)credit_card|cc_number|card_num",
+                ),
                 SensitiveDetectionPattern::new("phone_field", r"(?i)phone|telephone|mobile"),
             ],
         }
@@ -1247,13 +1257,13 @@ impl SensitiveDetectionPattern {
 pub struct RedactionConfig {
     /// Whether to enable redaction in postprocessor output
     pub enabled: bool,
-    
+
     /// Redaction patterns with replacement values
     pub patterns: Vec<RedactionPattern>,
-    
+
     /// Whether to allow user override of redaction
     pub allow_override: bool,
-    
+
     /// Redaction mode
     pub mode: RedactionMode,
 }
@@ -1273,7 +1283,7 @@ pub enum RedactionMode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactionPattern {
     pub name: String,
-    pub field_pattern: String,    // Pattern to match field names
+    pub field_pattern: String,         // Pattern to match field names
     pub value_pattern: Option<String>, // Optional pattern to match values
     pub replacement: String,
 }
@@ -1294,7 +1304,9 @@ impl Default for RedactionConfig {
                 RedactionPattern {
                     name: "email_values".to_string(),
                     field_pattern: r"(?i)email".to_string(),
-                    value_pattern: Some(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b".to_string()),
+                    value_pattern: Some(
+                        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b".to_string(),
+                    ),
                     replacement: "[REDACTED_EMAIL]".to_string(),
                 },
                 RedactionPattern {
@@ -1344,10 +1356,12 @@ pub struct SecureCredentials {
 }
 
 impl SecureCredentials {
-    pub fn from_connection_string(url: &str) -> Result<(ConnectionParams, Credentials), SecurityError> {
+    pub fn from_connection_string(
+        url: &str,
+    ) -> Result<(ConnectionParams, Credentials), SecurityError> {
         // Parse and separate credentials from connection parameters
     }
-    
+
     pub fn sanitized_display(&self) -> String {
         // Return connection info without credentials
     }
@@ -1481,24 +1495,46 @@ The system maintains a unified type system that maps database-specific types to 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UnifiedDataType {
     // Primitive types
-    Integer { size: Option<u8>, signed: bool },
-    Float { precision: Option<u8> },
-    Decimal { precision: Option<u8>, scale: Option<u8> },
-    String { max_length: Option<u32>, fixed_length: bool },
+    Integer {
+        size: Option<u8>,
+        signed: bool,
+    },
+    Float {
+        precision: Option<u8>,
+    },
+    Decimal {
+        precision: Option<u8>,
+        scale: Option<u8>,
+    },
+    String {
+        max_length: Option<u32>,
+        fixed_length: bool,
+    },
     Boolean,
-    DateTime { timezone_aware: bool },
+    DateTime {
+        timezone_aware: bool,
+    },
     Date,
     Time,
-    Binary { max_length: Option<u32> },
-    
+    Binary {
+        max_length: Option<u32>,
+    },
+
     // Complex types
-    Array { element_type: Box<UnifiedDataType> },
-    Object { fields: HashMap<String, UnifiedDataType> },
+    Array {
+        element_type: Box<UnifiedDataType>,
+    },
+    Object {
+        fields: HashMap<String, UnifiedDataType>,
+    },
     Json,
     Xml,
-    
+
     // Database-specific types
-    Custom { type_name: String, database_type: DatabaseType },
+    Custom {
+        type_name: String,
+        database_type: DatabaseType,
+    },
 }
 ```
 
@@ -1511,16 +1547,24 @@ pub enum UnifiedDataType {
 pub enum CollectorError {
     #[error("Database connection failed")]
     Connection(#[from] ConnectionError),
-    
+
     #[error("Schema collection failed: {context}")]
-    Collection { context: String, #[source] source: Box<dyn std::error::Error + Send + Sync> },
-    
+    Collection {
+        context: String,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[error("Data sampling failed: {table}")]
-    Sampling { table: String, #[source] source: Box<dyn std::error::Error + Send + Sync> },
-    
+    Sampling {
+        table: String,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[error("Output generation failed")]
     Output(#[from] OutputError),
-    
+
     #[error("Security violation: {message}")]
     Security { message: String },
 }
@@ -1901,16 +1945,16 @@ proptest! {
             "postgres://{}:{}@{}:{}/{}",
             username, password, host, port, database
         );
-        
+
         let (params, creds) = SecureCredentials::from_connection_string(&connection_string)?;
-        
+
         // Verify parsing correctness
         prop_assert_eq!(params.host, host);
         prop_assert_eq!(params.port, port);
         prop_assert_eq!(params.database, database);
         prop_assert_eq!(creds.username, username);
         prop_assert_eq!(creds.password.as_ref().unwrap(), &password);
-        
+
         // Verify credential sanitization
         let display = params.sanitized_display();
         prop_assert!(!display.contains(&password));
@@ -1975,7 +2019,11 @@ fn test_memory_safety_with_credentials() {
 [dev-dependencies]
 # Modern testcontainers with modules
 testcontainers = "0.17"
-testcontainers-modules = { version = "0.4", features = ["postgres", "mysql", "mongo"] }
+testcontainers-modules = { version = "0.4", features = [
+  "postgres",
+  "mysql",
+  "mongo",
+] }
 
 # Performance benchmarking
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -1991,7 +2039,12 @@ tokio-test = "0.4"
 tempfile = "3.8"
 
 # Database clients for integration tests
-sqlx = { version = "0.7", features = ["postgres", "mysql", "sqlite", "runtime-tokio-rustls"] }
+sqlx = { version = "0.7", features = [
+  "postgres",
+  "mysql",
+  "sqlite",
+  "runtime-tokio-rustls",
+] }
 mongodb = "2.8"
 
 [[bench]]
@@ -2013,11 +2066,11 @@ failure-output = "immediate"
 # Test groups for different types of tests
 [[package.metadata.nextest.test-groups]]
 name = "integration"
-max-threads = 2  # Limit concurrent container tests
+max-threads = 2      # Limit concurrent container tests
 
 [[package.metadata.nextest.test-groups]]
 name = "unit"
-max-threads = 8  # Allow more parallel unit tests
+max-threads = 8 # Allow more parallel unit tests
 
 # Profile for CI environments
 [package.metadata.nextest.profiles.ci]
@@ -2041,10 +2094,10 @@ ci = ["github"]
 installers = ["shell", "powershell", "homebrew"]
 # Target platforms to build apps for ("rustc -vV" to find yours)
 targets = [
-    "aarch64-apple-darwin",
-    "x86_64-apple-darwin", 
-    "x86_64-unknown-linux-gnu",
-    "x86_64-pc-windows-msvc"
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
 ]
 # Publish jobs to run in CI
 pr-run-mode = "plan"
@@ -2143,26 +2196,29 @@ use dbsurveyor_core::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = CollectorCli::parse();
-    
+
     // Only compile adapters for enabled features
     let adapter = match detect_database_type(&cli.database_url)? {
         #[cfg(feature = "postgres")]
         DatabaseType::PostgreSQL => Box::new(PostgresAdapter::new()) as Box<dyn DatabaseAdapter>,
-        
+
         #[cfg(feature = "mysql")]
         DatabaseType::MySQL => Box::new(MySqlAdapter::new()) as Box<dyn DatabaseAdapter>,
-        
+
         #[cfg(feature = "sqlite")]
         DatabaseType::SQLite => Box::new(SqliteAdapter::new()) as Box<dyn DatabaseAdapter>,
-        
+
         #[cfg(feature = "mongodb")]
         DatabaseType::MongoDB => Box::new(MongoAdapter::new()) as Box<dyn DatabaseAdapter>,
-        
+
         #[cfg(feature = "mssql")]
         DatabaseType::SqlServer => Box::new(SqlServerAdapter::new()) as Box<dyn DatabaseAdapter>,
-        
+
         db_type => {
-            eprintln!("Error: Database type {:?} not supported in this binary.", db_type);
+            eprintln!(
+                "Error: Database type {:?} not supported in this binary.",
+                db_type
+            );
             eprintln!("Try using:");
             eprintln!("  - dbsurveyor-collect-postgres for PostgreSQL");
             eprintln!("  - dbsurveyor-collect-mysql for MySQL");
@@ -2173,7 +2229,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     };
-    
+
     // Rest of collection logic...
     Ok(())
 }
@@ -2199,7 +2255,7 @@ curl -L https://github.com/user/dbsurveyor/releases/latest/download/dbsurveyor-x
 Expected binary sizes (approximate):
 
 - `dbsurveyor-collect-postgres`: ~8MB (PostgreSQL + core)
-- `dbsurveyor-collect-mysql`: ~8MB (MySQL + core)  
+- `dbsurveyor-collect-mysql`: ~8MB (MySQL + core)
 - `dbsurveyor-collect-sqlite`: ~6MB (SQLite + core, no network deps)
 - `dbsurveyor-collect-mongodb`: ~12MB (MongoDB + core)
 - `dbsurveyor-collect`: ~25MB (all databases + core)
@@ -2300,14 +2356,14 @@ jobs:
 ```toml
 # Cross-compilation and optimization settings
 [profile.release]
-lto = true              # Link-time optimization
-codegen-units = 1       # Better optimization
-panic = "abort"         # Smaller binary, immediate failure
-strip = "symbols"       # Remove debug symbols for smaller binaries
+lto = true        # Link-time optimization
+codegen-units = 1 # Better optimization
+panic = "abort"   # Smaller binary, immediate failure
+strip = "symbols" # Remove debug symbols for smaller binaries
 
 [profile.dist]
 inherits = "release"
-debug = 1              # Keep some debug info for better stack traces
+debug = 1            # Keep some debug info for better stack traces
 
 # Feature flags for selective compilation
 [features]
@@ -2315,7 +2371,7 @@ default = ["postgres", "mysql", "sqlite", "mongodb"]
 
 # Database drivers
 postgres = ["sqlx/postgres", "sqlx/runtime-tokio-rustls"]
-mysql = ["sqlx/mysql", "sqlx/runtime-tokio-rustls"] 
+mysql = ["sqlx/mysql", "sqlx/runtime-tokio-rustls"]
 sqlite = ["sqlx/sqlite", "sqlx/runtime-tokio-rustls"]
 mssql = ["tiberius", "tiberius/rustls"]
 mongodb = ["dep:mongodb"]
@@ -2328,8 +2384,15 @@ tui = ["ratatui", "crossterm"]
 
 # All features for development
 full = [
-    "postgres", "mysql", "sqlite", "mssql", "mongodb",
-    "compression", "encryption", "wasm-plugins", "tui"
+  "postgres",
+  "mysql",
+  "sqlite",
+  "mssql",
+  "mongodb",
+  "compression",
+  "encryption",
+  "wasm-plugins",
+  "tui",
 ]
 ```
 
@@ -2357,16 +2420,18 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 # Include private items in documentation
 rustdoc-args = [
-    "--cfg", "docsrs",
-    "--document-private-items",
-    "--enable-index-page",
-    "--crate-name", "dbsurveyor"
+  "--cfg",
+  "docsrs",
+  "--document-private-items",
+  "--enable-index-page",
+  "--crate-name",
+  "dbsurveyor",
 ]
 ```
 
 ### API Documentation Standards
 
-```rust
+````rust
 //! # DBSurveyor Core Library
 //!
 //! DBSurveyor provides secure, offline-capable database schema collection and documentation
@@ -2547,7 +2612,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// - Respects query timeouts to avoid slow log entries
     async fn sample_data(&self, conn: &Self::Connection, config: &SamplingConfig) -> Result<Vec<TableSample>, Self::Error>;
 }
-```
+````
 
 ### mdbook Documentation Structure
 
@@ -2657,63 +2722,63 @@ name: Documentation
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   rustdoc:
     name: Build API Documentation
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-    
-    - name: Build rustdoc
-      run: |
-        cargo doc --all-features --no-deps --document-private-items
-    
-    - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main'
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./target/doc
-        destination_dir: api
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build rustdoc
+        run: |
+          cargo doc --all-features --no-deps --document-private-items
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          destination_dir: api
 
   mdbook:
     name: Build User Guide
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install mdbook
-      run: |
-        curl -L https://github.com/rust-lang/mdBook/releases/latest/download/mdbook-x86_64-unknown-linux-gnu.tar.gz | tar xz
-        curl -L https://github.com/badboy/mdbook-mermaid/releases/latest/download/mdbook-mermaid-x86_64-unknown-linux-gnu.tar.gz | tar xz
-        curl -L https://github.com/tommilligan/mdbook-admonish/releases/latest/download/mdbook-admonish-x86_64-unknown-linux-gnu.tar.gz | tar xz
-        chmod +x mdbook mdbook-mermaid mdbook-admonish
-        sudo mv mdbook mdbook-mermaid mdbook-admonish /usr/local/bin/
-    
-    - name: Build book
-      run: |
-        cd docs
-        mdbook build
-    
-    - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main'
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./docs/book
-        destination_dir: guide
+      - uses: actions/checkout@v4
+
+      - name: Install mdbook
+        run: |
+          curl -L https://github.com/rust-lang/mdBook/releases/latest/download/mdbook-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          curl -L https://github.com/badboy/mdbook-mermaid/releases/latest/download/mdbook-mermaid-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          curl -L https://github.com/tommilligan/mdbook-admonish/releases/latest/download/mdbook-admonish-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          chmod +x mdbook mdbook-mermaid mdbook-admonish
+          sudo mv mdbook mdbook-mermaid mdbook-admonish /usr/local/bin/
+
+      - name: Build book
+        run: |
+          cd docs
+          mdbook build
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/book
+          destination_dir: guide
 ```
 
 ### Documentation Quality Standards
 
-```rust
+````rust
 // Documentation examples must be tested
 #[doc = include_str!("../examples/basic_usage.rs")]
 /// # Examples
@@ -2728,7 +2793,7 @@ jobs:
 /// let metadata = adapter.collect_from_url(
 ///     "postgres://user:pass@localhost/db"
 /// ).await?;
-/// 
+///
 /// // Generate markdown report
 /// let report = generate_markdown_report(&metadata)?;
 /// std::fs::write("schema_report.md", report)?;
@@ -2746,13 +2811,13 @@ jobs:
 /// let metadata = adapter.collect_from_url(
 ///     "postgres://user:pass@localhost/db"
 /// ).await?;
-/// 
+///
 /// // Encrypt output
 /// let encrypted = encrypt_schema_data(
 ///     &serde_json::to_vec(&metadata)?,
 ///     "secure_password"
 /// ).await?;
-/// 
+///
 /// std::fs::write("schema.dbsurveyor.enc", encrypted.to_bytes())?;
 /// # Ok(())
 /// # }
@@ -2760,7 +2825,7 @@ jobs:
 pub struct PostgresAdapter {
     // Implementation details...
 }
-```
+````
 
 This comprehensive documentation architecture ensures both developers and end-users have excellent documentation resources while maintaining the security-first principles of the project.
 
