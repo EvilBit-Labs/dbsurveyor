@@ -180,12 +180,17 @@ jobs:
           path: "."
           fail-build: true
           severity-cutoff: high
+          output-format: sarif
+
+      - name: Verify SARIF file exists
+        run: test -f grype-results.sarif
+        if: always()
 
       - name: Upload vulnerability scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: ${{ steps.scan.outputs.sarif }}
+          sarif_file: grype-results.sarif
 
   # Build validation (Linux only)
   build:

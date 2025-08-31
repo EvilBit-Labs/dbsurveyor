@@ -178,7 +178,7 @@ coverage:
 # Run coverage for CI - generates report even if some tests fail
 coverage-ci:
     @echo "🔍 Running coverage for CI with >75% threshold..."
-    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 75 --output-path lcov.info --ignore-run-fail
+    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 75 --output-path lcov.info
     @echo "✅ Coverage passed 75% threshold!"
 
 # Run coverage report in HTML format for local viewing
@@ -412,7 +412,7 @@ ci-check-fast: format-check lint test-no-bench
     @echo "✅ Fast CI checks passed!"
 
 # Full comprehensive checks - runs all non-interactive verifications
-full-checks: format-check lint pre-commit test coverage audit build-release pre-commit-run
+full-checks: format-check lint pre-commit-run test coverage audit build-release
     @echo "✅ All full checks passed!"
 
 # CI-friendly QA check (respects TERM=dumb)

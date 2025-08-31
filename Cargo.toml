@@ -47,6 +47,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # Internal workspace dependencies
 dbsurveyor-core = { path = "dbsurveyor-core" }
 
+
+
 [workspace.lints.rust]
 unsafe_code = "deny"           # No unsafe code allowed (security)
 missing_docs = "warn"          # Documentation required

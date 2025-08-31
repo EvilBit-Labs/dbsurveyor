@@ -108,6 +108,10 @@ Each task should follow this consistent structure for discrete, trackable implem
   - **Dependencies**: Prerequisites, resources, or other tasks that must be completed first
   - **Implementation**: Specific steps, approach, and technical considerations
   - **Acceptance**: Clear, testable acceptance criteria for completion
+  - **Security/Privacy**:
+    - No credential material in logs/artifacts
+    - Offline-only operation after DB connect
+    - Read-only database interactions
   - **Resources**: Any tools, documentation, or external resources needed
 ```
 
@@ -209,6 +213,7 @@ grep -n "TASK-" project_spec/tasks.md | wc -l
 - **Requirements to User Stories**: Link requirements to user stories that drive them
 - **Requirements to Tests**: Ensure requirements have corresponding test cases
 - **Requirements to Code**: Maintain traceability from requirements to code implementation
+- **Security Requirements to Tests/Code**: Trace security constraints (e.g., no-credentials, offline-only) to specific test cases and code locations
 - **Change Impact**: Track how requirement changes affect related artifacts
 
 ## Key Documents
