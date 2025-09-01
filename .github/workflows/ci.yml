@@ -61,6 +61,28 @@ jobs:
           TERM: dumb
           RUST_BACKTRACE: 1
 
+      - name: Upload MegaLinter artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: megalinter-results
+          path: |
+            megalinter-reports/
+            .mega-linter.log
+          retention-days: 30
+
+      - name: Upload megalinter report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: megalinter-results
+          path: megalinter-reports/
+          retention-days: 30
+
+  test-coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    steps:
       - name: Setup Rust for coverage
         uses: dtolnay/rust-toolchain@1.89.0
         with:
@@ -75,41 +97,14 @@ jobs:
           CARGO_TERM_COLOR: never
           TERM: dumb
 
-      - name: Generate HTML coverage report
-        run: cargo llvm-cov --all-features --workspace --html --fail-under-lines 80 -- --test-threads=1
+      - name: Generate lcov.info coverage report
+        run: cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 80 -- --test-threads=1
         env:
           CARGO_TERM_COLOR: never
           TERM: dumb
 
-      - name: Upload MegaLinter artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: megalinter-results
-          path: |
-            megalinter-reports/
-            .mega-linter.log
-          retention-days: 30
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: lcov.info
-          retention-days: 30
-
-      - name: Upload HTML coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: html-coverage-report
-          path: target/llvm-cov/html/
-          retention-days: 30
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
-        if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: lcov.info
@@ -117,6 +112,11 @@ jobs:
           name: rust-coverage
           fail_ci_if_error: false
 
+  build-binaries:
+    name: Build Binaries
+    runs-on: ubuntu-latest
+    needs: test-coverage
+    steps:
       - name: Setup Rust for building
         uses: dtolnay/rust-toolchain@1.89.0
 
