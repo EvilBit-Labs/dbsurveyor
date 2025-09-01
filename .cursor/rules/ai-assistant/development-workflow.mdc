@@ -99,20 +99,20 @@ just ci-check           # Full CI equivalent
 ```rust
 #[cfg(test)]
 mod tests {
-    use super::*;
+        use super::*;
 
-    #[test]
-    fn test_schema_parsing() {
-        // Test individual functions and modules
-    }
+        #[test]
+        fn test_schema_parsing() {
+                // Test individual functions and modules
+        }
 
-    #[test]
-    fn test_credential_sanitization() {
-        // Ensure no credentials leak into output
-        let config = DatabaseConfig::new("postgres://user:secret@host/db");
-        let output = config.safe_display();
-        assert!(!output.contains("secret"));
-    }
+        #[test]
+        fn test_credential_sanitization() {
+                // Ensure no credentials leak into output
+                let config = DatabaseConfig::new("postgres://user:secret@host/db");
+                let output = config.safe_display();
+                assert!(!output.contains("secret"));
+        }
 }
 ```
 
@@ -121,16 +121,16 @@ mod tests {
 ```rust
 #[tokio::test]
 async fn test_postgres_integration() {
-    let docker = testcontainers::clients::Cli::default();
-    let postgres = docker.run(testcontainers::images::postgres::Postgres::default());
+        let docker = testcontainers::clients::Cli::default();
+        let postgres = docker.run(testcontainers::images::postgres::Postgres::default());
 
-    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres",
-                              postgres.get_host_port_ipv4(5432));
+        let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres",
+                                                            postgres.get_host_port_ipv4(5432));
 
-    let collector = PostgresCollector::new(&database_url).await?;
-    let schema = collector.collect_schema().await?;
+        let collector = PostgresCollector::new(&database_url).await?;
+        let schema = collector.collect_schema().await?;
 
-    assert!(!schema.tables.is_empty());
+        assert!(!schema.tables.is_empty());
 }
 ```
 
@@ -139,12 +139,12 @@ async fn test_postgres_integration() {
 ```rust
 #[tokio::test]
 async fn test_no_credentials_in_output() {
-    let database_url = "postgres://testuser:secret@localhost/testdb";
-    let schema = collect_schema(database_url).await?;
-    let json_output = serde_json::to_string(&schema)?;
+        let database_url = "postgres://testuser:secret@localhost/testdb";
+        let schema = collect_schema(database_url).await?;
+        let json_output = serde_json::to_string(&schema)?;
 
-    assert!(!json_output.contains("secret"));
-    assert!(!json_output.contains("testuser:secret"));
+        assert!(!json_output.contains("secret"));
+        assert!(!json_output.contains("testuser:secret"));
 }
 ```
 
@@ -199,7 +199,7 @@ async fn test_no_credentials_in_output() {
 /// println!("Found {} tables", schema.tables.len());
 /// ```
 pub async fn collect_postgres_schema(database_url: &str) -> Result<Schema> {
-    // Implementation
+        // Implementation
 }
 ```
 
@@ -212,18 +212,18 @@ pub async fn collect_postgres_schema(database_url: &str) -> Result<Schema> {
 ```rust
 #[derive(Error, Debug)]
 pub enum CollectorError {
-    #[error("Failed to connect to database: {source}")]
-    ConnectionFailed {
-        #[source]
-        source: sqlx::Error,
-        // Note: Don't include database URL to avoid credential exposure
-    },
+        #[error("Failed to connect to database: {source}")]
+        ConnectionFailed {
+                #[source]
+                source: sqlx::Error,
+                // Note: Don't include database URL to avoid credential exposure
+        },
 
-    #[error("Schema collection failed for table '{table}': {reason}")]
-    SchemaCollectionFailed {
-        table: String,
-        reason: String,
-    },
+        #[error("Schema collection failed for table '{table}': {reason}")]
+        SchemaCollectionFailed {
+                table: String,
+                reason: String,
+        },
 }
 ```
 

@@ -1,14 +1,9 @@
----
-description: Requirements management and documentation consistency guidelines
-globs: project_spec/*.md,**/*.md,**/*.mdc
-alwaysApply: false
----
 
 # Project Specification Management Guidelines
 
 ## Overview
 
-This document provides comprehensive guidelines for managing requirements, tasks, and user stories in the dbsurveyor project. It ensures consistency across all specification documents and maintains proper alignment between requirements and implementation.
+This document provides comprehensive guidelines for managing requirements, tasks, and user stories in the project. It ensures consistency across all specification documents and maintains proper alignment between requirements and implementation.
 
 ## Project Specification Files
 
@@ -21,12 +16,21 @@ The `project_spec/` directory contains three essential documents that work toget
   - Defines system capabilities, constraints, and implementation details
   - Serves as the authoritative source for what the system must do
   - Includes document metadata for version control and change tracking
+  - This document is the source of truth for the project and should be updated as the project evolves
+  - Requirements should be written using **EARS notation** (Easy Approach to Requirements Syntax)
+    - **Ubiquitous**: Always-occurring fundamental system properties (e.g., "The software shall be written in Rust using Cargo for dependency management")
+    - **Event-driven**: Triggered by specific events (e.g., "When the collect command is executed, then the system shall establish a database connection and extract schema metadata")
+    - **Unwanted behaviors**: Error handling and failure management (e.g., "If the database connection fails, then the system shall display a sanitized error message without exposing credentials")
+    - **State-driven**: Behavior while in specific states (e.g., "When in read-only mode, then the system shall enforce read-only database operations and reject any write attempts")
+    - **Optional features**: Conditional functionality (e.g., "Where encryption is enabled, then the system shall encrypt all schema data using AES-GCM with random nonce")
 
-- **[tasks.md](project_spec/tasks.md)** - **Implementation task checklist**
-  - Breaks down requirements into actionable development tasks
-  - Provides implementation context, acceptance criteria, and dependencies
+- **[tasks.md](project_spec/tasks.md)** - **Detailed implementation plan**
+  - Breaks down requirements into discrete, trackable tasks and sub-tasks
+  - Provides clear task descriptions, expected outcomes, and acceptance criteria
+  - Identifies necessary resources, dependencies, and implementation context
   - Tracks progress through task lifecycle (not started, in progress, completed)
   - Links tasks to specific requirements and user stories
+  - Serves as the primary project management tool for implementation tracking
 
 - **[user_stories.md](project_spec/user_stories.md)** - **User stories and use cases**
   - Defines user-centric requirements and scenarios
@@ -56,28 +60,75 @@ The `project_spec/` directory contains three essential documents that work toget
 - **Reference Pattern**: Use format `F### (key details)` for functional requirements
 - **Cross-References**: Include relevant requirement numbers in parentheses when referencing other requirements
 - **Balance**: Strike balance between conciseness and comprehensiveness - avoid verbose multi-bullet requirements
+- **Acceptance Criteria**: Every requirement must include clear, testable acceptance criteria that define when the requirement is satisfied
+- **RFC Compliance**: Requirements must comply with RFC 2119 and RFC 8174 for key words and requirement language
+  - **MUST/SHALL**: Absolute requirement (RFC 2119)
+  - **MUST NOT/SHALL NOT**: Absolute prohibition (RFC 2119)
+  - **SHOULD/SHOULD NOT**: Recommended but not mandatory (RFC 2119)
+  - **MAY/OPTIONAL**: Truly optional (RFC 2119)
+  - **Implementation Level**: Use RFC 8174 for implementation-specific requirements
 
 ### Maintenance Guidelines
 
 - **Version Control**: Update document version and last modified date when making changes
-- **Change Tracking**: Document specific changes in metadata section
+- **Change Tracking**: Document specific changes in metadata section with rationale
 - **Consistency**: Ensure all requirements follow the same style and format
 - **Redundancy**: Avoid duplicating information already covered in architecture or other sections
+- **Impact Analysis**: Assess impact of requirement changes on existing tasks and user stories
+- **Stakeholder Review**: Review requirement changes with relevant stakeholders before implementation
+
+### Requirement Prioritization
+
+- **Priority Levels**: Use consistent priority levels (Critical, High, Medium, Low) for all requirements
+- **Business Value**: Prioritize requirements based on business impact and user value
+- **Dependencies**: Consider technical dependencies when setting priorities
+- **Risk Assessment**: Factor in implementation risk and complexity
+- **Stakeholder Input**: Incorporate stakeholder feedback in priority decisions
 
 ## Task Documentation Standards
 
 ### Task Structure
 
-Each task should follow this consistent structure:
+Each task should follow this consistent structure for discrete, trackable implementation:
 
 ```markdown
 - [ ] **TASK-###**: Task Title
 
-  - **Context**: Clear explanation of why this task is needed
-  - **Requirement**: List all relevant requirement numbers (F###)
-  - **User Story**: Reference applicable user stories (US-###)
-  - **Action**: Specific implementation steps and approach
-  - **Acceptance**: Clear acceptance criteria for completion
+    - **Description**: Clear, detailed explanation of what this task accomplishes
+    - **Context**: Why this task is needed and its relationship to project goals
+    - **Requirement**: List all relevant requirement numbers (F###)
+    - **User Story**: Reference applicable user stories (US-###)
+    - **GitHub Issue**: Link to associated GitHub issue when applicable (https://github.com/owner/repo/issues/123: "Issue Title")
+    - **Expected Outcome**: Specific deliverables and success criteria
+    - **Dependencies**: Prerequisites, resources, or other tasks that must be completed first
+    - **Implementation**: Specific steps, approach, and technical considerations
+    - **Acceptance**: Clear, testable acceptance criteria for completion
+    - **Security/Privacy**:
+        - **Threat Model**:
+            - Assets: Database schemas, connection credentials, system metadata
+            - Adversaries: Malicious actors, credential harvesters, data exfiltrators
+            - Attack Vectors: Credential exposure, network interception, unauthorized access
+        - **Threats & Mitigations**:
+            - Credential leakage: No credential material in logs/artifacts, sanitized error messages
+            - Data exfiltration: Offline-only operation after DB connect, encrypted outputs
+            - Unauthorized access: Read-only database interactions, minimal privilege principle
+        - **Data Retention Policy**:
+            - Schema data: Retain for 30 days, auto-purge after project completion
+            - Logs: Retain for 7 days, auto-purge with no sensitive data
+            - Temporary files: Delete immediately after use, secure deletion
+        - **Retention Exceptions**:
+            - Extended retention requires security team approval
+            - Compliance requirements documented and justified
+        - **Secure Deletion**:
+            - Use secure deletion algorithms (DoD 5220.22-M)
+            - Anonymize any retained data for analysis
+        - **Access Control**:
+            - Role-based access to project artifacts
+            - Audit logging for all data access and modifications
+            - No credential material in logs/artifacts
+            - Offline-only operation after DB connect
+            - Read-only database interactions
+    - **Resources**: Any tools, documentation, or external resources needed
 ```
 
 ### Task Lifecycle Management
@@ -161,9 +212,34 @@ grep -n "F0[0-9][0-9]" project_spec/requirements.md
 # Check task-requirement alignment
 grep -n "TASK-" project_spec/tasks.md
 grep -n "F0[0-9][0-9]" project_spec/tasks.md
+
+# Validate GitHub issue links
+grep -n "github.com.*issues" project_spec/tasks.md
+
+# Check for missing acceptance criteria
+grep -n "Acceptance:" project_spec/tasks.md | wc -l
+grep -n "TASK-" project_spec/tasks.md | wc -l
 ```
 
+## Requirement Traceability
+
+### Traceability Matrix
+
+alwaysApply: true
+
+- **Requirements to Tasks**: Every requirement must have corresponding implementation tasks
+- **Requirements to User Stories**: Link requirements to user stories that drive them
+- **Requirements to Tests**: Ensure requirements have corresponding test cases
+- **Requirements to Code**: Maintain traceability from requirements to code implementation
+- **Security Requirements to Tests/Code**: Trace security constraints (e.g., no-credentials, offline-only) to specific test cases and code locations
+- **Change Impact**: Track how requirement changes affect related artifacts
+
 ## Key Documents
+
+- **[requirements.md](project_spec/requirements.md)** - Complete requirements specification
+- **[tasks.md](project_spec/tasks.md)** - Implementation task checklist
+- **[user_stories.md](project_spec/user_stories.md)** - User stories and use cases
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture documentation
 
 - **[requirements.md](project_spec/requirements.md)** - Complete requirements specification
 - **[tasks.md](project_spec/tasks.md)** - Implementation task checklist

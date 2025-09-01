@@ -47,6 +47,5 @@ Toolchain for surveying database servers, extracting schema and sample data, and
 
 WARNING: Sample data may contain sensitive information. Use `--redact-samples` flag and review outputs before sharing.
 
-
 ## License
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FEvilBit-Labs%2Fdbsurveyor.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FEvilBit-Labs%2Fdbsurveyor?ref=badge_large)

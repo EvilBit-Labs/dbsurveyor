@@ -14,22 +14,23 @@ DBSurveyor is a security-focused database documentation tool written in Rust tha
 ## Critical Security Rules (NON-NEGOTIABLE)
 
 1. **OFFLINE-ONLY OPERATION**: No network calls except to target databases for schema collection
-1. **NO TELEMETRY**: Zero data collection or external reporting mechanisms
-1. **CREDENTIAL PROTECTION**: Database credentials never appear in any output files, logs, or artifacts
-1. **ENCRYPTION**: AES-GCM with random nonce, embedded KDF params, authenticated headers
-1. **AIRGAP COMPATIBILITY**: Full functionality in air-gapped environments
+2. **NO TELEMETRY**: Zero data collection or external reporting mechanisms
+3. **CREDENTIAL PROTECTION**: Database credentials never appear in any output files, logs, or artifacts
+4. **ENCRYPTION**: AES-GCM with cryptographically secure random nonce (minimum 96-bit/12-byte nonce length, never reuse nonce with same key), Argon2id KDF (min 64MB memory, 3 iterations, 4 parallelism), authenticated headers per AES-GCM usage. Use vetted CSPRNG for nonce generation. Deterministic test vectors permitted only in isolated test fixtures gated behind test-only flags/environment variables, never in production configuration.
+5. **AIRGAP COMPATIBILITY**: Full functionality in air-gapped environments
+6. **NO HTTP(S) EGRESS**: No HTTP(S) egress in CI/tests except to approved DB targets
 
 ## Technology Stack
 
-| Layer             | Technology                               | Notes                                       |
-| ----------------- | ---------------------------------------- | ------------------------------------------- |
-| **Language**      | Rust 2021 Edition                        | Modern Rust with idiomatic patterns         |
-| **CLI**           | Clap v4 with derive macros               | Clean, user-friendly command-line interface |
-| **Async Runtime** | Tokio                                    | For async database operations               |
-| **Database**      | SQLx with async drivers                  | Type-safe database access                   |
-| **Serialization** | Serde with JSON support                  | Data interchange and file I/O               |
-| **Encryption**    | AES-GCM with random nonce                | Secure data at rest                         |
-| **Testing**       | Built-in test framework + testcontainers | Unit and integration testing                |
+| Layer             | Technology                               | Notes                                                                                                                                                                                    |
+|-------------------|------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Language**      | Rust 2021 Edition                        | Modern Rust with idiomatic patterns                                                                                                                                                      |
+| **CLI**           | Clap v4 with derive macros               | Clean, user-friendly command-line interface                                                                                                                                              |
+| **Async Runtime** | Tokio                                    | For async database operations                                                                                                                                                            |
+| **Database**      | SQLx with async drivers                  | Type-safe database access                                                                                                                                                                |
+| **Serialization** | Serde with JSON support                  | Data interchange and file I/O                                                                                                                                                            |
+| **Encryption**    | AES-GCM with Argon2id KDF                | Secure data at rest                                                                                                                                                                      |
+| **Testing**       | Built-in test framework + testcontainers | Unit and integration testing. Deterministic test vectors permitted only in isolated test fixtures gated behind test-only flags/environment variables, never in production configuration. |
 
 ## Rust Coding Standards
 
@@ -198,10 +199,26 @@ mod tests {
 ### Critical Security Checks
 
 1. **No Network Access**: Except to target databases for schema collection
-1. **No Telemetry**: Zero external data collection or reporting
-1. **Credential Security**: Database credentials never stored, logged, or output
-1. **Encryption**: Proper AES-GCM implementation with random nonces
-1. **Offline Ready**: Full functionality in air-gapped environments
+2. **No Telemetry**: Zero external data collection or reporting
+3. **Credential Security**: Database credentials never stored, logged, or output
+4. **Encryption**: Proper AES-GCM implementation with Argon2id KDF (min 64MB memory, 3 iterations, 4 parallelism) and deterministic test vectors
+5. **Offline Ready**: Full functionality in air-gapped environments
+6. **No HTTP(S) Egress**: No HTTP(S) egress in CI/tests except to approved DB targets
+
+**CI/Tooling Bootstrap Carve-out**: HTTP(S) egress is permitted ONLY during CI/tooling bootstrap steps with strict controls:
+
+- **Approved Domains**:
+  - `github.com` (releases, actions)
+  - `rust-lang.org` (toolchain)
+  - `crates.io` (dependencies)
+  - `registry.npmjs.org` (Node.js tooling)
+- **Limited to**: Build-time bootstrap phases only (not runtime or test execution)
+- **Requirements**:
+  - Pinned versions/checksums required
+  - Audit logging for all downloads
+  - Approval process for new hosts
+  - No sensitive data transmitted
+- **Approval Process**: New hosts require security team review and documented justification
 
 ### Security Testing
 
@@ -249,12 +266,12 @@ Examples:
 ## Key Reminders
 
 1. **Security First**: Every change must maintain security guarantees
-1. **Zero Warnings**: `cargo clippy -- -D warnings` must pass
-1. **Offline Only**: No external dependencies at runtime
-1. **Database Safety**: Read-only operations with proper connection handling
-1. **Operator Focus**: Build for security professionals and database administrators
-1. **Documentation**: Comprehensive docs for all public APIs and CLI usage
-1. **Testing**: Include unit, integration, and security tests for all changes
+2. **Zero Warnings**: `cargo clippy -- -D warnings` must pass
+3. **Offline Only**: No external dependencies at runtime
+4. **Database Safety**: Read-only operations with proper connection handling
+5. **Operator Focus**: Build for security professionals and database administrators
+6. **Documentation**: Comprehensive docs for all public APIs and CLI usage
+7. **Testing**: Include unit, integration, and security tests for all changes
 
 ## Issue Resolution
 

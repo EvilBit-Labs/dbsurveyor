@@ -37,7 +37,7 @@ The project follows a Rust workspace structure with clear separation of concerns
 The preferred technology stack is consistent across the project:
 
 | Layer             | Technology                                | Notes                                            |
-| ----------------- | ----------------------------------------- | ------------------------------------------------ |
+|-------------------|-------------------------------------------|--------------------------------------------------|
 | **Language**      | Rust 2021 Edition                         | Modern Rust with idiomatic patterns              |
 | **CLI**           | Clap v4 with derive macros                | For clean, user-friendly command-line interfaces |
 | **Async**         | Tokio runtime                             | For async database operations                    |
@@ -80,10 +80,10 @@ The preferred technology stack is consistent across the project:
 ### Critical Security Guarantees
 
 1. **Offline-Only Operation**: No network calls except to target databases
-1. **No Telemetry**: Zero data collection or external reporting mechanisms
-1. **Credential Protection**: Database credentials never appear in any output files
-1. **Encryption**: AES-GCM with random nonce, embedded KDF params, authenticated headers
-1. **Airgap Compatibility**: Full functionality in air-gapped environments
+2. **No Telemetry**: Zero data collection or external reporting mechanisms
+3. **Credential Protection**: Database credentials never appear in any output files
+4. **Encryption**: AES-GCM with random nonce, embedded KDF params, authenticated headers
+5. **Airgap Compatibility**: Full functionality in air-gapped environments
 
 ### Security Implementation Standards
 
@@ -122,10 +122,10 @@ The preferred technology stack is consistent across the project:
 ### Quality Assurance
 
 1. **Code Quality**: All code must pass `cargo clippy -- -D warnings` with zero warnings
-1. **Type Safety**: Comprehensive type safety through Rust's type system
-1. **Testing**: Unit and integration tests with database fixtures
-1. **Documentation**: Clear documentation for all user-facing functionality
-1. **Performance**: Benchmark-driven development with regression detection
+2. **Type Safety**: Comprehensive type safety through Rust's type system
+3. **Testing**: Unit and integration tests with database fixtures
+4. **Documentation**: Clear documentation for all user-facing functionality
+5. **Performance**: Benchmark-driven development with regression detection
 
 ## 8. AI Assistant Behavior and Rules of Engagement
 
@@ -242,10 +242,10 @@ just package-airgap          # Create airgap deployment package
 ## 13. Key Reminders
 
 1. **Security First**: Every change must maintain security guarantees
-1. **Rust Quality Gate**: Zero warnings policy with `cargo clippy -- -D warnings`
-1. **Offline Operation**: No external dependencies at runtime
-1. **Database Safety**: Read-only operations with proper connection handling
-1. **Operator Focus**: Build for security professionals and database administrators
-1. **Documentation**: Comprehensive docs for all public APIs and CLI usage
+2. **Rust Quality Gate**: Zero warnings policy with `cargo clippy -- -D warnings`
+3. **Offline Operation**: No external dependencies at runtime
+4. **Database Safety**: Read-only operations with proper connection handling
+5. **Operator Focus**: Build for security professionals and database administrators
+6. **Documentation**: Comprehensive docs for all public APIs and CLI usage
 
 This document serves as the authoritative guide for AI assistants working on the DBSurveyor project, ensuring consistent, secure, and high-quality development practices.

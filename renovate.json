@@ -1,0 +1,42 @@
+{
+  "extends": ["config:base"],
+  "schedule": ["before 9am on Monday"],
+  "timezone": "UTC",
+  "groupName": "all dependencies",
+  "groupSlug": "all",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on Monday"],
+    "matchManagers": ["cargo"]
+  },
+  "packageRules": [
+    {
+      "matchDepTypes": ["dev-dependencies", "build-dependencies"],
+      "matchPackagePatterns": ["^cargo-", "clippy", "rustfmt", "cargo-nextest", "cargo-llvm-cov"],
+      "automerge": true
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "pinDigests": true,
+      "automerge": true
+    },
+    {
+      "matchDatasources": ["docker"],
+      "groupName": "container base images",
+      "pinDigests": true,
+      "matchPackagePatterns": ["^.*$"],
+      "automerge": true
+    },
+    {
+      "matchDepTypes": ["dependencies"],
+      "updateTypes": ["patch", "digest"],
+      "automerge": true
+    },
+    {
+      "matchDepTypes": ["dependencies"],
+      "updateTypes": ["minor", "major"],
+      "automerge": false
+    }
+  ]
+}

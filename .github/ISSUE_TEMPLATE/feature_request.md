@@ -2,8 +2,8 @@
 name: Feature Request
 about: Suggest an idea for DBSurveyor
 title: '[FEATURE] '
-labels: ['enhancement', 'needs-triage']
-assignees: ['UncleSp1d3r']
+labels: [enhancement, needs-triage]
+assignees: [unclesp1d3r]
 ---
 
 ## Feature Description
@@ -32,14 +32,18 @@ Describe the solution you'd like to see implemented. Be specific about:
 Describe specific scenarios where this feature would be valuable:
 
 1. **Use Case 1**: [Description]
+
    - Who: [Target user]
    - When: [When they would use this]
    - How: [How they would use this]
+   - **Security**: Use redacted placeholders (e.g., `user:pass@host/db`) instead of real credentials
 
 2. **Use Case 2**: [Description]
+
    - Who: [Target user]
    - When: [When they would use this]
    - How: [How they would use this]
+   - **Security**: Use redacted placeholders (e.g., `user:pass@host/db`) instead of real credentials
 
 ## Security Considerations
 
@@ -48,6 +52,10 @@ Describe specific scenarios where this feature would be valuable:
 - [ ] Credential protection maintained
 - [ ] Encryption capabilities preserved
 - [ ] No telemetry or data collection added
+- [ ] All secrets in logs, screenshots, and pasted output are masked or redacted
+- [ ] Sensitive information replaced with placeholders before attaching artifacts
+
+**Security Note**: When providing logs, screenshots, or pasted output, ensure all sensitive information (credentials, tokens, hostnames, IPs) is masked or redacted. Replace with placeholders like `[REDACTED]`, `user:pass@host/db`, or `192.168.x.x` before attaching any artifacts.
 
 ## Database Support
 

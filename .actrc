@@ -1,0 +1,32 @@
+# act configuration for DBSurveyor
+
+# This file configures act (<https://github.com/nektos/act>) for local GitHub Actions testing
+
+# Use GitHub's ubuntu-latest image for better compatibility
+
+-P ubuntu-latest=ghcr.io/catthehacker/ubuntu:act-latest
+-P ubuntu-20.04=ghcr.io/catthehacker/ubuntu:act-20.04
+-P ubuntu-18.04=ghcr.io/catthehacker/ubuntu:act-18.04
+
+# Use appropriate images for other platforms
+
+-P macos-latest=ghcr.io/catthehacker/ubuntu:act-latest
+-P windows-latest=ghcr.io/catthehacker/ubuntu:act-latest
+
+# Default environment variables for local testing
+
+--env CARGO_TERM_COLOR=never
+--env TERM=dumb
+--env RUST_LOG=info
+
+# Enable verbose logging for debugging
+
+--verbose
+
+# Use linux/amd64 architecture for better compatibility on Apple Silicon
+
+--container-architecture linux/amd64
+
+# Use local secrets file
+
+--secret-file .secrets

@@ -1,18 +1,19 @@
 [workspace]
 members = [
-    "bin/collector",
-    "bin/postprocessor",
-    "crates/shared"
+    "dbsurveyor-collect",
+    "dbsurveyor",
+    "dbsurveyor-core"
 ]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.77"
+edition = "2024"
+rust-version = "1.87"
 authors = ["UncleSp1d3r"]
 license = "Apache-2.0"
-repository = "https://github.com/UncleSp1d3r/dbsurveyor"
+repository = "https://github.com/EvilBit-Labs/dbsurveyor"
+homepage = "https://evilbitlabs.io/dbsurveyor"
 keywords = ["database", "documentation", "schema", "offline", "security"]
 categories = ["command-line-utilities", "database"]
 
@@ -24,23 +25,30 @@ categories = ["command-line-utilities", "database"]
 
 [workspace.dependencies]
 # Shared workspace dependencies - will be added as features are implemented
+# CLI framework
+clap = { version = "4.5.45", features = ["derive", "env"] }
+
 # Async runtime
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
 
 # Error handling
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0.16"
 
 # Logging (structured, no external reporting)
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Internal workspace dependencies
-dbsurveyor-shared = { path = "crates/shared" }
+dbsurveyor-core = { path = "dbsurveyor-core" }
+
+
 
 [workspace.lints.rust]
 unsafe_code = "deny"           # No unsafe code allowed (security)
@@ -76,6 +84,17 @@ opt-level = 3
 [profile.dev]
 debug = true           # Full debug info for security auditing
 overflow-checks = true # Runtime integer overflow detection
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+[workspace.metadata.release]
+shared-version = true
+tag-name = "v{{version}}"
+sign-commit = true
+sign-tag = true
 
 # ⚠️ SECURITY NOTICE: This Cargo.toml enforces the following security guarantees:
 #

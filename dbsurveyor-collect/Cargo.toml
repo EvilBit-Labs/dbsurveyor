@@ -1,0 +1,68 @@
+[package]
+name = "dbsurveyor-collect"
+description = "Database metadata collector for dbsurveyor toolchain"
+categories = ["database", "command-line-utilities"]
+keywords = ["database", "schema", "metadata", "red-team", "security"]
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[package.metadata.wix]
+upgrade-guid = "15648278-7BA0-47EA-AE62-485C88FAFA5A"
+path-guid = "9E7F2FC6-51F1-4618-A43D-653A5DA9CB20"
+license = false
+eula = false
+
+[[bin]]
+name = "dbsurveyor-collect"
+path = "src/main.rs"
+
+[dependencies]
+# Core shared library
+dbsurveyor-core = { workspace = true }
+
+# CLI and async
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+
+# URL parsing for secure database connection handling
+url = "2.5.7"
+
+# Database drivers (feature-gated)
+# Note: MySQL support completely disabled to prevent RSA vulnerability (RUSTSEC-2023-0071)
+# SQLx with minimal features - specific database support added via feature flags only
+# Using rustls for better security and cross-platform compatibility
+sqlx = { version = "0.8.6", features = [
+    "runtime-tokio-rustls",
+], optional = true }
+mongodb = { version = "3.2.5", optional = true }
+tiberius = { version = "0.12.3", optional = true }
+
+
+[dev-dependencies]
+tempfile = "3.21.0"
+temp-env = "0.3.6"
+testcontainers-modules = "0.13.0"
+criterion = "0.7.0"
+proptest = "1.7.0"
+
+[features]
+# Note: mysql feature completely disabled to prevent RSA vulnerability (RUSTSEC-2023-0071)
+# Default features only include secure database drivers
+default = ["postgresql", "sqlite", "mongodb"]
+postgresql = ["dep:sqlx", "sqlx/postgres"]
+sqlite = ["dep:sqlx", "sqlx/sqlite"]
+# mysql feature intentionally commented out to prevent accidental inclusion
+# mysql = ["dep:sqlx", "sqlx/mysql"]
+mssql = ["tiberius"]
+mongodb = ["dep:mongodb"]
+
+[lints]
+workspace = true

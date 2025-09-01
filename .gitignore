@@ -71,3 +71,34 @@ logs/
 *.survey
 *.dbsurvey
 survey-data/
+
+# act (GitHub Actions local testing) files
+.secrets
+.actrc.local
+
+# Security audit and SBOM files (generated locally)
+sbom.json
+sbom.spdx.json
+grype-report.json
+*.sbom
+*.spdx
+
+# MkDocs generated site
+site/
+
+# Coverage reports
+*.profdata
+lcov.info
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python lockfiles (keep for reproducible builds)
+
+# Node.js modules
+node_modules/
+
+# Megalinter reports
+megalinter-reports/

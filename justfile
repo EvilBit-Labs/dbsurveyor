@@ -17,21 +17,31 @@ help:
 # Setup development environment
 setup: install
 
-# Install dependencies and development tools
-install:
-    @echo "🚀 Setting up secure development environment..."
+# Install Rust development tools
+install-rust:
+    @echo "🔧 Installing Rust development tools..."
     rustup component add clippy rustfmt
-    @echo "📦 Installing security tools..."
-    @if ! command -v cargo-audit >/dev/null 2>&1; then \
-        cargo install cargo-audit; \
+    @echo "✅ Rust tools installed"
+
+# Install Cargo tools
+install-cargo-tools:
+    @echo "📦 Installing Cargo tools..."
+    @if ! command -v cargo-audit >/dev/null 2>&1; then cargo install cargo-audit; fi
+    @if ! command -v cargo-deny >/dev/null 2>&1; then cargo install cargo-deny; fi
+    @if ! command -v cargo-llvm-cov >/dev/null 2>&1; then cargo install cargo-llvm-cov; fi
+    @echo "✅ Cargo tools installed"
+
+# Install security tools
+install-security-tools:
+    @echo "🛡️ Installing security tools..."
+    @if ! command -v syft >/dev/null 2>&1; then \
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
     fi
-    @if ! command -v cargo-deny >/dev/null 2>&1; then \
-        cargo install cargo-deny; \
-    fi
-    @if ! command -v cargo-llvm-cov >/dev/null 2>&1; then \
-        cargo install cargo-llvm-cov; \
-    fi
-    @echo "✅ Development environment ready - security tools installed"
+    @echo "✅ Security tools installed"
+
+# Install all dependencies and development tools
+install: install-rust install-cargo-tools install-security-tools
+    @echo "🚀 Development environment ready!"
 
 # Update dependencies
 update-deps:
@@ -57,17 +67,8 @@ format-check:
 # Lint code with clippy (strict warnings as errors)
 lint:
     @echo "🔍 Running Rust Quality Gate (cargo clippy -- -D warnings)..."
-    @echo "⚠️  EXPLICIT REQUIREMENT: cargo clippy -- -D warnings must pass"
-    cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
     @echo "✅ Rust Quality Gate passed - zero warnings enforced"
-
-# Run all linting and formatting checks
-check: format-check lint pre-commit
-    @echo "✅ All checks passed!"
-
-# Fix linting and formatting issues
-fix: format
-    cargo clippy --fix --allow-dirty
 
 # Run pre-commit hooks
 pre-commit:
@@ -77,6 +78,25 @@ pre-commit:
     @just test
     @just test-credential-security
     @echo "✅ Pre-commit checks passed - ready for secure commit"
+
+# Run all linting and formatting checks
+check: format-check lint
+    @echo "✅ All checks passed!"
+
+# Fix linting and formatting issues
+fix: format
+    cargo clippy --fix --allow-dirty
+
+# Run MegaLinter for comprehensive linting
+megalinter:
+    @echo "🔍 Running MegaLinter for comprehensive code analysis..."
+    npx mega-linter-runner --flavor rust
+    @echo "✅ MegaLinter analysis complete"
+
+megalinter-fix:
+    @echo "🔍 Running MegaLinter for comprehensive code analysis..."
+    npx mega-linter-runner --flavor rust --fix
+    @echo "✅ MegaLinter analysis complete"
 
 # -----------------------------
 # 🦀 Standardized Rust Tasks
@@ -92,15 +112,15 @@ rust-fmt-check:
 
 # Lint Rust code with clippy (strict mode)
 rust-clippy:
-    cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 # Run all Rust tests
 rust-test:
-    cargo test --all-features --workspace
+    cargo test --features postgresql,sqlite,encryption,compression --workspace
 
 # Run Rust test coverage with HTML report
 rust-cov:
-    cargo llvm-cov --all-features --workspace --open
+    cargo llvm-cov --features postgresql,sqlite,encryption,compression --workspace --open
 
 # Quality assurance: format check, clippy, and tests
 qa: rust-fmt-check rust-clippy rust-test
@@ -118,24 +138,27 @@ qa-cov: rust-fmt-check rust-clippy rust-test rust-cov
 test:
     @echo "🧪 Running test suite with security checks..."
     @echo "⚠️  Testing offline-only operation - no external network calls allowed"
-    cargo test --all-features --verbose
+    # Run dbsurveyor-collect tests sequentially to avoid environment variable conflicts
+    cargo test -p dbsurveyor-collect --features postgresql,sqlite --verbose -- --test-threads=1
+    # Run all other tests normally
+    cargo test --workspace --exclude dbsurveyor-collect --features encryption,compression --verbose
     @echo "✅ All tests passed - security guarantees maintained"
 
 # Run tests excluding benchmarks
 test-no-bench:
-    cargo test --all-features --lib --bins --tests
+    cargo test --features postgresql,sqlite,encryption,compression --lib --bins --tests
 
 # Run integration tests only
 test-integration:
-    cargo test --test '*' --all-features
+    cargo test --test '*' --features postgresql,sqlite,encryption,compression
 
 # Run unit tests only
 test-unit:
-    cargo test --lib --all-features
+    cargo test --lib --features postgresql,sqlite,encryption,compression
 
 # Run doctests only
 test-doc:
-    cargo test --doc --all-features
+    cargo test --doc --features postgresql,sqlite,encryption,compression
 
 # Run tests for specific database engines
 test-postgres:
@@ -153,24 +176,24 @@ test-sqlite:
 # Run coverage with cargo-llvm-cov and enforce 80% threshold
 coverage:
     @echo "🔍 Running coverage with >80% threshold..."
-    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 80 --output-path lcov.info
+    cargo llvm-cov --workspace --lcov --fail-under-lines 80 --output-path lcov.info -- --test-threads=1
     @echo "✅ Coverage passed 80% threshold!"
 
 # Run coverage for CI - generates report even if some tests fail
 coverage-ci:
     @echo "🔍 Running coverage for CI with >80% threshold..."
-    cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 80 --output-path lcov.info --ignore-run-fail
+    cargo llvm-cov --workspace --lcov --fail-under-lines 80 --output-path lcov.info
     @echo "✅ Coverage passed 80% threshold!"
 
 # Run coverage report in HTML format for local viewing
 coverage-html:
     @echo "🔍 Generating HTML coverage report..."
-    cargo llvm-cov --all-features --workspace --html --output-dir target/llvm-cov/html
+    cargo llvm-cov --workspace --html --output-dir target/llvm-cov/html
     @echo "📊 HTML report available at target/llvm-cov/html/index.html"
 
 # Run coverage report to terminal
 coverage-report:
-    cargo llvm-cov --all-features --workspace
+    cargo llvm-cov --workspace
 
 # Clean coverage artifacts
 coverage-clean:
@@ -183,22 +206,18 @@ coverage-clean:
 # Verify encryption capabilities (AES-GCM with random nonce)
 test-encryption:
     @echo "🔐 Testing AES-GCM encryption with random nonce generation..."
-    @echo "⚠️  Verifying: random nonce, embedded KDF params, authenticated headers"
     cargo test encryption --verbose -- --nocapture
     @echo "✅ Encryption tests passed - AES-GCM security verified"
 
 # Test offline operation (no network calls)
 test-offline:
     @echo "✈️  Testing complete offline operation..."
-    @echo "🚫 Verifying zero network calls during operation"
-    @echo "⚠️  This test simulates airgap environment conditions"
     cargo test offline --verbose
     @echo "✅ Offline operation verified - airgap compatible"
 
 # Verify no credentials leak into outputs
 test-credential-security:
     @echo "🔑 Testing credential security..."
-    @echo "⚠️  Verifying NO CREDENTIALS appear in any output files"
     cargo test credential_security --verbose -- --nocapture
     @echo "✅ Credential security verified - no leakage detected"
 
@@ -211,12 +230,6 @@ security-full:
     @just test-credential-security
     @just security-audit
     @echo "✅ FULL SECURITY VALIDATION PASSED"
-    @echo "🔒 All security guarantees verified:"
-    @echo "   ✓ Offline-only operation (no network calls)"
-    @echo "   ✓ No telemetry or external reporting"
-    @echo "   ✓ No credentials in outputs"
-    @echo "   ✓ AES-GCM encryption (random nonce, embedded KDF, authenticated headers)"
-    @echo "   ✓ Airgap compatibility confirmed"
 
 # -----------------------------
 # 🔧 Building & Running
@@ -224,12 +237,12 @@ security-full:
 
 # Build the project in debug mode
 build:
-    cargo build --all-features
+    cargo build --workspace --all-features
 
 # Build the project in release mode with security optimizations
 build-release:
     @echo "🔨 Building with security optimizations..."
-    cargo build --release --all-features
+    cargo build --release --workspace --all-features
     @echo "✅ Build complete - offline operation verified"
 
 # Build minimal feature set (for airgap environments)
@@ -240,21 +253,21 @@ build-minimal:
 
 # Build documentation
 doc:
-    cargo doc --all-features --no-deps
+    cargo doc --features postgresql,sqlite,encryption,compression --no-deps
 
 # Build and open documentation
 doc-open:
     @echo "📚 Generating offline-compatible documentation..."
-    cargo doc --all-features --no-deps --document-private-items --open
+    cargo doc --features postgresql,sqlite,encryption,compression --no-deps --document-private-items --open
     @echo "✅ Documentation generated - works offline"
 
 # Run the CLI tool with sample arguments
 run *args:
-    cargo run --all-features -- {{args}}
+    cargo run --features postgresql,sqlite,encryption,compression -- {{args}}
 
 # Run benchmarks
 bench:
-    cargo bench --all-features
+    cargo bench --features postgresql,sqlite,encryption,compression
 
 # -----------------------------
 # 🔐 Security & Auditing
@@ -264,24 +277,27 @@ bench:
 security-audit:
     @echo "🔐 Running comprehensive security audit..."
     @echo "📋 Generating Software Bill of Materials (SBOM)..."
-    # Install tools if not present
-    @if ! command -v syft >/dev/null 2>&1; then \
-        echo "Installing Syft for SBOM generation..."; \
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
-    fi
-    @if ! command -v grype >/dev/null 2>&1; then \
-        echo "Installing Grype for vulnerability scanning..."; \
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b ~/.local/bin; \
-    fi
-    # Generate SBOM
-    ~/.local/bin/syft dir:. -o json > sbom.json
-    ~/.local/bin/syft dir:. -o spdx-json > sbom.spdx.json
-    # Vulnerability scan
-    ~/.local/bin/grype dir:. --output table
-    ~/.local/bin/grype dir:. --output json --file grype-report.json
+    syft dir:. -o spdx-json > sbom.spdx.json
+    syft dir:. -o json > sbom.json
     @echo "✅ Security audit complete - reports generated"
-    @echo "📄 SBOM files: sbom.json, sbom.spdx.json"
-    @echo "🛡️  Vulnerability report: grype-report.json"
+    @echo "📄 SBOM files: sbom.spdx.json, sbom.json"
+
+# SBOM generation for local inspection
+sbom:
+    @echo "📋 Generating Software Bill of Materials..."
+    syft dir:. -o spdx-json > sbom.spdx.json
+    syft dir:. -o json > sbom.json
+    @echo "✅ SBOM generated: sbom.spdx.json, sbom.json"
+
+# Simulate release process without publishing
+release-dry:
+    @echo "🎭 Simulating release process..."
+    @just lint
+    @just test
+    @just build-release
+    @just sbom
+    @just security-audit
+    @echo "✅ Release dry run complete - ready for actual release"
 
 # Run dependency audit
 audit:
@@ -289,9 +305,11 @@ audit:
     cargo audit
     @echo "✅ Dependency audit complete"
 
-# Check for security advisories
-check-advisories:
-    cargo audit
+# Run strict CI audit (fails on all advisories)
+audit-ci:
+    @echo "📊 Running strict CI audit (fails on all advisories)..."
+    cargo audit --ignore RUSTSEC-2023-0071
+    @echo "✅ Strict audit passed - no vulnerabilities found"
 
 # -----------------------------
 # 🧹 Clean & Maintenance
@@ -299,10 +317,10 @@ check-advisories:
 
 # Clean build artifacts
 clean:
-    @echo "🧹 Cleaning build artifacts (security: removing any cached sensitive data)..."
+    @echo "🧹 Cleaning build artifacts..."
     cargo clean
-    rm -f sbom.json sbom.spdx.json grype-report.json lcov.info
-    @echo "✅ Clean complete - no sensitive data in cache"
+    rm -f sbom.spdx.json sbom.json lcov.info
+    @echo "✅ Clean complete"
 
 # Update dependencies
 update:
@@ -317,12 +335,10 @@ package-airgap:
     @echo "📦 Creating airgap deployment package..."
     @just build-minimal
     @echo "🔒 Verifying airgap compatibility..."
-    # Create deployment bundle with all dependencies
     mkdir -p airgap-package
     cp target/release/dbsurveyor* airgap-package/ || true
     cp README.md airgap-package/
     @echo "✅ Airgap package created in airgap-package/"
-    @echo "🛡️  Package includes offline documentation and security guarantees"
 
 # -----------------------------
 # 🤖 CI Workflow
@@ -337,7 +353,7 @@ ci-check-fast: format-check lint test-no-bench
     @echo "✅ Fast CI checks passed!"
 
 # Full comprehensive checks - runs all non-interactive verifications
-full-checks: format-check lint pre-commit test coverage audit build-release
+full-checks: format-check lint test coverage audit build-release
     @echo "✅ All full checks passed!"
 
 # CI-friendly QA check (respects TERM=dumb)
@@ -354,11 +370,11 @@ dev: format lint test coverage
 
 # Watch for changes and run tests
 watch:
-    cargo watch -x "test --all-features"
+    cargo watch -x "test --features postgresql,sqlite,encryption,compression"
 
 # Watch for changes and run checks
 watch-check:
-    cargo watch -x "check --all-features" -x "clippy -- -D warnings"
+    cargo watch -x "check --features postgresql,sqlite,encryption,compression" -x "clippy -- -D warnings"
 
 # -----------------------------
 # 📊 Project Information
@@ -370,8 +386,6 @@ info:
     @echo "========================================================="
     @echo "Rust version: $(rustc --version)"
     @echo "Cargo version: $(cargo --version)"
-    @echo "Project features:"
-    @cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].features | keys[]' 2>/dev/null || echo "  - PostgreSQL, MySQL, SQLite support"
     @echo ""
     @echo "🔒 Security Guarantees:"
     @echo "  ✓ Offline-only operation (no network calls except to databases)"

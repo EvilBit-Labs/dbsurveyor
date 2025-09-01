@@ -443,39 +443,39 @@ WARNING: Sample data may contain sensitive information. Review outputs before sh
 
 ## Requirements Coverage Matrix
 
-| Requirement | Task Coverage | Status |
-|-------------|---------------|---------|
-| **F000** | TASK-001 | ✅ Covered |
-| **F001** | TASK-002 | ✅ Covered |
-| **F002** | TASK-002, TASK-020 | ✅ Covered |
-| **F003** | TASK-002 | ✅ Covered |
-| **F004** | TASK-005, TASK-022 | ✅ Covered |
-| **F005** | TASK-002, TASK-005, TASK-008, TASK-022 | ✅ Covered |
-| **F006** | TASK-003 | ✅ Covered |
-| **F007** | TASK-003 | ✅ Covered |
-| **F008** | TASK-003 | ✅ Covered |
-| **F009** | TASK-006 | ✅ Covered |
-| **F010** | TASK-002 | ✅ Covered |
-| **F011** | TASK-003 | ✅ Covered |
-| **F012** | TASK-004 | ✅ Covered |
-| **F013** | TASK-003 | ✅ Covered |
-| **F014** | TASK-005 | ✅ Covered |
-| **F015** | TASK-010 | ✅ Covered |
-| **F016** | TASK-012 | ✅ Covered |
-| **F017** | TASK-011, TASK-014 | ✅ Covered |
-| **F018** | TASK-015, TASK-014 | ✅ Covered |
-| **F019** | TASK-016, TASK-014 | ✅ Covered |
-| **F020** | TASK-017, TASK-014 | ✅ Covered |
-| **F021** | TASK-001, TASK-007, TASK-010, TASK-019, TASK-022, TASK-023 | ✅ Covered |
-| **F022** | TASK-002, TASK-018, TASK-020 | ✅ Covered |
-| **F023** | TASK-003, TASK-005, TASK-007, TASK-013 | ✅ Covered |
+| Requirement | Task Coverage                                              | Status    |
+|-------------|------------------------------------------------------------|-----------|
+| **F000**    | TASK-001                                                   | ✅ Covered |
+| **F001**    | TASK-002                                                   | ✅ Covered |
+| **F002**    | TASK-002, TASK-020                                         | ✅ Covered |
+| **F003**    | TASK-002                                                   | ✅ Covered |
+| **F004**    | TASK-005, TASK-022                                         | ✅ Covered |
+| **F005**    | TASK-002, TASK-005, TASK-008, TASK-022                     | ✅ Covered |
+| **F006**    | TASK-003                                                   | ✅ Covered |
+| **F007**    | TASK-003                                                   | ✅ Covered |
+| **F008**    | TASK-003                                                   | ✅ Covered |
+| **F009**    | TASK-006                                                   | ✅ Covered |
+| **F010**    | TASK-002                                                   | ✅ Covered |
+| **F011**    | TASK-003                                                   | ✅ Covered |
+| **F012**    | TASK-004                                                   | ✅ Covered |
+| **F013**    | TASK-003                                                   | ✅ Covered |
+| **F014**    | TASK-005                                                   | ✅ Covered |
+| **F015**    | TASK-010                                                   | ✅ Covered |
+| **F016**    | TASK-012                                                   | ✅ Covered |
+| **F017**    | TASK-011, TASK-014                                         | ✅ Covered |
+| **F018**    | TASK-015, TASK-014                                         | ✅ Covered |
+| **F019**    | TASK-016, TASK-014                                         | ✅ Covered |
+| **F020**    | TASK-017, TASK-014                                         | ✅ Covered |
+| **F021**    | TASK-001, TASK-007, TASK-010, TASK-019, TASK-022, TASK-023 | ✅ Covered |
+| **F022**    | TASK-002, TASK-018, TASK-020                               | ✅ Covered |
+| **F023**    | TASK-003, TASK-005, TASK-007, TASK-013                     | ✅ Covered |
 
 ---
 
 ## Performance Budgets Summary
 
 | Component           | Budget   | Measurement                    | Requirement |
-| ------------------- | -------- | ------------------------------ | ----------- |
+|---------------------|----------|--------------------------------|-------------|
 | CLI Startup         | < 100ms  | Time to display help/version   | F021        |
 | Database Connection | < 5s     | Time to establish connection   | F010        |
 | Schema Enumeration  | < 10s    | 1000 tables discovery          | F021        |

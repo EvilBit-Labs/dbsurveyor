@@ -1,7 +1,7 @@
 # Requirements Document: dbsurveyor
 
 | Field            | Value       |
-| ---------------- | ----------- |
+|------------------|-------------|
 | **Project Name** | dbsurveyor  |
 | **Version**      | 1.0         |
 | **Status**       | Draft       |
@@ -273,11 +273,11 @@ Comprehensive user stories are detailed in the [user_stories.md](user_stories.md
 
 Aligned with business requirements priority:
 
-| Priority          | Features                                          | Justification                                                            |
-| ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
-| **High**          | F000–F007, F014, F015, F021, F022, F023           | Core functionality: dual-binary architecture, database survey, portable output, offline mode, pluggable engines, throttling/compression |
-| **Medium**        | F016–F019, F013                                   | Processing features: SQL reconstruction, report/diagram modes, Pro features, data sampling with privacy controls |
-| **Low**           | F020, advanced diagrams, anonymized redaction     | HTML output (Pro), advanced visualizations, enhanced privacy features |
+| Priority   | Features                                      | Justification                                                                                                                           |
+|------------|-----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| **High**   | F000–F007, F014, F015, F021, F022, F023       | Core functionality: dual-binary architecture, database survey, portable output, offline mode, pluggable engines, throttling/compression |
+| **Medium** | F016–F019, F013                               | Processing features: SQL reconstruction, report/diagram modes, Pro features, data sampling with privacy controls                        |
+| **Low**    | F020, advanced diagrams, anonymized redaction | HTML output (Pro), advanced visualizations, enhanced privacy features                                                                   |
 
 ### 4.4 Performance Requirements (from Business Document)
 
@@ -349,7 +349,7 @@ dbsurveyor html [OPTIONS] --input <FILE>          # Interactive HTML export (Pro
 
 ### 6.1 Language and Runtime
 
-- **Language**: Rust (stable channel, minimum version 1.70)
+- **Language**: Rust (version 1.89.0, minimum supported version 1.77)
 - **Runtime**: Native compiled binaries with no external runtime dependencies
 - **Architecture**: Cross-platform support (x86_64, aarch64)
 
@@ -516,8 +516,8 @@ tui = ["ratatui"]                                  # Optional TUI preview (out-o
 #### Collection Phase
 
 1. **Database Connection**: Connect using sqlx, tiberius, or mongodb drivers
-1. **Metadata Extraction**: Comprehensive schema and statistics collection
-1. **Output Generation**: Structured files with "format_version": "1.0"
+2. **Metadata Extraction**: Comprehensive schema and statistics collection
+3. **Output Generation**: Structured files with "format_version": "1.0"
    - `.dbsurveyor.json`: Uncompressed JSON metadata
    - `.dbsurveyor.json.zst`: Zstandard compressed JSON
    - `.dbsurveyor.enc`: AES-GCM encrypted JSON with embedded KDF parameters
@@ -525,9 +525,9 @@ tui = ["ratatui"]                                  # Optional TUI preview (out-o
 #### Processing Phase
 
 1. **Input Validation**: Parse and validate collector output format
-1. **Template Processing**: Apply Askama/Tera templates for documentation
-1. **Analysis**: Generate insights, diagrams, and reports
-1. **Output Rendering**: Multi-format documentation generation
+2. **Template Processing**: Apply Askama/Tera templates for documentation
+3. **Analysis**: Generate insights, diagrams, and reports
+4. **Output Rendering**: Multi-format documentation generation
 
 ### 8.5 Cross-Platform Support
 
@@ -551,18 +551,18 @@ tui = ["ratatui"]                                  # Optional TUI preview (out-o
 ### 9.1 Standard Compliance Table
 
 | Standard                    | Requirement            | Compliance Status | Implementation Notes                      |
-| --------------------------- | ---------------------- | ----------------- | ----------------------------------------- |
-| **Pipeline Standard**       | GitHub Actions CI/CD   | ✅ Compliant      | Using just recipes for task automation    |
-| **Security Standard**       | No telemetry           | ✅ Compliant      | Zero external communication               |
-| **Security Standard**       | Credential protection  | ✅ Compliant      | AES-GCM encryption, no plaintext storage  |
-| **Documentation Standard**  | User documentation     | ✅ Compliant      | Comprehensive CLI help and user guide     |
-| **Documentation Standard**  | API documentation      | ✅ Compliant      | Code documentation and schema definitions |
-| **Testing Standard**        | Unit test coverage     | ✅ Compliant      | Minimum 80% code coverage target          |
-| **Testing Standard**        | Integration testing    | ✅ Compliant      | Database integration test suite           |
-| **Release Standard**        | Semantic versioning    | ✅ Compliant      | Following SemVer specification            |
-| **Release Standard**        | Signed releases        | ✅ Compliant      | GPG-signed release artifacts              |
-| **Offline Standard**        | Air-gap operation      | ✅ Compliant      | Complete offline functionality            |
-| **Cross-Platform Standard** | Multi-platform support | ✅ Compliant      | Linux, macOS, Windows binaries            |
+|-----------------------------|------------------------|-------------------|-------------------------------------------|
+| **Pipeline Standard**       | GitHub Actions CI/CD   | ✅ Compliant       | Using just recipes for task automation    |
+| **Security Standard**       | No telemetry           | ✅ Compliant       | Zero external communication               |
+| **Security Standard**       | Credential protection  | ✅ Compliant       | AES-GCM encryption, no plaintext storage  |
+| **Documentation Standard**  | User documentation     | ✅ Compliant       | Comprehensive CLI help and user guide     |
+| **Documentation Standard**  | API documentation      | ✅ Compliant       | Code documentation and schema definitions |
+| **Testing Standard**        | Unit test coverage     | ✅ Compliant       | Minimum 80% code coverage target          |
+| **Testing Standard**        | Integration testing    | ✅ Compliant       | Database integration test suite           |
+| **Release Standard**        | Semantic versioning    | ✅ Compliant       | Following SemVer specification            |
+| **Release Standard**        | Signed releases        | ✅ Compliant       | GPG-signed release artifacts              |
+| **Offline Standard**        | Air-gap operation      | ✅ Compliant       | Complete offline functionality            |
+| **Cross-Platform Standard** | Multi-platform support | ✅ Compliant       | Linux, macOS, Windows binaries            |
 
 ### 9.2 Standard Deviations
 
@@ -574,20 +574,5 @@ None identified. This project fully complies with all applicable EvilBit Labs st
 - **Manual Review**: Regular compliance audits during development
 - **Documentation Updates**: Standards compliance updated with each release
 
-## 10. Document Metadata
-
-| Attribute             | Value                                                                                                                                                                       |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Document Type**     | Requirements Specification                                                                                                                                                  |
-| **Classification**    | Internal                                                                                                                                                                    |
-| **Review Status**     | Updated - Aligned with Business Requirements                                                                                                                               |
-| **Next Review Date**  | 2025-01-19                                                                                                                                                                  |
-| **Related Documents** | [user_stories.md](user_stories.md) - Comprehensive user stories with requirement mappings<br/>[tasks.md](tasks.md) - Detailed implementation tasks with acceptance criteria |
-| **Repository**        | dbsurveyor                                                                                                                                                                  |
-| **Branch**            | main                                                                                                                                                                        |
-| **Commit SHA**        | TBD                                                                                                                                                                         |
-| **Last Modified**     | 2025-08-12 (Updated to align with ~/Documents/Business Stuff/EvilBit Labs/Product Plans/dbsurveyor/dbsurveyor_requirements.md) |
-
 ---
-
 *This document follows the EvilBit Requirements Standard v2.1. For questions or clarifications, contact the author or project maintainers.*

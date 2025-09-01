@@ -19,7 +19,7 @@ Brief description of changes made and why they are needed.
 ## Database Support
 
 - [ ] PostgreSQL
-- [ ] MySQL  
+- [ ] MySQL
 - [ ] SQLite
 - [ ] SQL Server
 - [ ] MongoDB
@@ -34,16 +34,19 @@ Brief description of changes made and why they are needed.
 - [ ] Input validation and sanitization implemented
 - [ ] Error messages are sanitized (no credential exposure)
 - [ ] Offline operation capability maintained
+- [ ] No telemetry added
 
 ## Testing
 
 - [ ] Unit tests added/updated
-- [ ] Integration tests added/updated  
+- [ ] Integration tests added/updated and verified to run offline in read-only mode
 - [ ] Security tests added/updated
 - [ ] All tests pass locally (`just test`)
 - [ ] Database-specific tests pass (`just test-postgres`, `just test-mysql`, `just test-sqlite`)
 - [ ] Security validation passes (`just security-full`)
 - [ ] Offline operation verified
+
+**Integration Test Requirements**: All integration tests must be verified to run offline and execute in read-only mode. Any network-write tests must be opt-in and documented.
 
 ## Code Quality
 

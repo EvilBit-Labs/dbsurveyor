@@ -13,14 +13,15 @@
 # Future HTTP Client Development:
 # - Use OpenAPI Generator for Rust client code generation
 #
-# Author: UncleSp1d3r
+# Author: unclesp1d3r
 
 # Global ownership - all files are owned by the single maintainer
-* @UncleSp1d3r
+* @unclesp1d3r
 
 # Specific ownership for critical files
-/.github/ @UncleSp1d3r
-/Cargo.toml @UncleSp1d3r
-/justfile @UncleSp1d3r
-/cargo-deny.toml @UncleSp1d3r
-/CONTRIBUTORS.md @UncleSp1d3r
+/.github/ @unclesp1d3r
+/.github/workflows/ @unclesp1d3r
+/Cargo.toml @unclesp1d3r
+/justfile @unclesp1d3r
+/cargo-deny.toml @unclesp1d3r
+/CONTRIBUTORS.md @unclesp1d3r

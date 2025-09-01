@@ -110,11 +110,11 @@ alwaysApply: false
 ///
 /// Memory usage is proportional to schema complexity, typically 1-10MB per 1000 tables.
 pub async fn collect_schema(
-    connection_pool: &PgPool,
-    include_system_tables: bool,
-    encryption_key: Option<&EncryptionKey>,
+        connection_pool: &PgPool,
+        include_system_tables: bool,
+        encryption_key: Option<&EncryptionKey>,
 ) -> Result<DatabaseSchema, CollectorError> {
-    // Implementation details...
+        // Implementation details...
 }
 ```
 
@@ -143,52 +143,52 @@ pub async fn collect_schema(
 /// * `created_at` - Timestamp when schema was collected (UTC)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DatabaseSchema {
-    /// Database name (sanitized, no sensitive path information)
-    pub database_name: String,
+        /// Database name (sanitized, no sensitive path information)
+        pub database_name: String,
 
-    /// Type of database engine
-    pub database_type: DatabaseType,
+        /// Type of database engine
+        pub database_type: DatabaseType,
 
-    /// All tables in the database with complete metadata
-    pub tables: Vec<Table>,
+        /// All tables in the database with complete metadata
+        pub tables: Vec<Table>,
 
-    /// All indexes with performance characteristics
-    pub indexes: Vec<Index>,
+        /// All indexes with performance characteristics
+        pub indexes: Vec<Index>,
 
-    /// All constraints including foreign keys and check constraints
-    pub constraints: Vec<Constraint>,
+        /// All constraints including foreign keys and check constraints
+        pub constraints: Vec<Constraint>,
 
-    /// UTC timestamp when schema was collected
-    pub created_at: chrono::DateTime<chrono::Utc>,
+        /// UTC timestamp when schema was collected
+        pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl DatabaseSchema {
-    /// Creates a new database schema with current timestamp.
-    ///
-    /// # Arguments
-    ///
-    /// * `database_name` - Sanitized database name
-    /// * `database_type` - Database engine type
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use dbsurveyor_shared::models::{DatabaseSchema, DatabaseType};
-    ///
-    /// let schema = DatabaseSchema::new("production_db", DatabaseType::PostgreSQL);
-    /// assert_eq!(schema.database_name, "production_db");
-    /// assert!(schema.created_at <= chrono::Utc::now());
-    /// ```
-    pub fn new(database_name: String, database_type: DatabaseType) -> Self {
-        Self {
-            database_name,
-            database_type,
-            tables: Vec::new(),
-            indexes: Vec::new(),
-            constraints: Vec::new(),
-            created_at: chrono::Utc::now(),
+        /// Creates a new database schema with current timestamp.
+        ///
+        /// # Arguments
+        ///
+        /// * `database_name` - Sanitized database name
+        /// * `database_type` - Database engine type
+        ///
+        /// # Example
+        ///
+        /// ```rust
+        /// use dbsurveyor_shared::models::{DatabaseSchema, DatabaseType};
+        ///
+        /// let schema = DatabaseSchema::new("production_db", DatabaseType::PostgreSQL);
+        /// assert_eq!(schema.database_name, "production_db");
+        /// assert!(schema.created_at <= chrono::Utc::now());
+        /// ```
+        pub fn new(database_name: String, database_type: DatabaseType) -> Self {
+                Self {
+                        database_name,
+                        database_type,
+                        tables: Vec::new(),
+                        indexes: Vec::new(),
+                        constraints: Vec::new(),
+                        created_at: chrono::Utc::now(),
+                }
         }
-    }
 }
 ```
 
@@ -209,38 +209,38 @@ impl DatabaseSchema {
 /// - Only necessary context is preserved for debugging
 #[derive(Debug, thiserror::Error)]
 pub enum CollectorError {
-    /// Database connection failed or was lost
-    ///
-    /// This error occurs when the database is unreachable, credentials
-    /// are invalid, or the connection times out. Connection strings are
-    /// automatically sanitized in error messages.
-    #[error("Database connection failed: {context}")]
-    ConnectionFailed {
-        /// Sanitized error context (no credentials)
-        context: String,
-    },
+        /// Database connection failed or was lost
+        ///
+        /// This error occurs when the database is unreachable, credentials
+        /// are invalid, or the connection times out. Connection strings are
+        /// automatically sanitized in error messages.
+        #[error("Database connection failed: {context}")]
+        ConnectionFailed {
+                /// Sanitized error context (no credentials)
+                context: String,
+        },
 
-    /// Insufficient database privileges for schema introspection
-    ///
-    /// The connected user lacks necessary permissions to read schema
-    /// information. This typically requires SELECT privileges on system
-    /// tables like information_schema or pg_catalog.
-    #[error("Insufficient privileges to read schema: {required_privileges}")]
-    InsufficientPrivileges {
-        /// Description of required privileges
-        required_privileges: String,
-    },
+        /// Insufficient database privileges for schema introspection
+        ///
+        /// The connected user lacks necessary permissions to read schema
+        /// information. This typically requires SELECT privileges on system
+        /// tables like information_schema or pg_catalog.
+        #[error("Insufficient privileges to read schema: {required_privileges}")]
+        InsufficientPrivileges {
+                /// Description of required privileges
+                required_privileges: String,
+        },
 
-    /// Database contains unsupported features or extensions
-    ///
-    /// Some databases may use features not yet supported by DBSurveyor,
-    /// such as custom data types, specific extensions, or non-standard
-    /// schema structures.
-    #[error("Unsupported database feature: {feature}")]
-    UnsupportedFeature {
-        /// Name of the unsupported feature
-        feature: String,
-    },
+        /// Database contains unsupported features or extensions
+        ///
+        /// Some databases may use features not yet supported by DBSurveyor,
+        /// such as custom data types, specific extensions, or non-standard
+        /// schema structures.
+        #[error("Unsupported database feature: {feature}")]
+        UnsupportedFeature {
+                /// Name of the unsupported feature
+                feature: String,
+        },
 }
 ```
 
@@ -252,10 +252,6 @@ pub enum CollectorError {
 # DBSurveyor
 
 > Secure, offline database schema documentation and analysis tool
-
-[![CI](https://github.com/username/dbsurveyor/workflows/CI/badge.svg)](https://github.com/username/dbsurveyor/actions)
-[![Security Audit](https://github.com/username/dbsurveyor/workflows/Security/badge.svg)](https://github.com/username/dbsurveyor/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
@@ -317,16 +313,16 @@ dbsurveyor sqlite "/path/to/database.db" --output schema.md
 │ • Connection    │    │ • SQLite         │    │ • Encrypted     │
 │   management    │    │                  │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌──────────────────┐
-                       │  Security Layer   │
-                       │                  │
-                       │ • Credential     │
-                       │   sanitization   │
-                       │ • Data encryption│
-                       │ • Access control │
-                       └──────────────────┘
+                                                                │
+                                                                ▼
+                                            ┌──────────────────┐
+                                            │  Security Layer   │
+                                            │                  │
+                                            │ • Credential     │
+                                            │   sanitization   │
+                                            │ • Data encryption│
+                                            │ • Access control │
+                                            └──────────────────┘
 ```
 
 ## Documentation
