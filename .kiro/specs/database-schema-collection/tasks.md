@@ -16,14 +16,52 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.7, 9.3, 9.4, 9.5_
 
 - [ ] 2. Implement PostgreSQL schema collection with real database queries
-
+- [ ] 2.1 Set up PostgreSQL connection pooling infrastructure
   - Replace placeholder `collect_schema` method in PostgresAdapter
-  - Implement connection pooling with sqlx::PgPool and proper configuration
-  - Add schema enumeration queries using information_schema and pg_catalog
-  - Extract tables, columns, data types, constraints, indexes, and foreign keys
+  - Implement sqlx::PgPool configuration with proper connection limits
+  - Add connection timeout and query timeout handling (30s defaults)
+  - Create connection pool builder with security-focused defaults
+  - Add connection string validation and sanitization
+  - _Requirements: 1.1, 1.2, 1.7_
+
+- [ ] 2.2 Implement basic schema enumeration queries
+  - Add schema enumeration queries using information_schema.schemata
+  - Query information_schema.tables for table metadata
+  - Extract basic table information (name, type, schema)
+  - Implement error handling for insufficient privileges
+  - Add query logging with credential sanitization
+  - _Requirements: 1.1, 1.2, 1.7_
+
+- [ ] 2.3 Implement table and column introspection
+  - Query information_schema.columns for column metadata
+  - Extract column names, data types, nullability, and defaults
   - Implement proper UnifiedDataType mapping from PostgreSQL types
-  - Add connection timeout and query timeout handling
-  - Test with real PostgreSQL database using testcontainers
+  - Handle PostgreSQL-specific types (arrays, JSON, custom types)
+  - Add column ordering and position information
+  - _Requirements: 1.1, 1.2, 1.7_
+
+- [ ] 2.4 Add constraint and index collection
+  - Query information_schema.table_constraints for constraints
+  - Extract primary keys, foreign keys, unique constraints, and check constraints
+  - Query pg_catalog.pg_indexes for index information
+  - Map constraint and index metadata to unified schema format
+  - Handle complex constraints and partial indexes
+  - _Requirements: 1.1, 1.2, 1.7_
+
+- [ ] 2.5 Implement foreign key relationship mapping
+  - Query information_schema.referential_constraints for FK relationships
+  - Extract foreign key column mappings and reference tables
+  - Build relationship graph between tables
+  - Handle self-referencing tables and circular references
+  - Add cascade action information (ON DELETE, ON UPDATE)
+  - _Requirements: 1.1, 1.2, 1.7_
+
+- [ ] 2.6 Add comprehensive PostgreSQL adapter testing
+  - Set up testcontainers for PostgreSQL integration testing
+  - Test connection pooling with various configurations
+  - Test schema collection with different PostgreSQL versions
+  - Add tests for edge cases (empty schemas, special characters)
+  - Test error handling for connection failures and timeouts
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [x] 3. Set up project structure and core interfaces
@@ -48,46 +86,95 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.3, 2.1, 9.1_
 
 - [ ] 5. Implement comprehensive PostgreSQL adapter testing and advanced features
+- [ ] 5.1 Implement advanced connection pooling configuration
+  - Add configurable pool limits: max_connections (default: 10), min_idle_connections (default: 2)
+  - Implement connection timeouts: connect_timeout (default: 30s), acquire_timeout (default: 30s)
+  - Add idle connection management: idle_timeout (default: 10min), max_lifetime (default: 1hour)
+  - Support pool configuration via environment variables and config files
+  - Add runtime pool parameter validation and adjustment
+  - _Requirements: 1.1, 1.2, 1.7_
 
-  - Add comprehensive unit tests with testcontainers including:
-    - Connection pool exhaustion scenarios (max_connections + 1)
-    - Timeout validation under load
-    - Pool parameter configuration testing
-    - Connection lifecycle management validation
-    - Performance testing with concurrent schema collection
-  - Implement advanced connection pooling configuration:
-    - Configurable pool limits: max_connections (default: 10), min_idle_connections (default: 2)
-    - Connection timeouts: connect_timeout (default: 30s), acquire_timeout (default: 30s)
-    - Idle connection management: idle_timeout (default: 10min), max_lifetime (default: 1hour)
-    - Pool configuration via environment variables and config files
-    - Runtime pool parameter validation and adjustment
-  - Increase minimum test coverage threshold to 70% for dbsurveyor-core
-    - If it does not meet the minimum threshold, develop additional test cases to meet the requirement
-    - Ensure all major functionality is covered by unit tests, benchmarks, and testcontainer-based integration tests (where appropriate)
+- [ ] 5.2 Add comprehensive connection pool testing
+  - Test connection pool exhaustion scenarios (max_connections + 1)
+  - Add timeout validation under load testing
+  - Test pool parameter configuration with various settings
+  - Validate connection lifecycle management (acquire, release, cleanup)
+  - Add performance testing with concurrent schema collection
+  - _Requirements: 1.1, 1.2, 1.7_
+
+- [ ] 5.3 Increase test coverage to meet 70% threshold
+  - Audit current test coverage for dbsurveyor-core crate
+  - Identify untested code paths and edge cases
+  - Develop additional unit tests to meet 70% coverage requirement
+  - Add integration tests using testcontainers where appropriate
+  - Implement benchmarks for performance-critical code paths
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 6. Add intelligent data sampling to PostgreSQL adapter
+- [ ] 6.1 Implement ordering strategy detection
+  - Detect primary key columns for optimal ordering
+  - Identify timestamp columns for chronological sampling
+  - Find auto-increment columns for sequential sampling
+  - Implement fallback strategies for tables without clear ordering
+  - Add strategy selection logic based on table characteristics
+  - _Requirements: 11.1, 11.2, 11.3_
 
-  - Implement ordering strategy detection (primary key, timestamp, auto-increment)
-  - Create sample_data method with configurable sampling and rate limiting
-  - Add configurable rate limits: queries/sec and rows/sec with exponential backoff
-  - Implement query batching with small LIMIT sizes and randomized jitter between batches
-  - Add safe default timeouts (statement_timeout) and per-query execution controls
-  - Use indexed ordering (PK/timestamp) or paginated key-range scans to avoid full-table scans
-  - Add sensitive data detection patterns (warnings only, no redaction) with log-only sensitive-data warnings
-  - Implement configurable parameters: sampling frequency, max concurrent queries, jitter, backoff policy, timeout values
-  - Test with various table structures and data types
-  - Increase minimum test coverage threshold to 70% for dbsurveyor-collector and dbsurveyor-core; do not lower it again
+- [ ] 6.2 Create configurable data sampling infrastructure
+  - Implement SamplingConfig structure with rate limiting parameters
+  - Add configurable rate limits: queries/sec and rows/sec
+  - Implement exponential backoff for rate limit violations
+  - Create sample_data method with configurable sampling strategies
+  - Add randomized jitter between batches to avoid thundering herd
+  - _Requirements: 11.1, 11.2, 11.3, 11.4_
+
+- [ ] 6.3 Implement safe query execution with timeouts
+  - Add PostgreSQL statement_timeout configuration
+  - Implement per-query execution controls and monitoring
+  - Use indexed ordering (PK/timestamp) for efficient sampling
+  - Implement paginated key-range scans to avoid full-table scans
+  - Add query batching with small LIMIT sizes for memory efficiency
+  - _Requirements: 11.1, 11.3, 11.4_
+
+- [ ] 6.4 Add sensitive data detection and logging
+  - Implement sensitive data detection patterns (PII, credentials, etc.)
+  - Add log-only warnings for potentially sensitive data (no redaction)
+  - Create configurable sensitivity detection rules
+  - Ensure collector never redacts data, only warns
+  - Add comprehensive logging for sampling operations
+  - _Requirements: 11.5, 11.6_
+
+- [ ] 6.5 Test data sampling with various scenarios
+  - Test sampling with different table structures and sizes
+  - Validate rate limiting and backoff behavior under load
+  - Test with various PostgreSQL data types and edge cases
+  - Add performance benchmarks for sampling operations
+  - Ensure 70% test coverage threshold is maintained
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
 - [ ] 7. Implement multi-database collection for PostgreSQL
+- [ ] 7.1 Add database enumeration capabilities
+  - Implement list_databases method to query pg_database
+  - Filter accessible databases based on user privileges
+  - Handle system database filtering (postgres, template0, template1)
+  - Add configurable exclusion patterns for database names
+  - Implement privilege detection for each database
+  - _Requirements: 12.1, 12.2, 12.4, 12.5_
 
-  - Add list_databases method to enumerate all accessible databases
-  - Implement connect_to_database for specific database connections
-  - Create collect_all_databases method with server-level schema collection
-  - Add privilege detection and access level assessment
-  - Handle system database filtering and exclusion patterns
-  - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
+- [ ] 7.2 Implement per-database connection management
+  - Create connect_to_database method for specific database connections
+  - Handle connection string modification for different databases
+  - Implement connection pooling per database with resource limits
+  - Add error handling for database connection failures
+  - Ensure proper connection cleanup and resource management
+  - _Requirements: 12.1, 12.2, 12.3_
+
+- [ ] 7.3 Create server-level schema collection orchestration
+  - Implement collect_all_databases method with parallel collection
+  - Add progress reporting for multi-database operations
+  - Handle partial failures gracefully (continue with accessible databases)
+  - Implement configurable concurrency limits for database collection
+  - Add comprehensive error reporting and logging
+  - _Requirements: 12.1, 12.3, 12.6_
 
 - [ ] 8. Create MySQL adapter with unified interface
 
@@ -146,24 +233,62 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 3.3, 6.1_
 
 - [ ] 14. Implement data redaction in postprocessor
-
+- [ ] 14.1 Create redaction configuration infrastructure
   - ✅ Add redaction modes to CLI: Conservative, Balanced, Minimal, None
   - ✅ Create CLI flags for redaction control (--no-redact, --redact-mode)
-  - Create RedactionConfig and RedactionPattern structures
-  - Implement configurable redaction with user override options
-  - Implement actual redaction logic for different sensitivity levels
-  - Ensure collector never redacts data, only postprocessor (Requirement 11.5)
+  - Create RedactionConfig structure with pattern matching rules
+  - Implement RedactionPattern enum for different sensitivity levels
+  - Add user override options for custom redaction rules
+  - _Requirements: 4.1, 4.2, 8.6_
+
+- [ ] 14.2 Implement redaction logic for different sensitivity levels
+  - Implement Conservative mode: redact all potentially sensitive data
+  - Implement Balanced mode: redact obvious PII/credentials, preserve structure
+  - Implement Minimal mode: redact only clear credentials and secrets
+  - Add None mode: no redaction, preserve all original data
+  - Ensure redaction preserves data structure and relationships
+  - _Requirements: 4.1, 4.2, 11.5_
+
+- [ ] 14.3 Add pattern-based sensitive data detection
+  - Create regex patterns for common PII (SSN, credit cards, emails)
+  - Add patterns for database credentials and connection strings
+  - Implement field name heuristics (password, ssn, credit_card, etc.)
+  - Add configurable custom pattern support
+  - Ensure collector never redacts data, only postprocessor performs redaction
   - _Requirements: 4.1, 4.2, 8.6, 11.5_
 
 - [ ] 15. Add SQL reconstruction and schema documentation
+- [ ] 15.1 Implement SQL DDL generation infrastructure
+  - Create SqlDialect enum for database-specific SQL generation
+  - Implement DDL generator trait with database-specific implementations
+  - Add PostgreSQL DDL generation with proper type mapping
+  - Generate CREATE TABLE statements with columns and data types
+  - Handle database-specific syntax and quoting rules
+  - _Requirements: 3.1, 3.3_
 
-  - Implement SQL DDL generation from collected metadata
-  - Create database-specific SQL dialect support
-  - Generate CREATE TABLE statements with constraints and indexes
-  - Add comprehensive Markdown report generation with table of contents
-  - Include relationship diagrams using Mermaid syntax
-  - Replace placeholder documentation generators with actual askama templates
-  - _Requirements: 3.1, 3.3, 6.1_
+- [ ] 15.2 Add constraint and index DDL generation
+  - Generate PRIMARY KEY and UNIQUE constraint statements
+  - Implement FOREIGN KEY constraint generation with references
+  - Add CHECK constraint generation from metadata
+  - Generate CREATE INDEX statements for all indexes
+  - Handle complex constraints and partial indexes
+  - _Requirements: 3.1, 3.3_
+
+- [ ] 15.3 Create comprehensive Markdown report generation
+  - Replace placeholder documentation generators with askama templates
+  - Implement Markdown template for schema overview and table of contents
+  - Add detailed table documentation with column descriptions
+  - Generate relationship sections showing foreign key connections
+  - Include statistics and metadata summaries
+  - _Requirements: 3.1, 6.1_
+
+- [ ] 15.4 Add visual relationship diagrams
+  - Implement Mermaid.js entity relationship diagram generation
+  - Create table relationship graphs showing foreign key connections
+  - Add configurable diagram complexity (simple vs. detailed)
+  - Generate separate diagrams for large schemas (per-schema or per-module)
+  - Include diagram legends and documentation
+  - _Requirements: 6.1_
 
 - [ ] 16. Implement Pro-tier features for advanced analysis
 
@@ -195,25 +320,86 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 7.1, 7.2, 10.1, 13.1-13.6_
 
 - [ ] 19. Set up comprehensive testing framework
+- [ ] 19.1 Configure parallel test execution with nextest
+  - Add nextest configuration to Cargo.toml and .config/nextest.toml
+  - Configure test partitioning and parallel execution settings
+  - Set up test filtering and grouping for different test types
+  - Add nextest integration to justfile development tasks
+  - Configure test output formatting and reporting
+  - _Requirements: 1.1, 1.2_
 
-  - Configure nextest for parallel test execution
-  - Set up testcontainers-modules for realistic database testing
-  - Create integration tests for all database adapters
-  - Add property-based testing with proptest for edge cases
-  - Implement security tests for credential sanitization
-  - _Requirements: 1.1, 1.2, 2.1, 2.2_
+- [ ] 19.2 Set up testcontainers for database integration testing
+  - Add testcontainers-modules dependencies for PostgreSQL, MySQL, MongoDB
+  - Create database test fixtures with known schema structures
+  - Implement test database initialization and cleanup
+  - Add helper functions for container lifecycle management
+  - Configure container resource limits and timeouts
+  - _Requirements: 1.1, 1.2, 2.1_
+
+- [ ] 19.3 Create comprehensive integration test suite
+  - Implement integration tests for PostgreSQL adapter with real database
+  - Add MySQL adapter integration tests with testcontainers
+  - Create SQLite adapter tests with temporary file databases
+  - Add MongoDB adapter tests with document collections
+  - Test cross-database consistency and output format compatibility
+  - _Requirements: 1.1, 1.2, 2.1_
+
+- [ ] 19.4 Add property-based testing for edge cases
+  - Set up proptest for generating random database schemas
+  - Test schema collection with various table and column configurations
+  - Add property tests for data type mapping and serialization
+  - Test error handling with malformed inputs and edge cases
+  - Validate security properties with property-based credential tests
+  - _Requirements: 1.1, 1.2, 2.2_
+
+- [ ] 19.5 Implement comprehensive security testing
+  - Test credential sanitization in all error messages and logs
+  - Verify no database credentials appear in output files
+  - Test schema collection with malicious table/column names
+  - Add tests for SQL injection resistance in schema queries
+  - Validate memory cleanup for sensitive data structures
+  - _Requirements: 2.1, 2.2_
 
 - [ ] 22. Implement core security testing suite
-
+- [ ] 22.1 Test credential protection and sanitization
   - Test database connection strings never appear in logs, error messages, or output files
   - Verify password fields are `zeroized` in memory after use
+  - Test credential sanitization in all error paths and logging statements
+  - Validate that serialized output never contains connection credentials
+  - Test memory cleanup for sensitive data structures
+  - _Requirements: 1.5, 2.1, 2.2, 2.3_
+
+- [ ] 22.2 Test SQL injection resistance and malicious input handling
   - Test schema collection with malicious table/column names containing SQL injection payloads
+  - Validate parameterized query usage prevents SQL injection
+  - Test handling of special characters and Unicode in database identifiers
+  - Test malicious file paths, connection strings, and configuration values
+  - Verify input validation and sanitization for all user inputs
+  - _Requirements: 2.1, 2.2, 2.4_
+
+- [ ] 22.3 Test offline operation and network isolation
   - Test complete functionality without internet connectivity
+  - Verify no external network calls except to target databases
+  - Test airgap compatibility with all features enabled
+  - Validate that documentation generation works completely offline
+  - Test with network interfaces disabled or firewalled
+  - _Requirements: 2.3, 2.4_
+
+- [ ] 22.4 Test cryptographic security implementation
   - Test AES-GCM encryption with random nonce generation for uniqueness
   - Verify Argon2id KDF parameters meet security requirements
-  - Test malicious file paths, connection strings, and configuration values
+  - Test encryption/decryption roundtrip with various data sizes
+  - Validate cryptographic constants and parameter validation
+  - Test key derivation performance and security properties
+  - _Requirements: 2.7, 9.3, 9.4, 9.5_
+
+- [ ] 22.5 Set up security-focused database testing
   - Set up testcontainers with custom security profiles and privilege configurations
-  - _Requirements: 1.5, 2.1, 2.2, 2.3, 2.4, 2.7, 9.3, 9.4, 9.5_
+  - Test with minimal database privileges (read-only access)
+  - Validate behavior with restricted database permissions
+  - Test connection timeout and resource limit enforcement
+  - Add security-focused integration tests with real databases
+  - _Requirements: 1.5, 2.1, 2.2_
 
 - [ ] 23. Add CLI snapshot testing with insta
 
@@ -234,32 +420,86 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 9.6_
 
 - [ ] 25. Create documentation with rustdoc and mdbook
-
+- [ ] 25.1 Set up comprehensive rustdoc API documentation
   - Set up comprehensive rustdoc with examples and security notes (Requirement 14.1)
+  - Document all public APIs with security implications and usage examples
+  - Add module-level documentation with architecture overviews
+  - Include security guarantees and credential handling notes in all relevant APIs
+  - Configure rustdoc with proper cross-references and navigation
+  - _Requirements: 14.1_
+
+- [ ] 25.2 Create user-facing mdbook documentation
   - Create mdbook user guide with installation and usage instructions (Requirement 14.2)
-  - Document all CLI options and configuration parameters
+  - Document all CLI options and configuration parameters with examples
   - Add security best practices and operational guidelines
-  - Include troubleshooting guide and FAQ section
+  - Include troubleshooting guide and FAQ section for common issues
+  - Create getting started tutorial with step-by-step examples
+  - _Requirements: 14.2_
+
+- [ ] 25.3 Add practical usage examples and scenarios
   - Add practical examples for red team, compliance, and development scenarios (Requirement 14.3)
+  - Create database-specific usage examples (PostgreSQL, MySQL, SQLite, MongoDB)
+  - Document encryption and compression workflows with security considerations
+  - Add multi-database collection examples and best practices
+  - Include performance tuning and optimization guides
+  - _Requirements: 14.3_
+
+- [ ] 25.4 Create architecture and development documentation
   - Create architecture and plugin development guides (Requirement 14.4)
+  - Document the dual-binary architecture and design decisions
+  - Add plugin development guide with WASM integration examples
+  - Include contribution guidelines and development setup instructions
+  - Document security architecture and threat model
+  - _Requirements: 3.1, 10.1, 14.4_
+
+- [ ] 25.5 Set up automated documentation deployment and testing
   - Set up automated documentation deployment (Requirement 14.5)
   - Ensure all examples are tested for accuracy (Requirement 14.6)
-  - _Requirements: 3.1, 10.1, 14.1-14.6_
+  - Configure GitHub Pages or similar for documentation hosting
+  - Add documentation build and deployment to CI pipeline
+  - Implement example testing to ensure documentation accuracy
+  - _Requirements: 14.5, 14.6_
 
-- [x] 20. Set up comprehensive cross-platform CI testing with GitHub Actions
-
+- [ ] 20. Set up comprehensive cross-platform CI testing with GitHub Actions
+- [ ] 20.1 Configure platform-specific CI matrix testing
   - ✅ Create matrix-based CI workflow for macOS, Windows, and Linux platforms (existing .github/workflows)
+  - Configure macOS and Windows runners for build validation with SQLite-only testing
+  - Set up Linux runners for comprehensive testing with all database types
+  - Add platform-specific test exclusions and feature flag handling
+  - Configure cross-compilation testing for different architectures
+  - _Requirements: 1.1, 1.2, 7.1, 7.2_
+
+- [ ] 20.2 Implement comprehensive security scanning
   - ✅ Configure security scanning with CodeQL, cargo-audit, cargo-deny, and Grype vulnerability checks
   - ✅ Add clippy linting with zero-warnings policy across all platforms (justfile enforces this)
   - ✅ Configure SBOM generation and security attestation for release artifacts (justfile includes sbom task)
-  - Configure macOS and Windows runners for build validation with SQLite-only testing
-  - Set up Linux runners for comprehensive testing with all database types (PostgreSQL, MySQL, SQLite, MongoDB)
+  - Add dependency license compliance checking
+  - Implement secret scanning for commits and pull requests
+  - _Requirements: 2.1, 2.2_
+
+- [ ] 20.3 Set up database integration testing in CI
   - Implement testcontainers integration for realistic database testing on Linux
+  - Configure PostgreSQL, MySQL, and MongoDB containers for CI testing
+  - Add database version matrix testing (multiple PostgreSQL/MySQL versions)
+  - Implement test data seeding and cleanup for consistent CI runs
+  - Add timeout and resource limit configuration for CI containers
+  - _Requirements: 1.1, 1.2, 2.1_
+
+- [ ] 20.4 Configure test coverage and performance monitoring
   - Configure test coverage reporting with cargo-llvm-cov and codecov integration
   - Add performance regression testing with Criterion benchmarks
+  - Implement coverage threshold enforcement (70% minimum)
+  - Add performance baseline tracking and regression detection
+  - Configure coverage reporting for different test types (unit, integration, security)
+  - _Requirements: 1.1, 1.2_
+
+- [ ] 20.5 Optimize CI performance and caching
   - Implement artifact caching for dependencies and build outputs
+  - Configure Rust toolchain caching and incremental compilation
+  - Add selective test execution based on changed files
   - Create separate workflows for PR validation, nightly builds, and release testing
-  - _Requirements: 1.1, 1.2, 2.1, 2.2, 7.1, 7.2_
+  - Implement parallel job execution and dependency optimization
+  - _Requirements: 7.1, 7.2_
 
 - [x] 21. Configure distribution and release automation
 
