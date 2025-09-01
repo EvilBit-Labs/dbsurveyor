@@ -83,6 +83,10 @@ jobs:
     name: Test Coverage
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Setup Rust for coverage
         uses: dtolnay/rust-toolchain@1.89.0
         with:
@@ -117,6 +121,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: test-coverage
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Setup Rust for building
         uses: dtolnay/rust-toolchain@1.89.0
 
