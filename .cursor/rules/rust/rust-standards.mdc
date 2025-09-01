@@ -36,32 +36,32 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
-    #[error("Connection failed to database")]
-    ConnectionFailed,
+        #[error("Connection failed to database")]
+        ConnectionFailed,
 
-    #[error("Schema discovery failed: {0}")]
-    SchemaDiscoveryFailed(String),
+        #[error("Schema discovery failed: {0}")]
+        SchemaDiscoveryFailed(String),
 
-    #[error("Query execution failed")]
-    QueryFailed(#[from] sqlx::Error),
+        #[error("Query execution failed")]
+        QueryFailed(#[from] sqlx::Error),
 
-    #[error("Serialization failed")]
-    SerializationFailed(#[from] serde_json::Error),
+        #[error("Serialization failed")]
+        SerializationFailed(#[from] serde_json::Error),
 }
 
 pub type Result<T> = std::result::Result<T, DatabaseError>;
 
 // ✅ Proper error propagation with context
 async fn collect_schema(url: &str) -> Result<Schema> {
-    let pool = create_connection_pool(url)
-        .await
-        .map_err(|_| DatabaseError::ConnectionFailed)?;
+        let pool = create_connection_pool(url)
+                .await
+                .map_err(|_| DatabaseError::ConnectionFailed)?;
 
-    let tables = fetch_tables(&pool)
-        .await
-        .map_err(|e| DatabaseError::SchemaDiscoveryFailed(e.to_string()))?;
+        let tables = fetch_tables(&pool)
+                .await
+                .map_err(|e| DatabaseError::SchemaDiscoveryFailed(e.to_string()))?;
 
-    Ok(Schema { tables })
+        Ok(Schema { tables })
 }
 ```
 
@@ -70,28 +70,28 @@ async fn collect_schema(url: &str) -> Result<Schema> {
 ```rust
 // ✅ Correct: Parameterized queries only
 async fn get_table_info(pool: &PgPool, table_name: &str) -> Result<TableInfo> {
-    let query = r#"
-        SELECT table_name, table_schema, table_type
-        FROM information_schema.tables
-        WHERE table_name = $1
-    "#;
+        let query = r#"
+                SELECT table_name, table_schema, table_type
+                FROM information_schema.tables
+                WHERE table_name = $1
+        "#;
 
-    let row = sqlx::query_as::<_, TableInfo>(query)
-        .bind(table_name)
-        .fetch_one(pool)
-        .await
-        .map_err(DatabaseError::QueryFailed)?;
+        let row = sqlx::query_as::<_, TableInfo>(query)
+                .bind(table_name)
+                .fetch_one(pool)
+                .await
+                .map_err(DatabaseError::QueryFailed)?;
 
-    Ok(row)
+        Ok(row)
 }
 
 // ❌ Never do this: SQL injection vulnerability
 async fn get_table_info_bad(pool: &PgPool, table_name: &str) -> Result<TableInfo> {
-    let query = format!(
-        "SELECT * FROM information_schema.tables WHERE table_name = '{}'",
-        table_name
-    );
-    // This is vulnerable to SQL injection
+        let query = format!(
+                "SELECT * FROM information_schema.tables WHERE table_name = '{}'",
+                table_name
+        );
+        // This is vulnerable to SQL injection
 }
 ```
 
@@ -101,33 +101,33 @@ async fn get_table_info_bad(pool: &PgPool, table_name: &str) -> Result<TableInfo
 // ✅ Secure: No credential exposure
 #[derive(Debug)]
 pub struct DatabaseConfig {
-    host: String,
-    port: u16,
-    database: String,
-    // Never log or display credentials
-    username: String,
-    password: String,
+        host: String,
+        port: u16,
+        database: String,
+        // Never log or display credentials
+        username: String,
+        password: String,
 }
 
 impl std::fmt::Display for DatabaseConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "DatabaseConfig({}:{}@{})", self.host, self.port, self.database)
-        // Intentionally omit credentials
-    }
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "DatabaseConfig({}:{}@{})", self.host, self.port, self.database)
+                // Intentionally omit credentials
+        }
 }
 
 // ✅ Secure logging without credentials
 impl DatabaseConfig {
-    pub fn connection_string(&self) -> String {
-        format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.username, self.password, self.host, self.port, self.database
-        )
-    }
+        pub fn connection_string(&self) -> String {
+                format!(
+                        "postgres://{}:{}@{}:{}/{}",
+                        self.username, self.password, self.host, self.port, self.database
+                )
+        }
 
-    pub fn safe_description(&self) -> String {
-        format!("Database connection to {}:{}/{}", self.host, self.port, self.database)
-    }
+        pub fn safe_description(&self) -> String {
+                format!("Database connection to {}:{}/{}", self.host, self.port, self.database)
+        }
 }
 
 // ✅ Use for logging
@@ -143,24 +143,24 @@ log::info!("Connecting with {}", config.connection_string());
 use tokio::time::{timeout, Duration};
 
 async fn collect_with_timeout(url: &str) -> Result<Schema> {
-    let timeout_duration = Duration::from_secs(30);
+        let timeout_duration = Duration::from_secs(30);
 
-    timeout(timeout_duration, collect_schema_internal(url))
-        .await
-        .map_err(|_| DatabaseError::ConnectionTimeout)?
-        .map_err(DatabaseError::from)
+        timeout(timeout_duration, collect_schema_internal(url))
+                .await
+                .map_err(|_| DatabaseError::ConnectionTimeout)?
+                .map_err(DatabaseError::from)
 }
 
 async fn collect_schema_internal(url: &str) -> sqlx::Result<Schema> {
-    let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(url)
-        .await?;
+        let pool = sqlx::postgres::PgPoolOptions::new()
+                .max_connections(5)
+                .connect(url)
+                .await?;
 
-    let tables = collect_tables(&pool).await?;
-    let columns = collect_columns(&pool).await?;
+        let tables = collect_tables(&pool).await?;
+        let columns = collect_columns(&pool).await?;
 
-    Ok(Schema { tables, columns })
+        Ok(Schema { tables, columns })
 }
 ```
 
@@ -169,72 +169,72 @@ async fn collect_schema_internal(url: &str) -> sqlx::Result<Schema> {
 ```rust
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use testcontainers::{clients, images};
+        use super::*;
+        use testcontainers::{clients, images};
 
-    // ✅ Integration test with real database
-    #[tokio::test]
-    async fn test_postgres_schema_collection() {
-        let docker = clients::Cli::default();
-        let postgres = docker.run(images::postgres::Postgres::default());
+        // ✅ Integration test with real database
+        #[tokio::test]
+        async fn test_postgres_schema_collection() {
+                let docker = clients::Cli::default();
+                let postgres = docker.run(images::postgres::Postgres::default());
 
-        let port = postgres.get_host_port_ipv4(5432);
-        let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+                let port = postgres.get_host_port_ipv4(5432);
+                let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-        let result = collect_schema(&database_url).await;
-        assert!(result.is_ok());
+                let result = collect_schema(&database_url).await;
+                assert!(result.is_ok());
 
-        let schema = result.unwrap();
-        assert!(!schema.tables.is_empty());
-    }
+                let schema = result.unwrap();
+                assert!(!schema.tables.is_empty());
+        }
 
-    // ✅ Security test: Verify no credentials in output
-    #[tokio::test]
-    async fn test_no_credentials_in_schema_output() {
-        let database_url = "postgres://testuser:secretpass@localhost/testdb";
-        let schema = collect_schema(database_url).await?;
-        let json_output = serde_json::to_string(&schema)?;
+        // ✅ Security test: Verify no credentials in output
+        #[tokio::test]
+        async fn test_no_credentials_in_schema_output() {
+                let database_url = "postgres://testuser:secretpass@localhost/testdb";
+                let schema = collect_schema(database_url).await?;
+                let json_output = serde_json::to_string(&schema)?;
 
-        // Verify sensitive data is not present
-        assert!(!json_output.contains("secretpass"));
-        assert!(!json_output.contains("testuser:secretpass"));
-        assert!(!json_output.contains("password"));
-    }
+                // Verify sensitive data is not present
+                assert!(!json_output.contains("secretpass"));
+                assert!(!json_output.contains("testuser:secretpass"));
+                assert!(!json_output.contains("password"));
+        }
 
-    // ✅ Unit test with proper error handling
-    #[test]
-    fn test_database_config_display() {
-        let config = DatabaseConfig {
-            host: "localhost".to_string(),
-            port: 5432,
-            database: "testdb".to_string(),
-            username: "user".to_string(),
-            password: "secret".to_string(),
-        };
+        // ✅ Unit test with proper error handling
+        #[test]
+        fn test_database_config_display() {
+                let config = DatabaseConfig {
+                        host: "localhost".to_string(),
+                        port: 5432,
+                        database: "testdb".to_string(),
+                        username: "user".to_string(),
+                        password: "secret".to_string(),
+                };
 
-        let display = config.to_string();
-        assert!(!display.contains("secret"));
-        assert!(!display.contains("user:secret"));
-        assert!(display.contains("localhost:5432"));
-    }
+                let display = config.to_string();
+                assert!(!display.contains("secret"));
+                assert!(!display.contains("user:secret"));
+                assert!(display.contains("localhost:5432"));
+        }
 }
 
 // ✅ Benchmark tests for performance
 #[cfg(test)]
 mod benchmarks {
-    use super::*;
-    use criterion::{black_box, criterion_group, criterion_main, Criterion};
+        use super::*;
+        use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-    fn bench_schema_serialization(c: &mut Criterion) {
-        let schema = create_test_schema();
+        fn bench_schema_serialization(c: &mut Criterion) {
+                let schema = create_test_schema();
 
-        c.bench_function("schema_to_json", |b| {
-            b.iter(|| serde_json::to_string(black_box(&schema)))
-        });
-    }
+                c.bench_function("schema_to_json", |b| {
+                        b.iter(|| serde_json::to_string(black_box(&schema)))
+                });
+        }
 
-    criterion_group!(benches, bench_schema_serialization);
-    criterion_main!(benches);
+        criterion_group!(benches, bench_schema_serialization);
+        criterion_main!(benches);
 }
 ```
 
@@ -263,33 +263,33 @@ mod benchmarks {
 /// println!("Found {} tables", schema.tables.len());
 /// ```
 pub struct PostgresCollector {
-    pool: PgPool,
+        pool: PgPool,
 }
 
 impl PostgresCollector {
-    /// Creates a new PostgreSQL collector with the given connection string.
-    ///
-    /// # Arguments
-    ///
-    /// * `database_url` - PostgreSQL connection string
-    ///
-    /// # Errors
-    ///
-    /// Returns `DatabaseError::ConnectionFailed` if the database connection cannot be established.
-    ///
-    /// # Security
-    ///
-    /// The connection string should not be logged or stored. Use `safe_description()`
-    /// for logging purposes.
-    pub async fn new(database_url: &str) -> Result<Self> {
-        let pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(5)
-            .connect(database_url)
-            .await
-            .map_err(|_| DatabaseError::ConnectionFailed)?;
+        /// Creates a new PostgreSQL collector with the given connection string.
+        ///
+        /// # Arguments
+        ///
+        /// * `database_url` - PostgreSQL connection string
+        ///
+        /// # Errors
+        ///
+        /// Returns `DatabaseError::ConnectionFailed` if the database connection cannot be established.
+        ///
+        /// # Security
+        ///
+        /// The connection string should not be logged or stored. Use `safe_description()`
+        /// for logging purposes.
+        pub async fn new(database_url: &str) -> Result<Self> {
+                let pool = sqlx::postgres::PgPoolOptions::new()
+                        .max_connections(5)
+                        .connect(database_url)
+                        .await
+                        .map_err(|_| DatabaseError::ConnectionFailed)?;
 
-        Ok(Self { pool })
-    }
+                Ok(Self { pool })
+        }
 }
 ```
 
@@ -390,14 +390,14 @@ pub use sqlite::SqliteCollector;
 /// Trait for database schema collectors
 #[async_trait::async_trait]
 pub trait SchemaCollector {
-    /// Collect comprehensive schema information
-    async fn collect_schema(&self) -> crate::Result<Schema>;
+        /// Collect comprehensive schema information
+        async fn collect_schema(&self) -> crate::Result<Schema>;
 
-    /// Test database connectivity without collecting data
-    async fn test_connection(&self) -> crate::Result<()>;
+        /// Test database connectivity without collecting data
+        async fn test_connection(&self) -> crate::Result<()>;
 
-    /// Get a safe description for logging (no credentials)
-    fn safe_description(&self) -> String;
+        /// Get a safe description for logging (no credentials)
+        fn safe_description(&self) -> String;
 }
 ```
 
@@ -408,8 +408,8 @@ pub trait SchemaCollector {
 [bans]
 # Deny unsafe dependencies
 deny = [
-    { name = "openssl-sys", version = "*" },  # Use rustls instead
-    { name = "native-tls", version = "*" },   # Use rustls instead
+        { name = "openssl-sys", version = "*" },  # Use rustls instead
+        { name = "native-tls", version = "*" },   # Use rustls instead
 ]
 
 [licenses]
@@ -433,57 +433,57 @@ notice = "warn"
 use sqlx::Row;
 
 async fn collect_tables_efficient(pool: &PgPool) -> Result<Vec<Table>> {
-    let query = r#"
-        SELECT
-            t.table_name,
-            t.table_schema,
-            t.table_type,
-            obj_description(c.oid) as table_comment
-        FROM information_schema.tables t
-        LEFT JOIN pg_class c ON c.relname = t.table_name
-        WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
-        ORDER BY t.table_schema, t.table_name
-    "#;
+        let query = r#"
+                SELECT
+                        t.table_name,
+                        t.table_schema,
+                        t.table_type,
+                        obj_description(c.oid) as table_comment
+                FROM information_schema.tables t
+                LEFT JOIN pg_class c ON c.relname = t.table_name
+                WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
+                ORDER BY t.table_schema, t.table_name
+        "#;
 
-    let rows = sqlx::query(query)
-        .fetch_all(pool)
-        .await
-        .map_err(DatabaseError::QueryFailed)?;
+        let rows = sqlx::query(query)
+                .fetch_all(pool)
+                .await
+                .map_err(DatabaseError::QueryFailed)?;
 
-    let tables = rows
-        .into_iter()
-        .map(|row| Table {
-            name: row.get("table_name"),
-            schema: row.get("table_schema"),
-            table_type: row.get("table_type"),
-            comment: row.get("table_comment"),
-        })
-        .collect();
+        let tables = rows
+                .into_iter()
+                .map(|row| Table {
+                        name: row.get("table_name"),
+                        schema: row.get("table_schema"),
+                        table_type: row.get("table_type"),
+                        comment: row.get("table_comment"),
+                })
+                .collect();
 
-    Ok(tables)
+        Ok(tables)
 }
 
 // ✅ Memory-efficient streaming for large datasets
 use futures::StreamExt;
 
 async fn collect_large_table_data(pool: &PgPool, table_name: &str) -> Result<Vec<Row>> {
-    let query = format!("SELECT * FROM {}", table_name); // Note: table_name should be validated
+        let query = format!("SELECT * FROM {}", table_name); // Note: table_name should be validated
 
-    let mut stream = sqlx::query(&query).fetch(pool);
-    let mut results = Vec::new();
+        let mut stream = sqlx::query(&query).fetch(pool);
+        let mut results = Vec::new();
 
-    while let Some(row) = stream.next().await {
-        let row = row.map_err(DatabaseError::QueryFailed)?;
-        results.push(row);
+        while let Some(row) = stream.next().await {
+                let row = row.map_err(DatabaseError::QueryFailed)?;
+                results.push(row);
 
-        // Prevent excessive memory usage
-        if results.len() > 10_000 {
-            log::warn!("Table {} has more than 10k rows, truncating", table_name);
-            break;
+                // Prevent excessive memory usage
+                if results.len() > 10_000 {
+                        log::warn!("Table {} has more than 10k rows, truncating", table_name);
+                        break;
+                }
         }
-    }
 
-    Ok(results)
+        Ok(results)
 }
 ```
 

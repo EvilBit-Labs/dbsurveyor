@@ -17,21 +17,31 @@ help:
 # Setup development environment
 setup: install
 
-# Install dependencies and development tools
-install:
-    @echo "🚀 Setting up secure development environment..."
+# Install Rust development tools
+install-rust:
+    @echo "🔧 Installing Rust development tools..."
     rustup component add clippy rustfmt
-    @echo "📦 Installing security tools..."
-    @if ! command -v cargo-audit >/dev/null 2>&1; then \
-        cargo install cargo-audit; \
+    @echo "✅ Rust tools installed"
+
+# Install Cargo tools
+install-cargo-tools:
+    @echo "📦 Installing Cargo tools..."
+    @if ! command -v cargo-audit >/dev/null 2>&1; then cargo install cargo-audit; fi
+    @if ! command -v cargo-deny >/dev/null 2>&1; then cargo install cargo-deny; fi
+    @if ! command -v cargo-llvm-cov >/dev/null 2>&1; then cargo install cargo-llvm-cov; fi
+    @echo "✅ Cargo tools installed"
+
+# Install security tools
+install-security-tools:
+    @echo "🛡️ Installing security tools..."
+    @if ! command -v syft >/dev/null 2>&1; then \
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
     fi
-    @if ! command -v cargo-deny >/dev/null 2>&1; then \
-        cargo install cargo-deny; \
-    fi
-    @if ! command -v cargo-llvm-cov >/dev/null 2>&1; then \
-        cargo install cargo-llvm-cov; \
-    fi
-    @echo "✅ Development environment ready - security tools installed"
+    @echo "✅ Security tools installed"
+
+# Install all dependencies and development tools
+install: install-rust install-cargo-tools install-security-tools
+    @echo "🚀 Development environment ready!"
 
 # Update dependencies
 update-deps:
@@ -46,17 +56,7 @@ update-deps:
 # Format code with rustfmt
 format:
     @echo "🎨 Formatting code..."
-    @if command -v pre-commit > /dev/null 2>&1; then \
-        pre-commit run -a; \
-    else \
-        echo "⚠️  pre-commit not installed, skipping hooks"; \
-    fi
     cargo fmt
-    @if command -v prettier > /dev/null 2>&1; then \
-        prettier --write "**/*.{yml,yaml,js,jsx,ts,tsx}"; \
-    else \
-        echo "⚠️  prettier not installed, skipping formatting"; \
-    fi
     @echo "✅ Code formatted"
 
 # Check code formatting
@@ -67,43 +67,8 @@ format-check:
 # Lint code with clippy (strict warnings as errors)
 lint:
     @echo "🔍 Running Rust Quality Gate (cargo clippy -- -D warnings)..."
-    @echo "⚠️  EXPLICIT REQUIREMENT: cargo clippy -- -D warnings must pass"
-    cargo clippy --all-targets --features postgresql,sqlite,encryption,compression -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
     @echo "✅ Rust Quality Gate passed - zero warnings enforced"
-
-# Run MegaLinter with Rust flavor (local development)
-megalinter:
-    @echo "🔍 Running MegaLinter with Rust flavor..."
-    @if command -v npx >/dev/null 2>&1; then \
-        npx mega-linter-runner --flavor rust; \
-    else \
-        echo "❌ npx not found. Please install Node.js and npm first."; \
-        echo "   Visit: https://nodejs.org/"; \
-        exit 1; \
-    fi
-    @echo "✅ MegaLinter completed!"
-
-# Run all linting and formatting checks
-check: format-check lint pre-commit
-    @echo "✅ All checks passed!"
-
-# Run all linting and formatting checks with pre-commit hooks
-check-full: format-check lint pre-commit pre-commit-run
-    @echo "✅ All checks with pre-commit hooks passed!"
-
-# Run pre-commit hooks manually
-pre-commit-run:
-    @echo "🔄 Running pre-commit hooks..."
-    @if command -v pre-commit > /dev/null 2>&1; then \
-        pre-commit run -a; \
-        echo "✅ Pre-commit hooks passed!"; \
-    else \
-        echo "⚠️  pre-commit not installed, skipping hooks"; \
-    fi
-
-# Fix linting and formatting issues
-fix: format
-    cargo clippy --fix --allow-dirty
 
 # Run pre-commit hooks
 pre-commit:
@@ -113,6 +78,25 @@ pre-commit:
     @just test
     @just test-credential-security
     @echo "✅ Pre-commit checks passed - ready for secure commit"
+
+# Run all linting and formatting checks
+check: format-check lint
+    @echo "✅ All checks passed!"
+
+# Fix linting and formatting issues
+fix: format
+    cargo clippy --fix --allow-dirty
+
+# Run MegaLinter for comprehensive linting
+megalinter:
+    @echo "🔍 Running MegaLinter for comprehensive code analysis..."
+    npx mega-linter-runner --flavor rust
+    @echo "✅ MegaLinter analysis complete"
+
+megalinter-fix:
+    @echo "🔍 Running MegaLinter for comprehensive code analysis..."
+    npx mega-linter-runner --flavor rust --fix
+    @echo "✅ MegaLinter analysis complete"
 
 # -----------------------------
 # 🦀 Standardized Rust Tasks
@@ -128,7 +112,7 @@ rust-fmt-check:
 
 # Lint Rust code with clippy (strict mode)
 rust-clippy:
-    cargo clippy --all-targets --features postgresql,sqlite,encryption,compression -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 # Run all Rust tests
 rust-test:
@@ -222,22 +206,18 @@ coverage-clean:
 # Verify encryption capabilities (AES-GCM with random nonce)
 test-encryption:
     @echo "🔐 Testing AES-GCM encryption with random nonce generation..."
-    @echo "⚠️  Verifying: random nonce, embedded KDF params, authenticated headers"
     cargo test encryption --verbose -- --nocapture
     @echo "✅ Encryption tests passed - AES-GCM security verified"
 
 # Test offline operation (no network calls)
 test-offline:
     @echo "✈️  Testing complete offline operation..."
-    @echo "🚫 Verifying zero network calls during operation"
-    @echo "⚠️  This test simulates airgap environment conditions"
     cargo test offline --verbose
     @echo "✅ Offline operation verified - airgap compatible"
 
 # Verify no credentials leak into outputs
 test-credential-security:
     @echo "🔑 Testing credential security..."
-    @echo "⚠️  Verifying NO CREDENTIALS appear in any output files"
     cargo test credential_security --verbose -- --nocapture
     @echo "✅ Credential security verified - no leakage detected"
 
@@ -250,12 +230,6 @@ security-full:
     @just test-credential-security
     @just security-audit
     @echo "✅ FULL SECURITY VALIDATION PASSED"
-    @echo "🔒 All security guarantees verified:"
-    @echo "   ✓ Offline-only operation (no network calls)"
-    @echo "   ✓ No telemetry or external reporting"
-    @echo "   ✓ No credentials in outputs"
-    @echo "   ✓ AES-GCM encryption (random nonce, embedded KDF, authenticated headers)"
-    @echo "   ✓ Airgap compatibility confirmed"
 
 # -----------------------------
 # 🔧 Building & Running
@@ -263,12 +237,12 @@ security-full:
 
 # Build the project in debug mode
 build:
-    cargo build --features postgresql,sqlite,encryption,compression
+    cargo build --workspace --all-features
 
 # Build the project in release mode with security optimizations
 build-release:
     @echo "🔨 Building with security optimizations..."
-    cargo build --release --features postgresql,sqlite,encryption,compression
+    cargo build --release --workspace --all-features
     @echo "✅ Build complete - offline operation verified"
 
 # Build minimal feature set (for airgap environments)
@@ -287,25 +261,6 @@ doc-open:
     cargo doc --features postgresql,sqlite,encryption,compression --no-deps --document-private-items --open
     @echo "✅ Documentation generated - works offline"
 
-# Serve documentation locally (required by standard)
-docs:
-    @echo "📖 Starting documentation server..."
-    @if ! command -v mkdocs > /dev/null 2>&1; then \
-        echo "Installing MkDocs..."; \
-        pip install mkdocs-material; \
-    fi
-    mkdocs serve
-
-# Build documentation for verification (required by standard)
-docs-build:
-    @echo "🔨 Building documentation site..."
-    @if ! command -v mkdocs > /dev/null 2>&1; then \
-        echo "Installing MkDocs..."; \
-        pip install mkdocs-material; \
-    fi
-    mkdocs build
-    @echo "✅ Documentation built - check site/ directory"
-
 # Run the CLI tool with sample arguments
 run *args:
     cargo run --features postgresql,sqlite,encryption,compression -- {{args}}
@@ -322,29 +277,19 @@ bench:
 security-audit:
     @echo "🔐 Running comprehensive security audit..."
     @echo "📋 Generating Software Bill of Materials (SBOM)..."
-    # Install Syft if not present
-    @if ! command -v syft >/dev/null 2>&1; then \
-        echo "Installing Syft for SBOM generation..."; \
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
-    fi
-    # Generate SBOM
     syft dir:. -o spdx-json > sbom.spdx.json
     syft dir:. -o json > sbom.json
     @echo "✅ Security audit complete - reports generated"
     @echo "📄 SBOM files: sbom.spdx.json, sbom.json"
 
-# SBOM generation for local inspection (required by standard)
+# SBOM generation for local inspection
 sbom:
     @echo "📋 Generating Software Bill of Materials..."
-    @if ! command -v syft > /dev/null 2>&1; then \
-        echo "Installing Syft..."; \
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
-    fi
     syft dir:. -o spdx-json > sbom.spdx.json
     syft dir:. -o json > sbom.json
     @echo "✅ SBOM generated: sbom.spdx.json, sbom.json"
 
-# Simulate release process without publishing (required by standard)
+# Simulate release process without publishing
 release-dry:
     @echo "🎭 Simulating release process..."
     @just lint
@@ -354,30 +299,10 @@ release-dry:
     @just security-audit
     @echo "✅ Release dry run complete - ready for actual release"
 
-# Install language-specific tooling (required by standard)
-install-tools:
-    @echo "🔧 Installing Rust development tools..."
-    rustup component add clippy rustfmt
-    @if ! command -v cargo-audit > /dev/null 2>&1; then \
-        cargo install cargo-audit; \
-    fi
-    @if ! command -v cargo-deny > /dev/null 2>&1; then \
-        cargo install cargo-deny; \
-    fi
-    @if ! command -v cargo-llvm-cov > /dev/null 2>&1; then \
-        cargo install cargo-llvm-cov; \
-    fi
-    @if ! command -v just > /dev/null 2>&1; then \
-        echo "Installing just task runner..."; \
-        cargo install --locked just; \
-    fi
-    @echo "✅ Rust tools installed"
-
 # Run dependency audit
 audit:
     @echo "📊 Auditing dependencies for security vulnerabilities..."
-    @echo "🔍 Running strict audit (MySQL feature disabled by default)"
-    cargo audit --ignore RUSTSEC-2023-0071
+    cargo audit
     @echo "✅ Dependency audit complete"
 
 # Run strict CI audit (fails on all advisories)
@@ -386,20 +311,16 @@ audit-ci:
     cargo audit --ignore RUSTSEC-2023-0071
     @echo "✅ Strict audit passed - no vulnerabilities found"
 
-# Check for security advisories
-check-advisories:
-    cargo audit --ignore RUSTSEC-2023-0071
-
 # -----------------------------
 # 🧹 Clean & Maintenance
 # -----------------------------
 
 # Clean build artifacts
 clean:
-    @echo "🧹 Cleaning build artifacts (security: removing any cached sensitive data)..."
+    @echo "🧹 Cleaning build artifacts..."
     cargo clean
     rm -f sbom.spdx.json sbom.json lcov.info
-    @echo "✅ Clean complete - no sensitive data in cache"
+    @echo "✅ Clean complete"
 
 # Update dependencies
 update:
@@ -414,12 +335,10 @@ package-airgap:
     @echo "📦 Creating airgap deployment package..."
     @just build-minimal
     @echo "🔒 Verifying airgap compatibility..."
-    # Create deployment bundle with all dependencies
     mkdir -p airgap-package
     cp target/release/dbsurveyor* airgap-package/ || true
     cp README.md airgap-package/
     @echo "✅ Airgap package created in airgap-package/"
-    @echo "🛡️  Package includes offline documentation and security guarantees"
 
 # -----------------------------
 # 🤖 CI Workflow
@@ -434,7 +353,7 @@ ci-check-fast: format-check lint test-no-bench
     @echo "✅ Fast CI checks passed!"
 
 # Full comprehensive checks - runs all non-interactive verifications
-full-checks: format-check lint pre-commit-run test coverage audit build-release
+full-checks: format-check lint test coverage audit build-release
     @echo "✅ All full checks passed!"
 
 # CI-friendly QA check (respects TERM=dumb)
@@ -442,150 +361,11 @@ ci-qa: rust-fmt-check rust-clippy rust-test
     @echo "✅ CI QA checks passed!"
 
 # -----------------------------
-# 🧪 Local GitHub Actions Testing (act)
-# -----------------------------
-
-# Install act for local GitHub Actions testing
-install-act:
-    @echo "📦 Installing act for local GitHub Actions testing..."
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "Installing act via Homebrew..."; \
-        brew install act; \
-    else \
-        echo "✅ act is already installed"; \
-    fi
-    @echo "✅ act installation complete"
-
-# Setup act with local configuration
-setup-act: install-act
-    @echo "⚙️  Setting up act for local GitHub Actions testing..."
-    @if [ ! -f .secrets ]; then \
-        echo "📝 Creating .secrets file from template..."; \
-        cp .secrets.template .secrets; \
-        echo "✏️  Please edit .secrets file with your actual tokens if needed"; \
-    else \
-        echo "✅ .secrets file already exists"; \
-    fi
-    @echo "🐳 Pulling required Docker images for act..."
-    docker pull ghcr.io/catthehacker/ubuntu:act-latest
-    @echo "✅ act setup complete - you can now run 'just test-ci-local'"
-
-# Test CI workflow locally with act
-test-ci-local:
-    @echo "🧪 Running CI workflow locally with act..."
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    act -W .github/workflows/ci.yml
-
-# Test simplified CI workflow optimized for local testing
-test-ci-simple:
-    @echo "🧪 Running simplified CI workflow locally with act..."
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    act -W .github/workflows/ci-local.yml
-
-# Test specific CI jobs locally
-test-lint-local:
-    @echo "🔍 Testing lint job locally..."
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    act -W .github/workflows/ci.yml -j lint
-
-test-security-local:
-    @echo "🛡️  Testing security scan job locally..."
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    act -W .github/workflows/ci.yml -j security-scan
-
-test-build-local:
-    @echo "🔨 Testing build job locally..."
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    act -W .github/workflows/ci.yml -j build
-
-# Test release workflow locally (dry run)
-test-release-local:
-    @echo "📦 Testing release workflow locally..."
-    @echo "⚠️  Note: This simulates release triggers but won't actually release"
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    act -W .github/workflows/release.yml --dryrun
-
-# Test Release Please workflow locally
-test-release-please-local:
-    @echo "🏷️  Testing Release Please workflow locally..."
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    act -W .github/workflows/release-please.yml
-
-# Test OSSF Scorecard workflow locally
-test-scorecard-local:
-    @echo "📊 Testing OSSF Scorecard workflow locally..."
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    act -W .github/workflows/scorecard.yml
-
-# List all available GitHub Actions workflows
-list-workflows:
-    @echo "📋 Available GitHub Actions workflows:"
-    @find .github/workflows -name "*.yml" -o -name "*.yaml" | sort | while read file; do \
-        echo "  📄 $(basename "$file")"; \
-        grep -H "^name:" "$file" 2>/dev/null | sed 's/.*name: *//; s/^/    - /' || echo "    - (no name specified)"; \
-    done
-
-# Test all workflows locally (comprehensive check)
-test-all-workflows:
-    @echo "🚀 Testing all workflows locally..."
-    @echo "⚠️  This may take a while and requires Docker"
-    @if ! command -v act > /dev/null 2>&1; then \
-        echo "❌ act not found - installing..."; \
-        just install-act; \
-    fi
-    @echo "🧪 Testing CI workflow..."
-    act -W .github/workflows/ci.yml --dryrun || echo "❌ CI workflow test failed"
-    @echo "🏷️  Testing Release Please workflow..."
-    act -W .github/workflows/release-please.yml --dryrun || echo "❌ Release Please workflow test failed"
-    @echo "📊 Testing Scorecard workflow..."
-    act -W .github/workflows/scorecard.yml --dryrun || echo "❌ Scorecard workflow test failed"
-    @echo "✅ All workflow tests completed"
-
-# Validate GitHub Actions syntax
-validate-workflows:
-    @echo "✅ Validating GitHub Actions workflow syntax..."
-    @for file in .github/workflows/*.yml .github/workflows/*.yaml; do \
-        if [ -f "$file" ]; then \
-            echo "🔍 Checking $(basename "$file")..."; \
-            if command -v yamllint > /dev/null 2>&1; then \
-                yamllint "$file" || echo "❌ YAML syntax error in $(basename "$file")"; \
-            else \
-                echo "⚠️  yamllint not installed - install with: pip install yamllint"; \
-            fi; \
-        fi; \
-    done
-    @echo "✅ Workflow validation complete"
-
-# -----------------------------
 # 🚀 Development Workflow
 # -----------------------------
 
 # Development workflow: format, lint, test, coverage
-dev: format lint test coverage pre-commit-run
+dev: format lint test coverage
     @echo "✅ Development checks complete!"
 
 # Watch for changes and run tests
@@ -606,8 +386,6 @@ info:
     @echo "========================================================="
     @echo "Rust version: $(rustc --version)"
     @echo "Cargo version: $(cargo --version)"
-    @echo "Project features:"
-    @cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].features | keys[]' 2>/dev/null || echo "  - PostgreSQL, MySQL, SQLite support"
     @echo ""
     @echo "🔒 Security Guarantees:"
     @echo "  ✓ Offline-only operation (no network calls except to databases)"

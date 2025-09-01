@@ -25,18 +25,32 @@ Convert the feature design into a series of prompts for a code-generation LLM th
 - [ ] 3. Create PostgreSQL adapter with schema collection
 
   - Implement PostgresAdapter with sqlx integration
-  - Add connection management with connection pooling
+  - Add connection management with comprehensive connection pooling:
+    - Configurable pool limits: max_connections (default: 10), min_idle_connections (default: 2)
+    - Connection timeouts: connect_timeout (default: 30s), acquire_timeout (default: 30s)
+    - Idle connection management: idle_timeout (default: 10min), max_lifetime (default: 1hour)
+    - Pool configuration via environment variables and config files
+    - Runtime pool parameter validation and adjustment
   - Implement schema enumeration using information_schema and pg_catalog
   - Extract tables, columns, indexes, constraints, and foreign keys
-  - Add comprehensive unit tests with testcontainers
+  - Add comprehensive unit tests with testcontainers including:
+    - Connection pool exhaustion scenarios (max_connections + 1)
+    - Timeout validation under load
+    - Pool parameter configuration testing
+    - Connection lifecycle management validation
+    - Performance testing with concurrent schema collection
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 4. Add intelligent data sampling to PostgreSQL adapter
 
   - Implement ordering strategy detection (primary key, timestamp, auto-increment)
-  - Create sample_data method with configurable sampling
-  - Add sensitive data detection patterns (warnings only, no redaction)
-  - Implement query timeout and throttling controls
+  - Create sample_data method with configurable sampling and rate limiting
+  - Add configurable rate limits: queries/sec and rows/sec with exponential backoff
+  - Implement query batching with small LIMIT sizes and randomized jitter between batches
+  - Add safe default timeouts (statement_timeout) and per-query execution controls
+  - Use indexed ordering (PK/timestamp) or paginated key-range scans to avoid full-table scans
+  - Add sensitive data detection patterns (warnings only, no redaction) with log-only sensitive-data warnings
+  - Implement configurable parameters: sampling frequency, max concurrent queries, jitter, backoff policy, timeout values
   - Test with various table structures and data types
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
@@ -79,7 +93,10 @@ Convert the feature design into a series of prompts for a code-generation LLM th
 - [ ] 9. Implement encryption and compression for output files
 
   - Create encryption module using aes-gcm and ring crates
-  - Implement AES-GCM with random nonces and embedded KDF parameters
+  - Implement AES-GCM with random nonces and embedded Argon2id KDF parameters
+  - Use exact Argon2id settings: 16-byte salt, Argon2id version 1.3, time cost 3, memory 64 MiB (65536 KiB), parallelism 4, output key length 32 bytes
+  - Embed KDF parameters and per-file salt in encrypted file header for decryption validation
+  - Implement parameter validation and version checking during decryption
   - Add zstd compression support for .dbsurveyor.json.zst format
   - Create EncryptedOutput structure with authenticated headers
   - Support multiple output formats: .json, .json.zst, .enc
@@ -158,6 +175,134 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Add property-based testing with proptest for edge cases
   - Implement security tests for credential sanitization
   - _Requirements: 1.1, 1.2, 2.1, 2.2_
+
+- [ ] 16.1. Implement credential sanitization and secrets protection tests
+
+  - Test database connection strings never appear in logs, error messages, or output files
+  - Verify password fields are zeroized in memory after use
+  - Test connection string parsing without credential persistence
+  - Tooling: Custom test utilities, memory inspection tools
+  - Acceptance: Zero credential leakage in any output format, memory zeroization verified
+  - _Requirements: 2.4, 9.5_
+
+- [ ] 16.2. Implement SQL/NoSQL injection prevention tests
+
+  - Test schema collection with malicious table/column names containing SQL injection payloads
+  - Verify NoSQL injection attempts in MongoDB collection/field names
+  - Test edge cases with special characters, unicode, and control sequences
+  - Tooling: testcontainers, proptest for property-based testing, custom injection payloads
+  - Acceptance: All injection attempts fail safely, no code execution, proper error handling
+  - _Requirements: 1.5, 2.1, 2.2_
+
+- [ ] 16.3. Implement access control and privilege escalation prevention tests
+
+  - Test schema collection with minimal database privileges (SELECT only)
+  - Verify no privilege escalation attempts during connection or query execution
+  - Test behavior with revoked permissions and restricted access patterns
+  - Tooling: testcontainers with custom privilege configurations, database user management
+  - Acceptance: Operations fail gracefully with insufficient privileges, no privilege escalation
+  - _Requirements: 1.5, 2.1, 2.3, 12.3_
+
+- [ ] 16.4. Implement secrets leakage prevention and memory isolation tests
+
+  - Test that no sensitive data appears in generated documentation or output files
+  - Verify encryption keys and derived secrets are never logged or persisted
+  - Test memory isolation between different database connections
+  - Tooling: Memory analysis tools, custom test harnesses, encryption validation
+  - Acceptance: Zero secrets in any output, proper memory isolation, encryption compliance
+  - _Requirements: 2.4, 9.5, 9.6_
+
+- [ ] 16.5. Implement stealth operation and evasion detection tests
+
+  - Test rate limiting compliance with configured throttling parameters
+  - Verify query timing patterns don't trigger slow query logs or monitoring alerts
+  - Test retry policies with exponential backoff and jitter for detection avoidance
+  - Test resource usage patterns (CPU, memory, network) for covert operation
+  - Tooling: testcontainers with monitoring, custom timing analysis, resource profiling
+  - Acceptance: Rate limits enforced, retry policies work correctly, minimal resource footprint
+  - _Requirements: 5.1, 5.4, 8.2, 8.5_
+
+- [ ] 16.6. Implement offline operation and airgap compatibility tests
+
+  - Test complete functionality without internet connectivity
+  - Verify no external API calls or telemetry collection
+  - Test airgap compatibility with all database types
+  - Tooling: Network isolation tools, dependency analysis, offline environment simulation
+  - Acceptance: Full functionality in airgapped environments, zero external dependencies
+  - _Requirements: 2.1, 2.2, 2.3, 2.6_
+
+- [ ] 16.7. Implement encryption and cryptographic security validation tests
+
+  - Test AES-GCM encryption with random nonce generation for uniqueness
+  - Verify Argon2id KDF parameters meet security requirements
+  - Test key derivation and `zeroization` processes
+  - Test encrypted output format compliance and decryption accuracy
+  - Tooling: Cryptographic validation libraries, custom encryption test suites
+  - Acceptance: Encryption meets AES-GCM standards, KDF parameters compliant, keys properly `zeroized`
+  - _Requirements: 2.7, 9.3, 9.4, 9.5_
+
+- [ ] 16.8. Implement input validation and malicious input handling tests
+
+  - Test malicious file paths, connection strings, and configuration values
+  - Verify proper handling of malformed database responses and edge cases
+  - Test boundary conditions with extremely large schemas and data volumes
+  - Tooling: proptest for property-based testing, fuzzing tools, custom test generators
+  - Acceptance: All malicious inputs rejected safely, proper error handling, no crashes
+  - _Requirements: 1.1, 2.1, 2.2, 2.3_
+
+- [ ] 16.9. Implement plugin security and WASM sandboxing tests
+
+  - Test WASM plugin loading and execution in sandboxed environments
+  - Verify plugin isolation and resource limits
+  - Test malicious plugin detection and rejection
+  - Tooling: wasmtime integration, custom plugin test harnesses, security scanners
+  - Acceptance: Plugins execute safely in sandbox, malicious plugins rejected, proper isolation
+  - _Requirements: 7.2, 7.7, 7.8_
+
+- [ ] 16.10. Implement compliance and audit trail validation tests
+
+  - Test PII/PCI field detection accuracy and confidence scoring
+  - Verify audit logging and compliance reporting functionality
+  - Test data sampling compliance with privacy requirements
+  - Tooling: Compliance validation tools, custom test datasets, audit log analysis
+  - Acceptance: Accurate sensitive data detection, proper audit trails, compliance reporting
+  - _Requirements: 4.1, 4.2, 4.5, 10.2_
+
+- [ ] 16.11. Implement performance and resource security tests
+
+  - Test memory usage patterns for potential memory exhaustion attacks
+  - Verify connection pool security and resource isolation
+  - Test large schema handling without resource exhaustion
+  - Tooling: Memory profiling tools, resource monitoring, stress testing frameworks
+  - Acceptance: Bounded memory usage, secure resource isolation, graceful degradation
+  - _Requirements: 1.4, 9.6, 11.6_
+
+- [ ] 16.12. Set up security testing framework and infrastructure
+
+  - Configure testcontainers with custom security profiles and privilege configurations
+  - Set up memory analysis and profiling tools for credential leakage detection
+  - Integrate cryptographic validation libraries for encryption testing
+  - Configure network isolation tools for offline operation testing
+  - Set up custom test harnesses for security-specific test scenarios
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.7_
+
+- [ ] 16.13. Create security testing data and malicious test fixtures
+
+  - Create malicious test datasets with SQL injection payloads and edge cases
+  - Build test databases with sensitive data patterns for PII/PCI detection testing
+  - Generate large schema datasets for performance and resource security testing
+  - Create privilege escalation test scenarios with restricted database users
+  - Develop stealth operation test cases with monitoring and detection tools
+  - _Requirements: 1.1, 1.5, 2.1, 2.3, 4.1, 4.2, 5.1, 5.4_
+
+- [ ] 16.14. Integrate security testing into CI/CD pipeline
+
+  - Integrate security tests into CI/CD pipeline with automated execution
+  - Set up security test reporting and failure analysis tools
+  - Configure security test coverage metrics and reporting
+  - Implement security test result caching and incremental testing
+  - Add security test failure alerts and notification systems
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.7_
 
 - [ ] 17. Add CLI snapshot testing with insta
 

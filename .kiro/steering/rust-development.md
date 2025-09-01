@@ -7,7 +7,7 @@ fileMatchPattern: '**/*.rs'
 
 ## Language Requirements
 
-- **Rust Version**: 1.77+ (MSRV as specified in workspace Cargo.toml)
+- **Rust Version**: 1.89 (MSRV)
 - **Edition**: 2021
 - **Toolchain**: Version 1.89.0 (pinned to MSRV)
 
@@ -90,7 +90,7 @@ impl std::fmt::Display for DatabaseConfig {
 
 Use tokio for async operations with proper error handling and timeouts:
 
-```rust
+```rust,no_run
 use tokio::time::{timeout, Duration};
 
 async fn collect_with_timeout(url: &str) -> Result<Schema> {
@@ -116,7 +116,7 @@ async fn collect_with_timeout(url: &str) -> Result<Schema> {
 
 ```rust
 #[tokio::test]
-async fn test_no_credentials_in_output() {
+async fn test_no_credentials_in_output() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = "postgres://user:secret@localhost/db";
     let output = generate_schema_doc(database_url).await?;
 
@@ -124,6 +124,8 @@ async fn test_no_credentials_in_output() {
     assert!(!output.contains("secret"));
     assert!(!output.contains("password"));
     assert!(!output.contains("user:secret"));
+
+    Ok(())
 }
 ```
 

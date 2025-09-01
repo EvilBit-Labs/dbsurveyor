@@ -9,10 +9,10 @@ repos:
         args: ["--maxkb=1024"]
         exclude: |
           (?x)^(
-              \.sql$|
-              \.dump$|
-              \.sqlite$|
-              \.db$
+                  \.sql$|
+                  \.dump$|
+                  \.sqlite$|
+                  \.db$
           )$
       - id: check-case-conflict
       - id: check-merge-conflict
@@ -84,7 +84,7 @@ repos:
     hooks:
       - id: cargo-machete
 
-    # 📝 Markdown formatting and linting (temporarily disabled in CI due to path issues)
+  # 📝 Markdown formatting and linting (temporarily disabled in CI due to path issues)
   - repo: https://github.com/hukkin/mdformat
     rev: 0.7.22
     hooks:

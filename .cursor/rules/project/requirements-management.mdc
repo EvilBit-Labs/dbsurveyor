@@ -1,8 +1,3 @@
----
-description: Requirements management and documentation consistency guidelines
-globs: project_spec/*.md,**/*.md,**/*.mdc
-alwaysApply: false
----
 
 # Project Specification Management Guidelines
 
@@ -99,20 +94,41 @@ Each task should follow this consistent structure for discrete, trackable implem
 ```markdown
 - [ ] **TASK-###**: Task Title
 
-  - **Description**: Clear, detailed explanation of what this task accomplishes
-  - **Context**: Why this task is needed and its relationship to project goals
-  - **Requirement**: List all relevant requirement numbers (F###)
-  - **User Story**: Reference applicable user stories (US-###)
-  - **GitHub Issue**: Link to associated GitHub issue when applicable (https://github.com/owner/repo/issues/123: "Issue Title")
-  - **Expected Outcome**: Specific deliverables and success criteria
-  - **Dependencies**: Prerequisites, resources, or other tasks that must be completed first
-  - **Implementation**: Specific steps, approach, and technical considerations
-  - **Acceptance**: Clear, testable acceptance criteria for completion
-  - **Security/Privacy**:
-    - No credential material in logs/artifacts
-    - Offline-only operation after DB connect
-    - Read-only database interactions
-  - **Resources**: Any tools, documentation, or external resources needed
+    - **Description**: Clear, detailed explanation of what this task accomplishes
+    - **Context**: Why this task is needed and its relationship to project goals
+    - **Requirement**: List all relevant requirement numbers (F###)
+    - **User Story**: Reference applicable user stories (US-###)
+    - **GitHub Issue**: Link to associated GitHub issue when applicable (https://github.com/owner/repo/issues/123: "Issue Title")
+    - **Expected Outcome**: Specific deliverables and success criteria
+    - **Dependencies**: Prerequisites, resources, or other tasks that must be completed first
+    - **Implementation**: Specific steps, approach, and technical considerations
+    - **Acceptance**: Clear, testable acceptance criteria for completion
+    - **Security/Privacy**:
+        - **Threat Model**:
+            - Assets: Database schemas, connection credentials, system metadata
+            - Adversaries: Malicious actors, credential harvesters, data exfiltrators
+            - Attack Vectors: Credential exposure, network interception, unauthorized access
+        - **Threats & Mitigations**:
+            - Credential leakage: No credential material in logs/artifacts, sanitized error messages
+            - Data exfiltration: Offline-only operation after DB connect, encrypted outputs
+            - Unauthorized access: Read-only database interactions, minimal privilege principle
+        - **Data Retention Policy**:
+            - Schema data: Retain for 30 days, auto-purge after project completion
+            - Logs: Retain for 7 days, auto-purge with no sensitive data
+            - Temporary files: Delete immediately after use, secure deletion
+        - **Retention Exceptions**:
+            - Extended retention requires security team approval
+            - Compliance requirements documented and justified
+        - **Secure Deletion**:
+            - Use secure deletion algorithms (DoD 5220.22-M)
+            - Anonymize any retained data for analysis
+        - **Access Control**:
+            - Role-based access to project artifacts
+            - Audit logging for all data access and modifications
+            - No credential material in logs/artifacts
+            - Offline-only operation after DB connect
+            - Read-only database interactions
+    - **Resources**: Any tools, documentation, or external resources needed
 ```
 
 ### Task Lifecycle Management
@@ -219,6 +235,11 @@ alwaysApply: true
 - **Change Impact**: Track how requirement changes affect related artifacts
 
 ## Key Documents
+
+- **[requirements.md](project_spec/requirements.md)** - Complete requirements specification
+- **[tasks.md](project_spec/tasks.md)** - Implementation task checklist
+- **[user_stories.md](project_spec/user_stories.md)** - User stories and use cases
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture documentation
 
 - **[requirements.md](project_spec/requirements.md)** - Complete requirements specification
 - **[tasks.md](project_spec/tasks.md)** - Implementation task checklist

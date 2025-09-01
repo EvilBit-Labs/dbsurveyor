@@ -78,7 +78,7 @@ The release process is fully automated through GitHub Actions:
    Add to `.github/workflows/release.yml`:
 
    ```yaml
-     - name: Generate Homebrew Formula
+        - name: Generate Homebrew Formula
        if: matrix.target == 'x86_64-apple-darwin' # Only for macOS x86_64
        run: |
          cargo dist generate-homebrew-formula

@@ -20,6 +20,7 @@
 
 # Specific ownership for critical files
 /.github/ @unclesp1d3r
+/.github/workflows/ @unclesp1d3r
 /Cargo.toml @unclesp1d3r
 /justfile @unclesp1d3r
 /cargo-deny.toml @unclesp1d3r

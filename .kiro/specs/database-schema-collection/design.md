@@ -535,7 +535,7 @@ impl PostgresAdapter {
             // Check if system column exists (PostgreSQL has ctid)
             let query = format!(
                 "SELECT 1 FROM information_schema.columns
-                 WHERE table_name = $1 AND column_name = $2"
+                                WHERE table_name = $1 AND column_name = $2"
             );
 
             let exists: bool = sqlx::query_scalar(&query)
@@ -2368,84 +2368,84 @@ Expected binary sizes (approximate):
 name: Test Suite
 
 on:
-  push:
+    push:
     branches: [ main ]
-  pull_request:
+    pull_request:
     branches: [ main ]
 
 jobs:
-  test:
+    test:
     name: Test
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
+            uses: dtolnay/rust-toolchain@stable
+            with:
         components: clippy, rustfmt
 
     - name: Install nextest
-      uses: taiki-e/install-action@nextest
+            uses: taiki-e/install-action@nextest
 
     - name: Install cargo-insta
-      uses: taiki-e/install-action@cargo-insta
+            uses: taiki-e/install-action@cargo-insta
 
     - name: Run tests with nextest
-      run: |
+            run: |
         cargo nextest run --all-features --workspace --profile ci
 
     - name: Run benchmarks
-      run: |
+            run: |
         cargo bench --all-features --no-run
 
     - name: Check snapshot tests
-      run: |
+            run: |
         cargo insta test --all-features --check
 
     - name: Security audit
-      run: |
+            run: |
         cargo audit
 
     - name: Check formatting
-      run: |
+            run: |
         cargo fmt --all -- --check
 
     - name: Clippy
-      run: |
+            run: |
         cargo clippy --all-features --all-targets -- -D warnings
 
 # .github/workflows/release.yml
 name: Release
 
 on:
-  push:
+    push:
     tags:
-      - "v*.*.*"
+            - "v*.*.*"
 
 jobs:
-  # Build and upload binaries to GitHub Releases
-  upload-artifacts:
+    # Build and upload binaries to GitHub Releases
+    upload-artifacts:
     permissions:
-      contents: write
+            contents: write
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
+            with:
         fetch-depth: 0
 
     - name: Install cargo-dist
-      run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/latest/download/cargo-dist-installer.sh | sh"
+            run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/latest/download/cargo-dist-installer.sh | sh"
 
     - name: Run cargo-dist
-      run: |
+            run: |
         cargo dist build --tag=${{ github.ref_name }} --output-format=json > dist-manifest.json
         echo "dist ran successfully"
         cat dist-manifest.json
 
     - name: Create Release
-      uses: ncipollo/release-action@v1
-      with:
+            uses: ncipollo/release-action@v1
+            with:
         artifacts: "target/distrib/*"
         bodyFile: "CHANGELOG.md"
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -2821,59 +2821,59 @@ docs/
 name: Documentation
 
 on:
-  push:
+    push:
     branches: [main]
-  pull_request:
+    pull_request:
     branches: [main]
 
 jobs:
-  rustdoc:
+    rustdoc:
     name: Build API Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+            - uses: actions/checkout@v4
 
-      - name: Install Rust
+            - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build rustdoc
+            - name: Build rustdoc
         run: |
-          cargo doc --all-features --no-deps --document-private-items
+                    cargo doc --all-features --no-deps --document-private-items
 
-      - name: Deploy to GitHub Pages
+            - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
-          destination_dir: api
+                    github_token: ${{ secrets.GITHUB_TOKEN }}
+                    publish_dir: ./target/doc
+                    destination_dir: api
 
-  mdbook:
+    mdbook:
     name: Build User Guide
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+            - uses: actions/checkout@v4
 
-      - name: Install mdbook
+            - name: Install mdbook
         run: |
-          curl -L https://github.com/rust-lang/mdBook/releases/latest/download/mdbook-x86_64-unknown-linux-gnu.tar.gz | tar xz
-          curl -L https://github.com/badboy/mdbook-mermaid/releases/latest/download/mdbook-mermaid-x86_64-unknown-linux-gnu.tar.gz | tar xz
-          curl -L https://github.com/tommilligan/mdbook-admonish/releases/latest/download/mdbook-admonish-x86_64-unknown-linux-gnu.tar.gz | tar xz
-          chmod +x mdbook mdbook-mermaid mdbook-admonish
-          sudo mv mdbook mdbook-mermaid mdbook-admonish /usr/local/bin/
+                    curl -L https://github.com/rust-lang/mdBook/releases/latest/download/mdbook-x86_64-unknown-linux-gnu.tar.gz | tar xz
+                    curl -L https://github.com/badboy/mdbook-mermaid/releases/latest/download/mdbook-mermaid-x86_64-unknown-linux-gnu.tar.gz | tar xz
+                    curl -L https://github.com/tommilligan/mdbook-admonish/releases/latest/download/mdbook-admonish-x86_64-unknown-linux-gnu.tar.gz | tar xz
+                    chmod +x mdbook mdbook-mermaid mdbook-admonish
+                    sudo mv mdbook mdbook-mermaid mdbook-admonish /usr/local/bin/
 
-      - name: Build book
+            - name: Build book
         run: |
-          cd docs
-          mdbook build
+                    cd docs
+                    mdbook build
 
-      - name: Deploy to GitHub Pages
+            - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/book
-          destination_dir: guide
+                    github_token: ${{ secrets.GITHUB_TOKEN }}
+                    publish_dir: ./docs/book
+                    destination_dir: guide
 ```
 
 ### Documentation Quality Standards
