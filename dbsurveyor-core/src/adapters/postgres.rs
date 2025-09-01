@@ -14,7 +14,7 @@
 //! - Proper UnifiedDataType mapping from PostgreSQL types
 
 use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter};
-use crate::{models::*, Result};
+use crate::{Result, models::*};
 use async_trait::async_trait;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
@@ -63,10 +63,7 @@ impl PostgresAdapter {
     ///
     /// # Security
     /// Same security guarantees as `new()` but allows custom configuration
-    pub async fn with_config(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> Result<Self> {
+    pub async fn with_config(connection_string: &str, config: ConnectionConfig) -> Result<Self> {
         // Validate the provided configuration
         config.validate()?;
 
@@ -85,7 +82,7 @@ impl PostgresAdapter {
     /// # Returns
     /// Tuple of (active_connections, idle_connections, total_connections)
     pub fn pool_stats(&self) -> (u32, u32, u32) {
-        let size = self.pool.size() as u32;
+        let size = self.pool.size();
         let idle = self.pool.num_idle() as u32;
         (size - idle, idle, size)
     }
@@ -126,9 +123,7 @@ impl PostgresAdapter {
         })?;
 
         // Start with security-focused defaults
-        let mut config = ConnectionConfig::new(
-            url.host_str().unwrap_or("localhost").to_string()
-        );
+        let mut config = ConnectionConfig::new(url.host_str().unwrap_or("localhost").to_string());
 
         // Set port with validation
         if let Some(port) = url.port() {
@@ -152,7 +147,10 @@ impl PostgresAdapter {
                         "Database name too long: maximum 63 characters",
                     ));
                 }
-                if !database.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+                if !database
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                {
                     return Err(crate::error::DbSurveyorError::configuration(
                         "Database name contains invalid characters",
                     ));
@@ -176,29 +174,32 @@ impl PostgresAdapter {
         // Parse query parameters for additional configuration
         for (key, value) in url.query_pairs() {
             match key.as_ref() {
-                    "connect_timeout" => {
-                        if let Ok(timeout_secs) = value.parse::<u64>() {
-                            if timeout_secs > 0 && timeout_secs <= 300 { // Max 5 minutes
-                                config.connect_timeout = Duration::from_secs(timeout_secs);
-                            }
+                "connect_timeout" => {
+                    if let Ok(timeout_secs) = value.parse::<u64>() {
+                        if timeout_secs > 0 && timeout_secs <= 300 {
+                            // Max 5 minutes
+                            config.connect_timeout = Duration::from_secs(timeout_secs);
                         }
                     }
-                    "statement_timeout" => {
-                        if let Ok(timeout_ms) = value.parse::<u64>() {
-                            if timeout_ms > 0 && timeout_ms <= 300_000 { // Max 5 minutes
-                                config.query_timeout = Duration::from_millis(timeout_ms);
-                            }
-                        }
-                    }
-                    "pool_max_conns" => {
-                        if let Ok(max_conns) = value.parse::<u32>() {
-                            if max_conns > 0 && max_conns <= 100 { // Safety limit
-                                config.max_connections = max_conns;
-                            }
-                        }
-                    }
-                    _ => {} // Ignore other parameters
                 }
+                "statement_timeout" => {
+                    if let Ok(timeout_ms) = value.parse::<u64>() {
+                        if timeout_ms > 0 && timeout_ms <= 300_000 {
+                            // Max 5 minutes
+                            config.query_timeout = Duration::from_millis(timeout_ms);
+                        }
+                    }
+                }
+                "pool_max_conns" => {
+                    if let Ok(max_conns) = value.parse::<u32>() {
+                        if max_conns > 0 && max_conns <= 100 {
+                            // Safety limit
+                            config.max_connections = max_conns;
+                        }
+                    }
+                }
+                _ => {} // Ignore other parameters
+            }
         }
 
         // Final validation of the complete configuration
@@ -234,15 +235,12 @@ impl PostgresAdapter {
             // Connection limits with security constraints
             .max_connections(config.max_connections.min(100)) // Cap at 100 for safety
             .min_connections(2) // Keep minimum connections for efficiency
-
             // Timeout configuration for security
             .acquire_timeout(config.connect_timeout)
             .idle_timeout(Some(Duration::from_secs(600))) // 10 minutes idle timeout
             .max_lifetime(Some(Duration::from_secs(3600))) // 1 hour max lifetime
-
             // Connection validation and health checks
             .test_before_acquire(true) // Validate connections before use
-
             // Use lazy connection for better error handling
             .connect_lazy(connection_string)
             .map_err(|e| {
@@ -296,22 +294,23 @@ impl PostgresAdapter {
         // Check for potentially unsafe query parameters
         for (key, value) in url.query_pairs() {
             match key.as_ref() {
-                    // Note: SSL disabled - we don't log this to avoid information disclosure
-                    "sslmode" if value == "disable" => {
-                        // SSL disabled - consider enabling for security
-                    }
-                    // Validate statement timeout if specified
-                    "statement_timeout" => {
-                        if let Ok(timeout_ms) = value.parse::<u64>() {
-                            if timeout_ms > 300_000 { // 5 minutes max
-                                return Err(crate::error::DbSurveyorError::configuration(
-                                    "statement_timeout should not exceed 300 seconds for security",
-                                ));
-                            }
+                // Note: SSL disabled - we don't log this to avoid information disclosure
+                "sslmode" if value == "disable" => {
+                    // SSL disabled - consider enabling for security
+                }
+                // Validate statement timeout if specified
+                "statement_timeout" => {
+                    if let Ok(timeout_ms) = value.parse::<u64>() {
+                        if timeout_ms > 300_000 {
+                            // 5 minutes max
+                            return Err(crate::error::DbSurveyorError::configuration(
+                                "statement_timeout should not exceed 300 seconds for security",
+                            ));
                         }
                     }
-                    _ => {} // Other parameters are acceptable
                 }
+                _ => {} // Other parameters are acceptable
+            }
         }
 
         Ok(())
@@ -329,7 +328,6 @@ impl PostgresAdapter {
     /// # Errors
     /// Returns error if any security setting fails to apply
     async fn setup_session(&self) -> Result<()> {
-
         // Set query timeout to prevent resource exhaustion
         let timeout_seconds = self.config.query_timeout.as_secs();
         sqlx::query(&format!("SET statement_timeout = '{}s'", timeout_seconds))
@@ -448,8 +446,7 @@ impl PostgresAdapter {
         let owner: Option<String> = row.get("owner");
 
         // Check if this is a system database
-        let is_system_database =
-            matches!(name.as_str(), "template0" | "template1" | "postgres");
+        let is_system_database = matches!(name.as_str(), "template0" | "template1" | "postgres");
 
         Ok(DatabaseInfo {
             name,
@@ -499,11 +496,11 @@ impl PostgresAdapter {
             let table = Table {
                 name: table_name,
                 schema: schema_name,
-                columns: Vec::new(), // Will be implemented in task 2.3
-                primary_key: None,   // Will be implemented in task 2.4
+                columns: Vec::new(),      // Will be implemented in task 2.3
+                primary_key: None,        // Will be implemented in task 2.4
                 foreign_keys: Vec::new(), // Will be implemented in task 2.5
-                indexes: Vec::new(), // Will be implemented in task 2.4
-                constraints: Vec::new(), // Will be implemented in task 2.4
+                indexes: Vec::new(),      // Will be implemented in task 2.4
+                constraints: Vec::new(),  // Will be implemented in task 2.4
                 comment,
                 row_count: estimated_rows.map(|r| r as u64),
             };
@@ -525,9 +522,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let connectivity_result: i32 = sqlx::query_scalar("SELECT 1")
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| {
-                crate::error::DbSurveyorError::connection_failed(e)
-            })?;
+            .map_err(crate::error::DbSurveyorError::connection_failed)?;
 
         if connectivity_result != 1 {
             return Err(crate::error::DbSurveyorError::configuration(
@@ -555,8 +550,6 @@ impl DatabaseAdapter for PostgresAdapter {
 
         Ok(())
     }
-
-
 
     async fn collect_schema(&self) -> Result<DatabaseSchema> {
         let start_time = std::time::Instant::now();
@@ -614,6 +607,117 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 }
 
+impl PostgresAdapter {
+    /// Maps PostgreSQL data types to unified data types.
+    ///
+    /// # Arguments
+    /// * `pg_type` - PostgreSQL type name
+    /// * `char_max_length` - Maximum character length for string types
+    /// * `numeric_precision` - Numeric precision for decimal types
+    /// * `numeric_scale` - Numeric scale for decimal types
+    ///
+    /// # Returns
+    /// Returns the corresponding UnifiedDataType or an error if the type is unsupported
+    ///
+    /// # Note
+    /// This is a placeholder implementation for Task 2.3 - table and column introspection
+    pub fn map_postgresql_type(
+        pg_type: &str,
+        char_max_length: Option<i32>,
+        _numeric_precision: Option<i32>,
+        _numeric_scale: Option<i32>,
+    ) -> Result<crate::models::UnifiedDataType> {
+        use crate::models::UnifiedDataType;
+
+        let unified_type = match pg_type {
+            // String types
+            "character varying" | "varchar" => UnifiedDataType::String {
+                max_length: char_max_length.map(|l| l as u32),
+            },
+            "text" | "character" | "char" => UnifiedDataType::String { max_length: None },
+
+            // Integer types
+            "smallint" | "int2" => UnifiedDataType::Integer {
+                bits: 16,
+                signed: true,
+            },
+            "integer" | "int" | "int4" => UnifiedDataType::Integer {
+                bits: 32,
+                signed: true,
+            },
+            "bigint" | "int8" => UnifiedDataType::Integer {
+                bits: 64,
+                signed: true,
+            },
+
+            // Boolean type
+            "boolean" | "bool" => UnifiedDataType::Boolean,
+
+            // Date/time types
+            "timestamp without time zone" | "timestamp" => UnifiedDataType::DateTime {
+                with_timezone: false,
+            },
+            "timestamp with time zone" | "timestamptz" => UnifiedDataType::DateTime {
+                with_timezone: true,
+            },
+            "date" => UnifiedDataType::Date,
+            "time" | "time without time zone" => UnifiedDataType::Time {
+                with_timezone: false,
+            },
+            "time with time zone" | "timetz" => UnifiedDataType::Time {
+                with_timezone: true,
+            },
+
+            // JSON types
+            "json" | "jsonb" => UnifiedDataType::Json,
+
+            // UUID type
+            "uuid" => UnifiedDataType::Uuid,
+
+            // Binary type
+            "bytea" => UnifiedDataType::Binary { max_length: None },
+
+            // Array types (simplified detection)
+            t if t.ends_with("[]") => {
+                let base_type = &t[..t.len() - 2];
+                let element_type =
+                    Box::new(Self::map_postgresql_type(base_type, None, None, None)?);
+                UnifiedDataType::Array { element_type }
+            }
+
+            // Custom/unknown types
+            _ => UnifiedDataType::Custom {
+                type_name: pg_type.to_string(),
+            },
+        };
+
+        Ok(unified_type)
+    }
+
+    /// Maps PostgreSQL referential action codes to unified referential actions.
+    ///
+    /// # Arguments
+    /// * `action_code` - PostgreSQL referential action code (c, n, d, r, a)
+    ///
+    /// # Returns
+    /// Returns the corresponding ReferentialAction or None if unknown
+    ///
+    /// # Note
+    /// This is a placeholder implementation for Task 2.5 - foreign key relationship mapping
+    pub fn map_referential_action(action_code: &str) -> Option<crate::models::ReferentialAction> {
+        use crate::models::ReferentialAction;
+
+        match action_code {
+            "c" => Some(ReferentialAction::Cascade),
+            "n" => Some(ReferentialAction::SetNull),
+            "d" => Some(ReferentialAction::SetDefault),
+            "r" => Some(ReferentialAction::Restrict),
+            "a" => Some(ReferentialAction::NoAction),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -636,7 +740,8 @@ mod tests {
 
     #[test]
     fn test_parse_connection_config_with_query_params() {
-        let connection_string = "postgres://user@host/db?connect_timeout=60&statement_timeout=45000&pool_max_conns=20";
+        let connection_string =
+            "postgres://user@host/db?connect_timeout=60&statement_timeout=45000&pool_max_conns=20";
         let config = PostgresAdapter::parse_connection_config(connection_string).unwrap();
 
         assert_eq!(config.host, "host");
@@ -716,7 +821,12 @@ mod tests {
         let connection_string = "postgres://user@host/db@invalid";
         let result = PostgresAdapter::parse_connection_config(connection_string);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("invalid characters"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("invalid characters")
+        );
     }
 
     #[test]
