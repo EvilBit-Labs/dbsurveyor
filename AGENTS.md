@@ -54,6 +54,7 @@ The preferred technology stack is consistent across the project:
 
 - **Formatting**: `cargo fmt` using standard Rust formatting
 - **Linting**: `cargo clippy -- -D warnings` to enforce strict zero-warning policy
+- **File Organization**: Single-purpose files strictly enforced - one type of code per file, maximum 600 lines preferred, break large files into smaller focused modules
 - **Naming**: Follow standard Rust conventions - `snake_case` for variables/functions, `PascalCase` for types
 - **Error Handling**: Use `Result<T, E>` types and `?` operator. Create custom error types when needed
 - **Documentation**: Comprehensive `///` doc comments for all public APIs
