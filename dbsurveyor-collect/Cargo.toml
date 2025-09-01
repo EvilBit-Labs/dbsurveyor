@@ -54,4 +54,4 @@ rpassword = { workspace = true }
 zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
-testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }
