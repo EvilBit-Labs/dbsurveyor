@@ -37,6 +37,7 @@ fileMatchPattern: '**/*.rs'
 ```rust
 use testcontainers::{clients, images};
 use dbsurveyor_shared::collectors::PostgresCollector;
+use sqlx::PgPool;
 
 #[tokio::test]
 async fn test_postgres_schema_collection() {
@@ -49,15 +50,35 @@ async fn test_postgres_schema_collection() {
         port
     );
 
+    // Connect to database and create test table
+    let pool = PgPool::connect(&database_url).await
+        .expect("Failed to connect to PostgreSQL");
+
+    // Create test table before schema collection
+    sqlx::query("CREATE TABLE IF NOT EXISTS public.users (id INT PRIMARY KEY)")
+        .execute(&pool)
+        .await
+        .expect("Failed to create test table");
+
     let collector = PostgresCollector::new(&database_url).await
         .expect("Failed to create collector");
 
     let schema = collector.collect_schema().await
         .expect("Failed to collect schema");
 
-    // Verify basic schema structure
+    // Verify basic schema structure and actual table discovery
     assert!(!schema.tables.is_empty());
-    assert!(schema.tables.iter().any(|t| t.name == "information_schema"));
+
+    // Assert that our test table was discovered
+    let users_table = schema.tables.iter()
+        .find(|t| t.name == "users" && t.schema == "public")
+        .expect("Test table 'users' not found in schema");
+
+    assert_eq!(users_table.name, "users");
+    assert_eq!(users_table.schema, "public");
+
+    // Clean up
+    pool.close().await;
 }
 ```
 
@@ -79,8 +100,57 @@ async fn test_mysql_schema_collection() {
         port
     );
 
-    // Wait for MySQL to be ready
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    // Wait for MySQL to be ready with polling
+    let max_attempts = 30;
+    let base_delay = std::time::Duration::from_millis(500);
+    let max_delay = std::time::Duration::from_secs(2);
+    let mut delay = base_delay;
+    let mut attempts = 0;
+
+    while attempts < max_attempts {
+        // Try to connect to MySQL
+        match tokio::net::TcpStream::connect(format!("localhost:{}", port)).await {
+            Ok(_) => {
+                // TCP connection successful, try a simple query
+                match sqlx::mysql::MySqlPoolOptions::new()
+                    .max_connections(1)
+                    .connect_timeout(std::time::Duration::from_secs(5))
+                    .connect(&database_url)
+                    .await
+                {
+                    Ok(pool) => {
+                        // Test a simple query
+                        match sqlx::query("SELECT 1").fetch_one(&pool).await {
+                            Ok(_) => {
+                                pool.close().await;
+                                break; // MySQL is ready
+                            }
+                            Err(_) => {
+                                // Query failed, wait and retry
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // Connection failed, wait and retry
+                    }
+                }
+            }
+            Err(_) => {
+                // TCP connection failed, wait and retry
+            }
+        }
+
+        attempts += 1;
+        if attempts < max_attempts {
+            tokio::time::sleep(delay).await;
+            // Exponential backoff with cap
+            delay = std::cmp::min(delay * 2, max_delay);
+        }
+    }
+
+    if attempts >= max_attempts {
+        panic!("MySQL failed to become ready after {} attempts (timeout reached)", max_attempts);
+    }
 
     let collector = MySqlCollector::new(&database_url).await
         .expect("Failed to create MySQL collector");
@@ -103,7 +173,7 @@ async fn test_sqlite_schema_collection() {
     let db_path = temp_dir.path().join("test.db");
 
     // Create test database
-    let conn = sqlx::SqlitePool::connect(&format!("sqlite:///{}", db_path.display())).await?;
+    let conn = sqlx::SqlitePool::connect(&format!("sqlite://{}", db_path.display())).await?;
 
     sqlx::query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
         .execute(&conn).await?;
@@ -111,7 +181,7 @@ async fn test_sqlite_schema_collection() {
     conn.close().await;
 
     // Test schema collection
-    let database_url = format!("sqlite:///{}", db_path.display());
+    let database_url = format!("sqlite://{}", db_path.display());
     let collector = SqliteCollector::new(&database_url).await
         .expect("Failed to create SQLite collector");
 
@@ -271,12 +341,11 @@ cargo test --lib
 cargo test --test '*'
 
 # Run specific database tests
-just test-postgres
-just test-mysql
-just test-sqlite
-
-# Run security tests
-just test-credential-security
+- **Comprehensive**: Test happy path, error cases, and edge conditions
+- **Isolated**: Tests should not depend on external services (except testcontainers)
+- **Deterministic**: Tests must produce consistent results
+- **Fast**: Unit tests should complete in milliseconds
+- **Secure**: No real credentials in test code; use explicit dummy values only
 just test-encryption
 just test-offline
 

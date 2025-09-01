@@ -52,6 +52,10 @@ Describe specific scenarios where this feature would be valuable:
 - [ ] Credential protection maintained
 - [ ] Encryption capabilities preserved
 - [ ] No telemetry or data collection added
+- [ ] All secrets in logs, screenshots, and pasted output are masked or redacted
+- [ ] Sensitive information replaced with placeholders before attaching artifacts
+
+**Security Note**: When providing logs, screenshots, or pasted output, ensure all sensitive information (credentials, tokens, hostnames, IPs) is masked or redacted. Replace with placeholders like `[REDACTED]`, `user:pass@host/db`, or `192.168.x.x` before attaching any artifacts.
 
 ## Database Support
 

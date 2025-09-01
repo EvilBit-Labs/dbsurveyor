@@ -2,7 +2,7 @@
 name: Bug Report
 about: Create a report to help us improve DBSurveyor
 title: '[BUG] '
-labels: [bug]
+labels: [bug, needs-triage]
 ---
 
 ## Bug Description
@@ -12,10 +12,35 @@ A clear and concise description of what the bug is.
 ## Steps to Reproduce
 
 1. Database type: [PostgreSQL/MySQL/SQLite/SQL Server/MongoDB]
-2. Connection string format: `database://<user>:<password>@host:port/db` (⚠️ **NEVER include real credentials**)
+
+2. Connection string format:
+
+   - **PostgreSQL**: `postgres://<USERNAME>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>`
+   - **MySQL**: `mysql://<USERNAME>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>`
+   - **SQLite**: `sqlite://<PATH_TO_DATABASE>`
+   - **SQL Server**: `mssql://<USERNAME>:<PASSWORD>@<HOST>:<PORT>`
+   - **MongoDB**: `mongodb://<USERNAME>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>`
+
+   ⚠️ **NEVER include real credentials** - Use placeholders like `<USERNAME>`, `<PASSWORD>`, `<HOST>`, `<PORT>`, `<DB_NAME>`
+
+   **Note**: Percent-encode special characters in passwords (e.g., `@` becomes `%40`, `#` becomes `%23`)
+
 3. Command executed: `dbsurveyor [command] [options]`
+
 4. Expected behavior: What you expected to happen
+
 5. Actual behavior: What actually happened
+
+6. Exit code: [e.g., 1, 127, 255]
+
+   **How to capture**: Run the failing CLI command and include the numeric exit status from your shell. For example:
+
+   ```bash
+   dbsurveyor [command] [options]
+   echo $?  # This shows the exit code
+   ```
+
+   **Note**: The exit code helps distinguish between CLI failures (non-zero) and data processing errors.
 
 ## Environment Information
 
@@ -51,6 +76,7 @@ A clear and concise description of what the bug is.
 - [ ] Error messages have been sanitized
 - [ ] Database connection details are generic examples
 - [ ] No internal system information exposed
+- [ ] Credentials have been rotated and access audited since issue discovery
 
 ## Additional Context
 

@@ -8,12 +8,13 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-permissions: read-all
+# No global permissions - each job defines its own minimal permissions
 
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       security-events: write
       id-token: write

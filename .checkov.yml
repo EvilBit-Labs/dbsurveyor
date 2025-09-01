@@ -1,4 +1,24 @@
 # You can see all available properties here: https://github.com/bridgecrewio/checkov#configuration-using-a-config-file
-quiet: true
-skip-check:
-  - CKV_DOCKER_2
+
+# Security findings should be visible and break builds
+quiet: false
+
+# Configure failure behavior for security findings
+fail_on:
+  - HIGH
+  - MEDIUM
+
+# Exit with non-zero code on relevant findings
+soft_fail_on:
+  - LOW
+
+# Enable standard output and reporting
+output_format: cli
+
+# Skip specific checks only for known Dockerfile paths that require them
+# CKV_DOCKER_2 is skipped for specific Dockerfiles that need to run as root
+# due to system requirements (e.g., installing system packages, binding to privileged ports)
+skip_path:
+  - path: "**/Dockerfile"
+    check: CKV_DOCKER_2
+    comment: "Dockerfiles may require root access for system package installation and privileged port binding"

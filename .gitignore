@@ -53,7 +53,6 @@ secrets.toml
 # Test artifacts
 *.profraw
 cov-report/
-cov-report/**/lcov.info
 
 # Local development files
 .local/
@@ -88,7 +87,6 @@ grype-report.json
 site/
 
 # Coverage reports
-target/llvm-cov/
 *.profdata
 lcov.info
 
@@ -98,10 +96,6 @@ venv/
 env/
 
 # Python lockfiles (keep for reproducible builds)
-!requirements.txt
-!requirements.in
-!poetry.lock
-!Pipfile.lock
 
 # Node.js modules
 node_modules/

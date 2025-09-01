@@ -98,11 +98,11 @@ When rules conflict, always follow the rule with higher precedence.
 // ✅ Correct: Secure error handling without credential exposure
 #[derive(Error, Debug)]
 pub enum DatabaseError {
-    #[error("Connection failed to database")]
-    ConnectionFailed,
+        #[error("Connection failed to database")]
+        ConnectionFailed,
 
-    #[error("Query execution failed")]
-    QueryFailed(#[from] sqlx::Error),
+        #[error("Query execution failed")]
+        QueryFailed(#[from] sqlx::Error),
 }
 
 // ❌ Incorrect: Exposes credentials in error messages
@@ -161,27 +161,27 @@ ConnectionFailedWithUrl { url: String },
 ```rust
 #[tokio::test]
 async fn test_no_credentials_in_output() {
-    let database_url = "postgres://user:secret@localhost/db";
-    let output = generate_schema_doc(database_url).await?;
+        let database_url = "postgres://user:secret@localhost/db";
+        let output = generate_schema_doc(database_url).await?;
 
-    // Verify no sensitive data leaks
-    assert!(!output.contains("secret"));
-    assert!(!output.contains("password"));
-    assert!(!output.contains("user:secret"));
+        // Verify no sensitive data leaks
+        assert!(!output.contains("secret"));
+        assert!(!output.contains("password"));
+        assert!(!output.contains("user:secret"));
 }
 
 #[tokio::test]
 async fn test_encryption_randomness() {
-    let data = b"test schema data";
-    let encrypted1 = encrypt_data(data)?;
-    let encrypted2 = encrypt_data(data)?;
+        let data = b"test schema data";
+        let encrypted1 = encrypt_data(data)?;
+        let encrypted2 = encrypt_data(data)?;
 
-    // Same data should produce different ciphertext (random nonce)
-    assert_ne!(encrypted1, encrypted2);
+        // Same data should produce different ciphertext (random nonce)
+        assert_ne!(encrypted1, encrypted2);
 
-    // Both should decrypt to same plaintext
-    assert_eq!(decrypt_data(&encrypted1)?, data);
-    assert_eq!(decrypt_data(&encrypted2)?, data);
+        // Both should decrypt to same plaintext
+        assert_eq!(decrypt_data(&encrypted1)?, data);
+        assert_eq!(decrypt_data(&encrypted2)?, data);
 }
 ```
 
@@ -441,11 +441,11 @@ When rules conflict, always follow the rule with higher precedence.
 // ✅ Correct: Secure error handling without credential exposure
 #[derive(Error, Debug)]
 pub enum DatabaseError {
-    #[error("Connection failed to database")]
-    ConnectionFailed,
+        #[error("Connection failed to database")]
+        ConnectionFailed,
 
-    #[error("Query execution failed")]
-    QueryFailed(#[from] sqlx::Error),
+        #[error("Query execution failed")]
+        QueryFailed(#[from] sqlx::Error),
 }
 
 // ❌ Incorrect: Exposes credentials in error messages
@@ -504,27 +504,27 @@ ConnectionFailedWithUrl { url: String },
 ```rust
 #[tokio::test]
 async fn test_no_credentials_in_output() {
-    let database_url = "postgres://user:secret@localhost/db";
-    let output = generate_schema_doc(database_url).await?;
+        let database_url = "postgres://user:secret@localhost/db";
+        let output = generate_schema_doc(database_url).await?;
 
-    // Verify no sensitive data leaks
-    assert!(!output.contains("secret"));
-    assert!(!output.contains("password"));
-    assert!(!output.contains("user:secret"));
+        // Verify no sensitive data leaks
+        assert!(!output.contains("secret"));
+        assert!(!output.contains("password"));
+        assert!(!output.contains("user:secret"));
 }
 
 #[tokio::test]
 async fn test_encryption_randomness() {
-    let data = b"test schema data";
-    let encrypted1 = encrypt_data(data)?;
-    let encrypted2 = encrypt_data(data)?;
+        let data = b"test schema data";
+        let encrypted1 = encrypt_data(data)?;
+        let encrypted2 = encrypt_data(data)?;
 
-    // Same data should produce different ciphertext (random nonce)
-    assert_ne!(encrypted1, encrypted2);
+        // Same data should produce different ciphertext (random nonce)
+        assert_ne!(encrypted1, encrypted2);
 
-    // Both should decrypt to same plaintext
-    assert_eq!(decrypt_data(&encrypted1)?, data);
-    assert_eq!(decrypt_data(&encrypted2)?, data);
+        // Both should decrypt to same plaintext
+        assert_eq!(decrypt_data(&encrypted1)?, data);
+        assert_eq!(decrypt_data(&encrypted2)?, data);
 }
 ```
 

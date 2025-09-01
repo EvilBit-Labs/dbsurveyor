@@ -17,7 +17,7 @@ fail-on-severity: "high"
 
 # the output format of the vulnerability report (options: table, json, cyclonedx)
 # same as -o ; GRYPE_OUTPUT env var
-# output: "table"
+output: "json"
 
 # suppress all output (except for the vulnerability list)
 # same as -q ; GRYPE_QUIET env var
@@ -50,10 +50,10 @@ fail-on-severity: "high"
 #     search-upstream-by-sha1: true
 #     base-url: https://search.maven.org/solrsearch/select
 
-# db:
-# check for database updates on execution
-# same as GRYPE_DB_AUTO_UPDATE env var
-# auto-update: true
+db:
+  # check for database updates on execution
+  # same as GRYPE_DB_AUTO_UPDATE env var
+  auto-update: true
 
 # location to write the vulnerability database cache
 # same as GRYPE_DB_CACHE_DIR env var
