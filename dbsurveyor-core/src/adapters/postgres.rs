@@ -96,7 +96,8 @@ impl PostgresAdapter {
         let idle = self.pool.num_idle();
         // Convert to u32 safely, using saturating conversion to prevent overflow
         let idle_u32 = idle.min(u32::MAX as usize) as u32;
-        (size.saturating_sub(idle_u32), idle_u32, size)
+        let size_u32 = size;
+        (size_u32.saturating_sub(idle_u32), idle_u32, size_u32)
     }
 
     /// Closes the connection pool gracefully
@@ -105,6 +106,21 @@ impl PostgresAdapter {
     /// Ensures all connections are properly closed and cleaned up
     pub async fn close(&self) {
         self.pool.close().await;
+    }
+
+    /// Checks the health of the connection pool
+    ///
+    /// # Returns
+    /// True if the pool is healthy and can acquire connections
+    pub async fn is_pool_healthy(&self) -> bool {
+        // Try to acquire a connection and execute a simple query
+        match sqlx::query_scalar::<_, i32>("SELECT 1")
+            .fetch_one(&self.pool)
+            .await
+        {
+            Ok(result) => result == 1,
+            Err(_) => false,
+        }
     }
 
     /// Parses connection string to extract configuration parameters
@@ -153,18 +169,31 @@ impl PostgresAdapter {
         if !url.path().is_empty() && url.path() != "/" {
             let database = url.path().trim_start_matches('/');
             if !database.is_empty() {
-                // Validate database name format (basic SQL identifier rules)
+                // Validate database name format (PostgreSQL identifier rules)
                 if database.len() > 63 {
                     return Err(crate::error::DbSurveyorError::configuration(
                         "Database name too long: maximum 63 characters",
                     ));
                 }
+                // PostgreSQL identifiers can contain letters, digits, underscores, and dollar signs
+                // Must start with a letter or underscore
+                if database.is_empty() {
+                    return Err(crate::error::DbSurveyorError::configuration(
+                        "Database name cannot be empty",
+                    ));
+                }
+                let first_char = database.chars().next().unwrap();
+                if !first_char.is_ascii_alphabetic() && first_char != '_' {
+                    return Err(crate::error::DbSurveyorError::configuration(
+                        "Database name must start with a letter or underscore",
+                    ));
+                }
                 if !database
                     .chars()
-                    .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
                 {
                     return Err(crate::error::DbSurveyorError::configuration(
-                        "Database name contains invalid characters",
+                        "Database name contains invalid characters (only letters, digits, underscores, and dollar signs allowed)",
                     ));
                 }
                 config = config.with_database(database.to_string());
@@ -174,10 +203,25 @@ impl PostgresAdapter {
         // Extract username with validation
         let username = url.username();
         if !username.is_empty() {
-            // Validate username format
+            // Validate username format (PostgreSQL role name rules)
             if username.len() > 63 {
                 return Err(crate::error::DbSurveyorError::configuration(
                     "Username too long: maximum 63 characters",
+                ));
+            }
+            // PostgreSQL role names follow similar rules to identifiers
+            let first_char = username.chars().next().unwrap();
+            if !first_char.is_ascii_alphabetic() && first_char != '_' {
+                return Err(crate::error::DbSurveyorError::configuration(
+                    "Username must start with a letter or underscore",
+                ));
+            }
+            if !username
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+            {
+                return Err(crate::error::DbSurveyorError::configuration(
+                    "Username contains invalid characters (only letters, digits, underscores, and dollar signs allowed)",
                 ));
             }
             config = config.with_username(username.to_string());
@@ -563,6 +607,453 @@ impl PostgresAdapter {
         Ok(schemas)
     }
 
+    /// Collects column metadata for a specific table
+    ///
+    /// # Security
+    /// - Uses read-only queries with proper timeout handling
+    /// - Sanitizes all error messages to prevent credential exposure
+    /// - Logs query execution with credential sanitization
+    ///
+    /// # Arguments
+    /// * `table_name` - Name of the table to collect columns for
+    /// * `schema_name` - Schema containing the table (None for public schema)
+    ///
+    /// # Returns
+    /// Vector of columns with comprehensive metadata including data types, constraints, and ordering
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Insufficient privileges to access information_schema.columns
+    /// - Query timeout or connection failure
+    /// - Invalid data type mapping
+    async fn collect_table_columns(
+        &self,
+        table_name: &str,
+        schema_name: &Option<String>,
+    ) -> Result<Vec<Column>> {
+        let schema = schema_name.as_deref().unwrap_or("public");
+
+        tracing::debug!("Collecting columns for table '{}.{}'", schema, table_name);
+
+        let columns_query = r#"
+            SELECT
+                c.column_name,
+                c.data_type,
+                c.udt_name,
+                c.character_maximum_length,
+                c.numeric_precision,
+                c.numeric_scale,
+                c.datetime_precision,
+                c.is_nullable,
+                c.column_default,
+                c.ordinal_position,
+                col_description(pgc.oid, c.ordinal_position) as column_comment,
+                c.is_identity,
+                c.identity_generation,
+                CASE
+                    WHEN c.data_type = 'ARRAY' THEN
+                        CASE
+                            WHEN c.udt_name LIKE '_%' THEN substring(c.udt_name from 2)
+                            ELSE c.udt_name
+                        END
+                    ELSE NULL
+                END as array_element_type,
+                -- Check if column is part of primary key
+                CASE
+                    WHEN pk.column_name IS NOT NULL THEN true
+                    ELSE false
+                END as is_primary_key
+            FROM information_schema.columns c
+            LEFT JOIN pg_class pgc ON pgc.relname = c.table_name
+            LEFT JOIN pg_namespace pgn ON pgn.nspname = c.table_schema AND pgc.relnamespace = pgn.oid
+            LEFT JOIN (
+                SELECT
+                    kcu.column_name,
+                    kcu.table_name,
+                    kcu.table_schema
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'PRIMARY KEY'
+            ) pk ON pk.column_name = c.column_name
+                AND pk.table_name = c.table_name
+                AND pk.table_schema = c.table_schema
+            WHERE c.table_name = $1
+            AND c.table_schema = $2
+            ORDER BY c.ordinal_position
+        "#;
+
+        let column_rows = sqlx::query(columns_query)
+            .bind(table_name)
+            .bind(schema)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to collect columns for table '{}.{}': {}",
+                    schema,
+                    table_name,
+                    e
+                );
+                match &e {
+                    sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("42501") => {
+                        crate::error::DbSurveyorError::insufficient_privileges(
+                            "Cannot access information_schema.columns - insufficient privileges",
+                        )
+                    }
+                    _ => crate::error::DbSurveyorError::collection_failed(
+                        format!(
+                            "Failed to collect columns for table '{}.{}'",
+                            schema, table_name
+                        ),
+                        e,
+                    ),
+                }
+            })?;
+
+        let mut columns = Vec::new();
+
+        for (row_index, row) in column_rows.iter().enumerate() {
+            let column_name: String = row.try_get("column_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse column name from database result (row {})",
+                        row_index + 1
+                    ),
+                    e,
+                )
+            })?;
+
+            let data_type: String = row.try_get("data_type").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse data type from database result",
+                    e,
+                )
+            })?;
+
+            let udt_name: String = row.try_get("udt_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse UDT name from database result",
+                    e,
+                )
+            })?;
+
+            let character_maximum_length: Option<i32> =
+                row.try_get("character_maximum_length").map_err(|e| {
+                    crate::error::DbSurveyorError::collection_failed(
+                        "Failed to parse character maximum length from database result",
+                        e,
+                    )
+                })?;
+
+            let numeric_precision: Option<i32> = row.try_get("numeric_precision").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse numeric precision from database result",
+                    e,
+                )
+            })?;
+
+            let numeric_scale: Option<i32> = row.try_get("numeric_scale").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse numeric scale from database result",
+                    e,
+                )
+            })?;
+
+            let _datetime_precision: Option<i32> =
+                row.try_get("datetime_precision").map_err(|e| {
+                    crate::error::DbSurveyorError::collection_failed(
+                        "Failed to parse datetime precision from database result",
+                        e,
+                    )
+                })?;
+
+            let is_nullable: String = row.try_get("is_nullable").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse is_nullable from database result",
+                    e,
+                )
+            })?;
+
+            let column_default: Option<String> = row.try_get("column_default").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse column default from database result",
+                    e,
+                )
+            })?;
+
+            let ordinal_position: i32 = row.try_get("ordinal_position").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse ordinal position from database result",
+                    e,
+                )
+            })?;
+
+            let column_comment: Option<String> = row.try_get("column_comment").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse column comment from database result",
+                    e,
+                )
+            })?;
+
+            let is_identity: String = row.try_get("is_identity").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse is_identity from database result",
+                    e,
+                )
+            })?;
+
+            let array_element_type: Option<String> =
+                row.try_get("array_element_type").map_err(|e| {
+                    crate::error::DbSurveyorError::collection_failed(
+                        "Failed to parse array element type from database result",
+                        e,
+                    )
+                })?;
+
+            let is_primary_key: bool = row.try_get("is_primary_key").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse is_primary_key from database result",
+                    e,
+                )
+            })?;
+
+            // Map PostgreSQL data type to unified data type
+            let unified_data_type = Self::map_postgres_type_to_unified(
+                &data_type,
+                &udt_name,
+                character_maximum_length,
+                numeric_precision,
+                numeric_scale,
+                array_element_type.as_deref(),
+            )?;
+
+            // Determine if column is auto-increment
+            let is_auto_increment = is_identity == "YES"
+                || column_default.as_ref().is_some_and(|default| {
+                    // Check for sequence-based defaults (SERIAL types)
+                    default.starts_with("nextval(")
+                        || default.contains("_seq'::regclass)")
+                        || default.contains("::regclass")
+                });
+
+            let column = Column {
+                name: column_name,
+                data_type: unified_data_type,
+                is_nullable: is_nullable == "YES",
+                is_primary_key,
+                is_auto_increment,
+                default_value: column_default,
+                comment: column_comment,
+                ordinal_position: ordinal_position as u32,
+            };
+
+            tracing::debug!(
+                "Collected column '{}' (position {}, type: {:?}, nullable: {}, pk: {})",
+                column.name,
+                column.ordinal_position,
+                column.data_type,
+                column.is_nullable,
+                column.is_primary_key
+            );
+
+            columns.push(column);
+        }
+
+        tracing::debug!(
+            "Successfully collected {} columns for table '{}.{}'",
+            columns.len(),
+            schema,
+            table_name
+        );
+
+        Ok(columns)
+    }
+
+    /// Maps PostgreSQL data types to unified data types
+    ///
+    /// # Arguments
+    /// * `data_type` - PostgreSQL data type from information_schema
+    /// * `udt_name` - User-defined type name for more specific type information
+    /// * `character_maximum_length` - Maximum length for character types
+    /// * `numeric_precision` - Precision for numeric types
+    /// * `numeric_scale` - Scale for numeric types
+    /// * `array_element_type` - Element type for array types
+    ///
+    /// # Returns
+    /// Unified data type representation
+    ///
+    /// # Errors
+    /// Returns error if data type mapping fails or is unsupported
+    fn map_postgres_type_to_unified(
+        data_type: &str,
+        udt_name: &str,
+        character_maximum_length: Option<i32>,
+        numeric_precision: Option<i32>,
+        numeric_scale: Option<i32>,
+        array_element_type: Option<&str>,
+    ) -> Result<UnifiedDataType> {
+        let unified_type = match data_type.to_lowercase().as_str() {
+            // String/Character types
+            "character varying" | "varchar" => UnifiedDataType::String {
+                max_length: character_maximum_length.map(|l| l as u32),
+            },
+            "character" | "char" => UnifiedDataType::String {
+                max_length: character_maximum_length.map(|l| l as u32),
+            },
+            "text" => UnifiedDataType::String { max_length: None },
+
+            // Integer types
+            "smallint" | "int2" => UnifiedDataType::Integer {
+                bits: 16,
+                signed: true,
+            },
+            "integer" | "int" | "int4" => UnifiedDataType::Integer {
+                bits: 32,
+                signed: true,
+            },
+            "bigint" | "int8" => UnifiedDataType::Integer {
+                bits: 64,
+                signed: true,
+            },
+
+            // Floating point types
+            "real" | "float4" => UnifiedDataType::Float {
+                precision: Some(24),
+            },
+            "double precision" | "float8" => UnifiedDataType::Float {
+                precision: Some(53),
+            },
+            "numeric" | "decimal" => {
+                if let Some(scale) = numeric_scale {
+                    if scale == 0 {
+                        // No decimal places - treat as integer
+                        let bits = match numeric_precision {
+                            Some(p) if p <= 4 => 16,
+                            Some(p) if p <= 9 => 32,
+                            _ => 64,
+                        };
+                        UnifiedDataType::Integer { bits, signed: true }
+                    } else {
+                        // Has decimal places - treat as float
+                        UnifiedDataType::Float {
+                            precision: numeric_precision.map(|p| p as u8),
+                        }
+                    }
+                } else {
+                    UnifiedDataType::Float {
+                        precision: numeric_precision.map(|p| p as u8),
+                    }
+                }
+            }
+
+            // Boolean type
+            "boolean" | "bool" => UnifiedDataType::Boolean,
+
+            // Date and time types
+            "timestamp without time zone" | "timestamp" => UnifiedDataType::DateTime {
+                with_timezone: false,
+            },
+            "timestamp with time zone" | "timestamptz" => UnifiedDataType::DateTime {
+                with_timezone: true,
+            },
+            "date" => UnifiedDataType::Date,
+            "time without time zone" | "time" => UnifiedDataType::Time {
+                with_timezone: false,
+            },
+            "time with time zone" | "timetz" => UnifiedDataType::Time {
+                with_timezone: true,
+            },
+
+            // Binary types
+            "bytea" => UnifiedDataType::Binary { max_length: None },
+
+            // JSON types
+            "json" => UnifiedDataType::Json,
+            "jsonb" => UnifiedDataType::Json,
+
+            // UUID type
+            "uuid" => UnifiedDataType::Uuid,
+
+            // Array types
+            "array" => {
+                if let Some(element_type) = array_element_type {
+                    // Recursively map the element type
+                    let element_unified_type = Self::map_postgres_type_to_unified(
+                        element_type,
+                        element_type,
+                        character_maximum_length,
+                        numeric_precision,
+                        numeric_scale,
+                        None, // Arrays of arrays not supported in this mapping
+                    )?;
+                    UnifiedDataType::Array {
+                        element_type: Box::new(element_unified_type),
+                    }
+                } else {
+                    // Fallback for unknown array element type
+                    UnifiedDataType::Custom {
+                        type_name: format!("{}[]", udt_name),
+                    }
+                }
+            }
+
+            // PostgreSQL-specific types that map to custom
+            "inet" | "cidr" | "macaddr" | "macaddr8" => UnifiedDataType::Custom {
+                type_name: udt_name.to_string(),
+            },
+            "point" | "line" | "lseg" | "box" | "path" | "polygon" | "circle" => {
+                UnifiedDataType::Custom {
+                    type_name: udt_name.to_string(),
+                }
+            }
+            "tsvector" | "tsquery" => UnifiedDataType::Custom {
+                type_name: udt_name.to_string(),
+            },
+            "xml" => UnifiedDataType::Custom {
+                type_name: "xml".to_string(),
+            },
+
+            // Handle user-defined types and enums
+            "user-defined" => {
+                // Check for common PostgreSQL built-in types that appear as user-defined
+                match udt_name {
+                    "uuid" => UnifiedDataType::Uuid,
+                    "json" => UnifiedDataType::Json,
+                    "jsonb" => UnifiedDataType::Json,
+                    "inet" | "cidr" | "macaddr" | "macaddr8" => UnifiedDataType::Custom {
+                        type_name: udt_name.to_string(),
+                    },
+                    _ => {
+                        // Assume it's an enum or custom type
+                        UnifiedDataType::Custom {
+                            type_name: udt_name.to_string(),
+                        }
+                    }
+                }
+            }
+
+            // Fallback for unknown types
+            _ => {
+                tracing::warn!(
+                    "Unknown PostgreSQL data type '{}' (UDT: '{}'), mapping to custom type",
+                    data_type,
+                    udt_name
+                );
+                // Use UDT name if available and different from data_type, otherwise just data_type
+                let type_name = if udt_name != data_type && !udt_name.is_empty() {
+                    format!("{}({})", data_type, udt_name)
+                } else {
+                    data_type.to_string()
+                };
+                UnifiedDataType::Custom { type_name }
+            }
+        };
+
+        Ok(unified_type)
+    }
+
     /// Collects all tables from the database with comprehensive metadata
     ///
     /// # Security
@@ -572,7 +1063,7 @@ impl PostgresAdapter {
     /// - Filters tables based on user privileges
     ///
     /// # Returns
-    /// Vector of tables with basic metadata (detailed column info in task 2.3)
+    /// Vector of tables with comprehensive column metadata
     ///
     /// # Errors
     /// Returns error if:
@@ -677,11 +1168,16 @@ impl PostgresAdapter {
                 _ => {}
             }
 
-            // Create basic table structure - detailed collection will be implemented in subsequent tasks
+            // Collect detailed column information for this table
+            let columns = self
+                .collect_table_columns(&table_name, &schema_name)
+                .await?;
+
+            // Create table structure with collected column metadata
             let table = Table {
                 name: table_name,
                 schema: schema_name,
-                columns: Vec::new(),      // Will be implemented in task 2.3
+                columns,
                 primary_key: None,        // Will be implemented in task 2.4
                 foreign_keys: Vec::new(), // Will be implemented in task 2.5
                 indexes: Vec::new(),      // Will be implemented in task 2.4
@@ -880,9 +1376,15 @@ impl DatabaseAdapter for PostgresAdapter {
 
         // Collect tables with comprehensive metadata
         tracing::debug!("Enumerating database tables and views");
+        let table_collection_start = std::time::Instant::now();
         let tables = match self.collect_tables().await {
             Ok(tables) => {
-                tracing::info!("Successfully collected {} tables and views", tables.len());
+                let table_collection_duration = table_collection_start.elapsed();
+                tracing::info!(
+                    "Successfully collected {} tables and views in {:.2}s",
+                    tables.len(),
+                    table_collection_duration.as_secs_f64()
+                );
                 tables
             }
             Err(e) => {
@@ -1455,6 +1957,49 @@ mod tests {
         assert!(display.contains("localhost"));
         assert!(!display.contains("password"));
         assert!(!display.contains("secret"));
+    }
+
+    #[test]
+    fn test_database_name_validation() {
+        // Valid database names
+        assert!(PostgresAdapter::parse_connection_config("postgres://user@host/valid_db").is_ok());
+        assert!(
+            PostgresAdapter::parse_connection_config("postgres://user@host/_underscore").is_ok()
+        );
+        assert!(PostgresAdapter::parse_connection_config("postgres://user@host/db$dollar").is_ok());
+
+        // Invalid database names
+        assert!(
+            PostgresAdapter::parse_connection_config("postgres://user@host/123invalid").is_err()
+        ); // Starts with number
+        assert!(PostgresAdapter::parse_connection_config("postgres://user@host/-invalid").is_err()); // Starts with dash
+        assert!(
+            PostgresAdapter::parse_connection_config("postgres://user@host/invalid-char").is_err()
+        ); // Contains dash
+        assert!(
+            PostgresAdapter::parse_connection_config("postgres://user@host/invalid@char").is_err()
+        ); // Contains @
+
+        // Empty database name
+        assert!(PostgresAdapter::parse_connection_config("postgres://user@host/").is_ok()); // Empty is OK (uses default)
+    }
+
+    #[test]
+    fn test_username_validation() {
+        // Valid usernames
+        assert!(PostgresAdapter::parse_connection_config("postgres://valid_user@host/db").is_ok());
+        assert!(PostgresAdapter::parse_connection_config("postgres://_underscore@host/db").is_ok());
+        assert!(PostgresAdapter::parse_connection_config("postgres://user$dollar@host/db").is_ok());
+
+        // Invalid usernames
+        assert!(PostgresAdapter::parse_connection_config("postgres://123invalid@host/db").is_err()); // Starts with number
+        assert!(PostgresAdapter::parse_connection_config("postgres://-invalid@host/db").is_err()); // Starts with dash
+        assert!(
+            PostgresAdapter::parse_connection_config("postgres://invalid-char@host/db").is_err()
+        ); // Contains dash
+        assert!(
+            PostgresAdapter::parse_connection_config("postgres://invalid@char@host/db").is_err()
+        ); // Contains @
     }
 
     // Integration tests would go here but require a real PostgreSQL instance
