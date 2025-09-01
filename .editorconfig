@@ -11,11 +11,6 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
-# Note: max_line_length is not reliably supported by all editors
-# Use language-specific formatters instead:
-# - Rust: rustfmt.toml (max_width = 119)
-# - Markdown: .markdownlint-cli2.jsonc (MD013 disabled)
-# - YAML/JSON: Respect indent_size settings below
 
 # Rust files
 [*.rs]
@@ -29,10 +24,6 @@ indent_size = 4
 [*.md]
 trim_trailing_whitespace = false
 
-# YAML files
-[*.{yml,yaml}]
-indent_size = 2
-
-# JSON files
-[*.json]
+# JSON, YAML, and JSONC files
+[*.json,*.jsonc,*.yml,*.yaml]
 indent_size = 2
