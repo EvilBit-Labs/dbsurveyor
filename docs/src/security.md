@@ -43,14 +43,14 @@ Industry-standard authenticated encryption for sensitive schema outputs.
 
 #### Key Derivation Parameters
 
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
-| Algorithm | Argon2id v1.3 | Memory-hard key derivation |
-| Salt Size | 16 bytes (128 bits) | Random salt per encryption |
-| Memory Cost | 64 MiB (65536 KiB) | Memory hardness |
-| Time Cost | 3 iterations | Computational hardness |
-| Parallelism | 4 threads | Parallel processing |
-| Output Length | 32 bytes (256 bits) | AES-256 key size |
+| Parameter     | Value               | Purpose                    |
+| ------------- | ------------------- | -------------------------- |
+| Algorithm     | Argon2id v1.3       | Memory-hard key derivation |
+| Salt Size     | 16 bytes (128 bits) | Random salt per encryption |
+| Memory Cost   | 64 MiB (65536 KiB)  | Memory hardness            |
+| Time Cost     | 3 iterations        | Computational hardness     |
+| Parallelism   | 4 threads           | Parallel processing        |
+| Output Length | 32 bytes (256 bits) | AES-256 key size           |
 
 #### Encryption Process
 
@@ -161,13 +161,14 @@ fn test_airgap_compatibility() {
    GRANT CONNECT ON DATABASE mydb TO dbsurveyor_readonly;
    GRANT USAGE ON SCHEMA public TO dbsurveyor_readonly;
    GRANT SELECT ON ALL TABLES IN SCHEMA public TO dbsurveyor_readonly;
-   
+
    -- MySQL
    CREATE USER 'dbsurveyor_readonly'@'%' IDENTIFIED BY 'password';
    GRANT SELECT ON mydb.* TO 'dbsurveyor_readonly'@'%';
    ```
 
 2. **Use Strong Encryption Passwords**
+
    - Minimum 12 characters
    - Mix of uppercase, lowercase, numbers, symbols
    - Consider using password managers
@@ -177,12 +178,13 @@ fn test_airgap_compatibility() {
    ```bash
    # Set restrictive permissions on encrypted files
    chmod 600 schema.enc
-   
+
    # Use secure deletion when done
    shred -vfz -n 3 schema.enc
    ```
 
 4. **Network Security**
+
    - Use TLS/SSL connections when possible
    - Avoid credentials in command history
    - Use environment variables for connection strings
@@ -194,7 +196,7 @@ fn test_airgap_compatibility() {
    ```rust
    // ✅ Correct
    log::info!("Connecting to database");
-   
+
    // ❌ Never do this
    log::info!("Connecting to {}", database_url);
    ```
@@ -205,7 +207,7 @@ fn test_airgap_compatibility() {
    // ✅ Correct
    #[error("Connection failed to database")]
    ConnectionFailed,
-   
+
    // ❌ Never do this
    #[error("Failed to connect to {url}")]
    ConnectionError { url: String },
@@ -215,7 +217,7 @@ fn test_airgap_compatibility() {
 
    ```rust
    use zeroize::{Zeroize, Zeroizing};
-   
+
    #[derive(Zeroize)]
    #[zeroize(drop)]
    struct Credentials {

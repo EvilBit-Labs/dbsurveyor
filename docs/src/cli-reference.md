@@ -15,26 +15,26 @@ dbsurveyor-collect <COMMAND>
 
 ### Global Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--verbose` | `-v` | Increase verbosity (-v, -vv, -vvv) |
-| `--quiet` | `-q` | Suppress all output except errors |
-| `--help` | `-h` | Print help information |
-| `--version` | `-V` | Print version information |
+| Option      | Short | Description                        |
+| ----------- | ----- | ---------------------------------- |
+| `--verbose` | `-v`  | Increase verbosity (-v, -vv, -vvv) |
+| `--quiet`   | `-q`  | Suppress all output except errors  |
+| `--help`    | `-h`  | Print help information             |
+| `--version` | `-V`  | Print version information          |
 
 ### Collection Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--database-url <URL>` | Database connection string | From `DATABASE_URL` env var |
-| `--output <PATH>` | Output file path | `schema.dbsurveyor.json` |
-| `--sample <N>` | Number of sample rows per table | `100` |
-| `--throttle <MS>` | Delay between operations (ms) | None |
-| `--compress` | Compress output using Zstandard | `false` |
-| `--encrypt` | Encrypt output using AES-GCM | `false` |
-| `--all-databases` | Collect all accessible databases | `false` |
-| `--include-system-databases` | Include system databases | `false` |
-| `--exclude-databases <LIST>` | Comma-separated list to exclude | None |
+| Option                       | Description                      | Default                     |
+| ---------------------------- | -------------------------------- | --------------------------- |
+| `--database-url <URL>`       | Database connection string       | From `DATABASE_URL` env var |
+| `--output <PATH>`            | Output file path                 | `schema.dbsurveyor.json`    |
+| `--sample <N>`               | Number of sample rows per table  | `100`                       |
+| `--throttle <MS>`            | Delay between operations (ms)    | None                        |
+| `--compress`                 | Compress output using Zstandard  | `false`                     |
+| `--encrypt`                  | Encrypt output using AES-GCM     | `false`                     |
+| `--all-databases`            | Collect all accessible databases | `false`                     |
+| `--include-system-databases` | Include system databases         | `false`                     |
+| `--exclude-databases <LIST>` | Comma-separated list to exclude  | None                        |
 
 ### Commands
 
@@ -86,20 +86,20 @@ dbsurveyor-collect --throttle 1000 postgres://localhost/db
 
 ### Connection String Formats
 
-| Database | Format | Example |
-|----------|--------|---------|
+| Database   | Format                              | Example                                       |
+| ---------- | ----------------------------------- | --------------------------------------------- |
 | PostgreSQL | `postgres://user:pass@host:port/db` | `postgres://admin:secret@localhost:5432/mydb` |
-| MySQL | `mysql://user:pass@host:port/db` | `mysql://root:password@localhost:3306/mydb` |
-| SQLite | `sqlite:///path/to/file` | `sqlite:///home/user/data.db` |
-| MongoDB | `mongodb://user:pass@host:port/db` | `mongodb://admin:secret@localhost:27017/mydb` |
-| SQL Server | `mssql://user:pass@host:port/db` | `mssql://sa:password@localhost:1433/mydb` |
+| MySQL      | `mysql://user:pass@host:port/db`    | `mysql://root:password@localhost:3306/mydb`   |
+| SQLite     | `sqlite:///path/to/file`            | `sqlite:///home/user/data.db`                 |
+| MongoDB    | `mongodb://user:pass@host:port/db`  | `mongodb://admin:secret@localhost:27017/mydb` |
+| SQL Server | `mssql://user:pass@host:port/db`    | `mssql://sa:password@localhost:1433/mydb`     |
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Default database connection string |
-| `RUST_LOG` | Logging configuration (`error`, `warn`, `info`, `debug`, `trace`) |
+| Variable       | Description                                                       |
+| -------------- | ----------------------------------------------------------------- |
+| `DATABASE_URL` | Default database connection string                                |
+| `RUST_LOG`     | Logging configuration (`error`, `warn`, `info`, `debug`, `trace`) |
 
 ---
 
@@ -116,39 +116,39 @@ dbsurveyor <COMMAND>
 
 ### Global Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--verbose` | `-v` | Increase verbosity (-v, -vv, -vvv) |
-| `--quiet` | `-q` | Suppress all output except errors |
-| `--help` | `-h` | Print help information |
-| `--version` | `-V` | Print version information |
+| Option      | Short | Description                        |
+| ----------- | ----- | ---------------------------------- |
+| `--verbose` | `-v`  | Increase verbosity (-v, -vv, -vvv) |
+| `--quiet`   | `-q`  | Suppress all output except errors  |
+| `--help`    | `-h`  | Print help information             |
+| `--version` | `-V`  | Print version information          |
 
 ### Documentation Options
 
-| Option | Short | Description | Default |
-|--------|-------|-------------|---------|
-| `--format <FORMAT>` | `-f` | Output format | `markdown` |
-| `--output <PATH>` | `-o` | Output file path | Auto-detected |
-| `--redact-mode <MODE>` | | Data redaction level | `balanced` |
-| `--no-redact` | | Disable all data redaction | `false` |
+| Option                 | Short | Description                | Default       |
+| ---------------------- | ----- | -------------------------- | ------------- |
+| `--format <FORMAT>`    | `-f`  | Output format              | `markdown`    |
+| `--output <PATH>`      | `-o`  | Output file path           | Auto-detected |
+| `--redact-mode <MODE>` |       | Data redaction level       | `balanced`    |
+| `--no-redact`          |       | Disable all data redaction | `false`       |
 
 ### Output Formats
 
-| Format | Description | Extension |
-|--------|-------------|-----------|
-| `markdown` | Markdown documentation | `.md` |
-| `html` | HTML report with search | `.html` |
-| `json` | JSON analysis report | `.json` |
-| `mermaid` | Mermaid ERD diagram | `.mmd` |
+| Format     | Description             | Extension |
+| ---------- | ----------------------- | --------- |
+| `markdown` | Markdown documentation  | `.md`     |
+| `html`     | HTML report with search | `.html`   |
+| `json`     | JSON analysis report    | `.json`   |
+| `mermaid`  | Mermaid ERD diagram     | `.mmd`    |
 
 ### Redaction Modes
 
-| Mode | Description |
-|------|-------------|
-| `none` | No redaction (show all data) |
-| `minimal` | Minimal redaction (only obvious sensitive fields) |
-| `balanced` | Balanced redaction (recommended default) |
-| `conservative` | Conservative redaction (maximum privacy) |
+| Mode           | Description                                       |
+| -------------- | ------------------------------------------------- |
+| `none`         | No redaction (show all data)                      |
+| `minimal`      | Minimal redaction (only obvious sensitive fields) |
+| `balanced`     | Balanced redaction (recommended default)          |
+| `conservative` | Conservative redaction (maximum privacy)          |
 
 ### Commands
 
@@ -238,29 +238,29 @@ dbsurveyor --no-redact schema.json
 
 DBSurveyor automatically detects input file formats:
 
-| Extension | Format | Description |
-|-----------|--------|-------------|
-| `.json` | JSON | Standard schema format |
-| `.zst` | Compressed | Zstandard compressed JSON |
-| `.enc` | Encrypted | AES-GCM encrypted JSON |
+| Extension | Format     | Description               |
+| --------- | ---------- | ------------------------- |
+| `.json`   | JSON       | Standard schema format    |
+| `.zst`    | Compressed | Zstandard compressed JSON |
+| `.enc`    | Encrypted  | AES-GCM encrypted JSON    |
 
 ### Exit Codes
 
-| Code | Description |
-|------|-------------|
-| `0` | Success |
-| `1` | General error |
-| `2` | Invalid arguments |
-| `3` | File not found |
-| `4` | Permission denied |
-| `5` | Database connection failed |
-| `6` | Encryption/decryption failed |
+| Code | Description                  |
+| ---- | ---------------------------- |
+| `0`  | Success                      |
+| `1`  | General error                |
+| `2`  | Invalid arguments            |
+| `3`  | File not found               |
+| `4`  | Permission denied            |
+| `5`  | Database connection failed   |
+| `6`  | Encryption/decryption failed |
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `RUST_LOG` | Logging configuration |
+| Variable   | Description            |
+| ---------- | ---------------------- |
+| `RUST_LOG` | Logging configuration  |
 | `NO_COLOR` | Disable colored output |
 
 ## Common Usage Patterns

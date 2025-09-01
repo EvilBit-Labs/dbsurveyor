@@ -283,12 +283,12 @@ dbsurveyor --no-redact schema.json
 
 ### Redaction Examples
 
-| Mode | Password Field | Email Field | ID Field |
-|------|----------------|-------------|----------|
-| `none` | `password123` | `user@example.com` | `12345` |
-| `minimal` | `[REDACTED]` | `user@example.com` | `12345` |
-| `balanced` | `[REDACTED]` | `[EMAIL]` | `12345` |
-| `conservative` | `[REDACTED]` | `[REDACTED]` | `[ID]` |
+| Mode           | Password Field | Email Field        | ID Field |
+| -------------- | -------------- | ------------------ | -------- |
+| `none`         | `password123`  | `user@example.com` | `12345`  |
+| `minimal`      | `[REDACTED]`   | `user@example.com` | `12345`  |
+| `balanced`     | `[REDACTED]`   | `[EMAIL]`          | `12345`  |
+| `conservative` | `[REDACTED]`   | `[REDACTED]`       | `[ID]`   |
 
 ## Batch Processing
 

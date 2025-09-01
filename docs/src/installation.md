@@ -41,15 +41,15 @@ cargo build --release --no-default-features --features sqlite
 
 ## Feature Flags
 
-| Feature | Description | Dependencies |
-|---------|-------------|--------------|
-| `postgresql` | PostgreSQL support | sqlx with postgres driver |
-| `mysql` | MySQL support | sqlx with mysql driver |
-| `sqlite` | SQLite support | sqlx with sqlite driver |
-| `mongodb` | MongoDB support | mongodb crate |
-| `mssql` | SQL Server support | tiberius crate |
-| `compression` | Zstandard compression | zstd crate |
-| `encryption` | AES-GCM encryption | aes-gcm, argon2 crates |
+| Feature       | Description           | Dependencies              |
+| ------------- | --------------------- | ------------------------- |
+| `postgresql`  | PostgreSQL support    | sqlx with postgres driver |
+| `mysql`       | MySQL support         | sqlx with mysql driver    |
+| `sqlite`      | SQLite support        | sqlx with sqlite driver   |
+| `mongodb`     | MongoDB support       | mongodb crate             |
+| `mssql`       | SQL Server support    | tiberius crate            |
+| `compression` | Zstandard compression | zstd crate                |
+| `encryption`  | AES-GCM encryption    | aes-gcm, argon2 crates    |
 
 ### Default Features
 
@@ -128,6 +128,7 @@ For air-gapped environments:
    ```
 
 2. **Transfer to airgap system**:
+
    - Copy entire project directory including `vendor/`
    - Copy built binaries from `target/release/`
 

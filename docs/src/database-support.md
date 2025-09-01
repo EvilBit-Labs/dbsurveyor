@@ -4,13 +4,13 @@ DBSurveyor supports multiple database engines with comprehensive schema collecti
 
 ## Supported Databases
 
-| Database | Status | Feature Flag | Default | Version Support |
-|----------|--------|--------------|---------|-----------------|
-| PostgreSQL | ✅ Full | `postgresql` | ✅ Yes | 9.6+ |
-| SQLite | ✅ Full | `sqlite` | ✅ Yes | 3.6+ |
-| MySQL | ⚠️ Partial | `mysql` | ❌ No | 5.7+, 8.0+ |
-| MongoDB | 🚧 Basic | `mongodb` | ❌ No | 4.0+ |
-| SQL Server | 🚧 Basic | `mssql` | ❌ No | 2017+ |
+| Database   | Status     | Feature Flag | Default | Version Support |
+| ---------- | ---------- | ------------ | ------- | --------------- |
+| PostgreSQL | ✅ Full    | `postgresql` | ✅ Yes  | 9.6+            |
+| SQLite     | ✅ Full    | `sqlite`     | ✅ Yes  | 3.6+            |
+| MySQL      | ⚠️ Partial | `mysql`      | ❌ No   | 5.7+, 8.0+      |
+| MongoDB    | 🚧 Basic   | `mongodb`    | ❌ No   | 4.0+            |
+| SQL Server | 🚧 Basic   | `mssql`      | ❌ No   | 2017+           |
 
 **Legend:**
 
@@ -20,8 +20,8 @@ DBSurveyor supports multiple database engines with comprehensive schema collecti
 
 ## PostgreSQL Support
 
-**Status**: ✅ Full Support (Default)  
-**Feature Flag**: `postgresql`  
+**Status**: ✅ Full Support (Default)\
+**Feature Flag**: `postgresql`\
 **Driver**: SQLx with Tokio runtime
 
 ### Connection Examples
@@ -42,18 +42,18 @@ dbsurveyor-collect "postgres://user:pass@localhost/db?search_path=public,custom"
 
 ### Supported Objects
 
-| Object Type | Support | Notes |
-|-------------|---------|-------|
-| Tables | ✅ Full | Including partitioned tables |
-| Views | ✅ Full | Regular and materialized views |
-| Indexes | ✅ Full | All index types (B-tree, Hash, GiST, etc.) |
-| Constraints | ✅ Full | PK, FK, Check, Unique, Exclusion |
-| Functions | ✅ Full | SQL and PL/pgSQL functions |
-| Procedures | ✅ Full | Stored procedures (PostgreSQL 11+) |
-| Triggers | ✅ Full | Row and statement triggers |
-| Types | ✅ Full | Custom types, domains, enums |
-| Extensions | ✅ Full | Installed extensions |
-| Schemas | ✅ Full | Multiple schema support |
+| Object Type | Support | Notes                                      |
+| ----------- | ------- | ------------------------------------------ |
+| Tables      | ✅ Full | Including partitioned tables               |
+| Views       | ✅ Full | Regular and materialized views             |
+| Indexes     | ✅ Full | All index types (B-tree, Hash, GiST, etc.) |
+| Constraints | ✅ Full | PK, FK, Check, Unique, Exclusion           |
+| Functions   | ✅ Full | SQL and PL/pgSQL functions                 |
+| Procedures  | ✅ Full | Stored procedures (PostgreSQL 11+)         |
+| Triggers    | ✅ Full | Row and statement triggers                 |
+| Types       | ✅ Full | Custom types, domains, enums               |
+| Extensions  | ✅ Full | Installed extensions                       |
+| Schemas     | ✅ Full | Multiple schema support                    |
 
 ### PostgreSQL-Specific Features
 
@@ -106,8 +106,8 @@ CREATE INDEX idx_search ON example USING GIN (search_vector);
 
 ## SQLite Support
 
-**Status**: ✅ Full Support (Default)  
-**Feature Flag**: `sqlite`  
+**Status**: ✅ Full Support (Default)\
+**Feature Flag**: `sqlite`\
 **Driver**: SQLx with Tokio runtime
 
 ### Connection Examples
@@ -126,15 +126,15 @@ dbsurveyor-collect "sqlite://:memory:"
 
 ### Supported Objects
 
-| Object Type | Support | Notes |
-|-------------|---------|-------|
-| Tables | ✅ Full | Including WITHOUT ROWID tables |
-| Views | ✅ Full | Regular views |
-| Indexes | ✅ Full | B-tree and partial indexes |
-| Constraints | ⚠️ Partial | Limited constraint introspection |
-| Triggers | ✅ Full | BEFORE, AFTER, INSTEAD OF |
-| Virtual Tables | ✅ Full | FTS, R-Tree, etc. |
-| Attached DBs | ✅ Full | Multiple attached databases |
+| Object Type    | Support    | Notes                            |
+| -------------- | ---------- | -------------------------------- |
+| Tables         | ✅ Full    | Including WITHOUT ROWID tables   |
+| Views          | ✅ Full    | Regular views                    |
+| Indexes        | ✅ Full    | B-tree and partial indexes       |
+| Constraints    | ⚠️ Partial | Limited constraint introspection |
+| Triggers       | ✅ Full    | BEFORE, AFTER, INSTEAD OF        |
+| Virtual Tables | ✅ Full    | FTS, R-Tree, etc.                |
+| Attached DBs   | ✅ Full    | Multiple attached databases      |
 
 ### SQLite-Specific Features
 
@@ -167,8 +167,8 @@ CREATE TABLE events (
 
 ## MySQL Support
 
-**Status**: ⚠️ Partial Support  
-**Feature Flag**: `mysql` (not default)  
+**Status**: ⚠️ Partial Support\
+**Feature Flag**: `mysql` (not default)\
 **Driver**: SQLx with Tokio runtime
 
 ### Connection Examples
@@ -186,16 +186,16 @@ dbsurveyor-collect "mysql://user:pass@localhost/db?charset=utf8mb4"
 
 ### Supported Objects
 
-| Object Type | Support | Notes |
-|-------------|---------|-------|
-| Tables | ✅ Full | All storage engines |
-| Views | ✅ Full | Regular views |
-| Indexes | ✅ Full | Primary, Unique, Index, Fulltext |
-| Constraints | ⚠️ Partial | PK, FK, Check (MySQL 8.0+) |
-| Procedures | ✅ Full | Stored procedures |
-| Functions | ✅ Full | User-defined functions |
-| Triggers | ✅ Full | BEFORE, AFTER triggers |
-| Events | ✅ Full | Scheduled events |
+| Object Type | Support    | Notes                            |
+| ----------- | ---------- | -------------------------------- |
+| Tables      | ✅ Full    | All storage engines              |
+| Views       | ✅ Full    | Regular views                    |
+| Indexes     | ✅ Full    | Primary, Unique, Index, Fulltext |
+| Constraints | ⚠️ Partial | PK, FK, Check (MySQL 8.0+)       |
+| Procedures  | ✅ Full    | Stored procedures                |
+| Functions   | ✅ Full    | User-defined functions           |
+| Triggers    | ✅ Full    | BEFORE, AFTER triggers           |
+| Events      | ✅ Full    | Scheduled events                 |
 
 ### MySQL-Specific Features
 
@@ -236,8 +236,8 @@ CREATE TABLE articles (
 
 ## MongoDB Support
 
-**Status**: 🚧 Basic Support  
-**Feature Flag**: `mongodb` (not default)  
+**Status**: 🚧 Basic Support\
+**Feature Flag**: `mongodb` (not default)\
 **Driver**: Official MongoDB Rust driver
 
 ### Connection Examples
@@ -255,13 +255,13 @@ dbsurveyor-collect "mongodb://user:pass@host1,host2,host3/mydb?replicaSet=rs0"
 
 ### Supported Objects
 
-| Object Type | Support | Notes |
-|-------------|---------|-------|
-| Collections | ✅ Full | Document collections |
-| Indexes | ✅ Full | Single field, compound, text, geo |
-| Schema Inference | ✅ Basic | Inferred from document sampling |
-| GridFS | ⚠️ Partial | Basic GridFS collection detection |
-| Views | 🚧 Planned | Aggregation pipeline views |
+| Object Type      | Support    | Notes                             |
+| ---------------- | ---------- | --------------------------------- |
+| Collections      | ✅ Full    | Document collections              |
+| Indexes          | ✅ Full    | Single field, compound, text, geo |
+| Schema Inference | ✅ Basic   | Inferred from document sampling   |
+| GridFS           | ⚠️ Partial | Basic GridFS collection detection |
+| Views            | 🚧 Planned | Aggregation pipeline views        |
 
 ### MongoDB-Specific Features
 
@@ -294,8 +294,8 @@ db.locations.createIndex({ "coordinates": "2dsphere" }) // Geospatial
 
 ## SQL Server Support
 
-**Status**: 🚧 Basic Support  
-**Feature Flag**: `mssql` (not default)  
+**Status**: 🚧 Basic Support\
+**Feature Flag**: `mssql` (not default)\
 **Driver**: Tiberius (native TDS protocol)
 
 ### Connection Examples
@@ -313,15 +313,15 @@ dbsurveyor-collect "mssql://sa:pass@localhost\\SQLEXPRESS/mydb"
 
 ### Supported Objects
 
-| Object Type | Support | Notes |
-|-------------|---------|-------|
-| Tables | ✅ Full | User tables |
-| Views | ✅ Full | Regular views |
-| Indexes | ⚠️ Partial | Basic index information |
-| Constraints | ⚠️ Partial | PK, FK constraints |
-| Procedures | 🚧 Planned | Stored procedures |
-| Functions | 🚧 Planned | User-defined functions |
-| Triggers | 🚧 Planned | DML triggers |
+| Object Type | Support    | Notes                   |
+| ----------- | ---------- | ----------------------- |
+| Tables      | ✅ Full    | User tables             |
+| Views       | ✅ Full    | Regular views           |
+| Indexes     | ⚠️ Partial | Basic index information |
+| Constraints | ⚠️ Partial | PK, FK constraints      |
+| Procedures  | 🚧 Planned | Stored procedures       |
+| Functions   | 🚧 Planned | User-defined functions  |
+| Triggers    | 🚧 Planned | DML triggers            |
 
 ### Current Limitations
 
@@ -332,18 +332,18 @@ dbsurveyor-collect "mssql://sa:pass@localhost\\SQLEXPRESS/mydb"
 
 ## Feature Comparison Matrix
 
-| Feature | PostgreSQL | SQLite | MySQL | MongoDB | SQL Server |
-|---------|------------|--------|-------|---------|------------|
-| Tables | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Views | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| Indexes | ✅ | ✅ | ✅ | ✅ | ⚠️ |
-| Constraints | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ |
-| Procedures | ✅ | ❌ | ✅ | ❌ | 🚧 |
-| Functions | ✅ | ❌ | ✅ | ❌ | 🚧 |
-| Triggers | ✅ | ✅ | ✅ | ❌ | 🚧 |
-| Custom Types | ✅ | ❌ | ⚠️ | ❌ | 🚧 |
-| JSON Support | ✅ | ✅ | ⚠️ | ✅ | 🚧 |
-| Multi-DB | ✅ | ⚠️ | ✅ | ❌ | 🚧 |
+| Feature      | PostgreSQL | SQLite | MySQL | MongoDB | SQL Server |
+| ------------ | ---------- | ------ | ----- | ------- | ---------- |
+| Tables       | ✅         | ✅     | ✅    | ✅      | ✅         |
+| Views        | ✅         | ✅     | ✅    | 🚧      | ✅         |
+| Indexes      | ✅         | ✅     | ✅    | ✅      | ⚠️         |
+| Constraints  | ✅         | ⚠️     | ⚠️    | ❌      | ⚠️         |
+| Procedures   | ✅         | ❌     | ✅    | ❌      | 🚧         |
+| Functions    | ✅         | ❌     | ✅    | ❌      | 🚧         |
+| Triggers     | ✅         | ✅     | ✅    | ❌      | 🚧         |
+| Custom Types | ✅         | ❌     | ⚠️    | ❌      | 🚧         |
+| JSON Support | ✅         | ✅     | ⚠️    | ✅      | 🚧         |
+| Multi-DB     | ✅         | ⚠️     | ✅    | ❌      | 🚧         |
 
 ## Building with Database Support
 

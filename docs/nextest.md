@@ -127,14 +127,14 @@ just test-encryption   # Encryption tests
 
 ## Comparison with Cargo Test
 
-| Feature | cargo test | cargo nextest |
-|---------|------------|---------------|
-| Parallel execution | Limited | Full parallel |
-| Test isolation | Basic | Enhanced |
-| Output formatting | Basic | Rich, structured |
-| Retry mechanism | None | Configurable |
-| CI integration | Basic | Optimized |
-| Performance | Slower | Faster |
+| Feature            | cargo test | cargo nextest    |
+| ------------------ | ---------- | ---------------- |
+| Parallel execution | Limited    | Full parallel    |
+| Test isolation     | Basic      | Enhanced         |
+| Output formatting  | Basic      | Rich, structured |
+| Retry mechanism    | None       | Configurable     |
+| CI integration     | Basic      | Optimized        |
+| Performance        | Slower     | Faster           |
 
 ## Troubleshooting
 
