@@ -3,7 +3,7 @@
 //! This module will be implemented in subsequent tasks.
 
 use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter};
-use crate::{models::*, Result};
+use crate::{Result, models::*};
 use async_trait::async_trait;
 
 /// SQL Server database adapter (placeholder)
