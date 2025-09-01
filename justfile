@@ -40,8 +40,12 @@ install-security-tools:
     @echo "✅ Security tools installed"
 
 # Install all dependencies and development tools
-install: install-rust install-cargo-tools install-security-tools
+install: install-rust install-cargo-tools install-security-tools docs-install
     @echo "🚀 Development environment ready!"
+
+# Install mdBook and plugins for documentation
+docs-install:
+    cargo install mdbook mdbook-admonish mdbook-mermaid mdbook-linkcheck mdbook-toc mdbook-open-on-gh mdbook-tabs mdbook-i18n-helpers
 
 # Update dependencies
 update-deps:
@@ -97,6 +101,8 @@ megalinter-fix:
     @echo "🔍 Running MegaLinter for comprehensive code analysis..."
     npx mega-linter-runner --flavor rust --fix
     @echo "✅ MegaLinter analysis complete"
+
+
 
 # -----------------------------
 # 🦀 Standardized Rust Tasks
@@ -230,6 +236,46 @@ security-full:
     @just test-credential-security
     @just security-audit
     @echo "✅ FULL SECURITY VALIDATION PASSED"
+
+# =============================================================================
+# DOCUMENTATION
+# =============================================================================
+
+# Build complete documentation (mdBook + rustdoc)
+docs-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Build rustdoc
+    cargo doc --no-deps --document-private-items --target-dir docs/book/api-temp
+    # Move rustdoc output to final location
+    mkdir -p docs/book/api
+    cp -r docs/book/api-temp/doc/* docs/book/api/
+    rm -rf docs/book/api-temp
+    # Build mdBook
+    cd docs && mdbook build
+
+# Serve documentation locally with live reload
+docs-serve:
+    cd docs && mdbook serve --open
+
+# Clean documentation artifacts
+docs-clean:
+    rm -rf docs/book target/doc
+
+# Check documentation (build + link validation + formatting)
+docs-check:
+    cd docs && mdbook build
+    @just fmt-check
+
+# Generate and serve documentation
+[unix]
+docs:
+    cd docs && mdbook serve --open
+
+[windows]
+docs:
+    @echo "mdbook requires a Unix-like environment to serve"
+
 
 # -----------------------------
 # 🔧 Building & Running
