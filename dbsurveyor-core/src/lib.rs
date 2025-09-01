@@ -22,9 +22,16 @@ pub mod models;
 pub mod security;
 
 // Re-export commonly used types
-pub use adapters::{AdapterFeature, DatabaseAdapter};
+pub use adapters::{
+    AdapterFeature, CollectionConfig, ConnectionConfig, DatabaseAdapter, OutputFormat,
+    SamplingConfig, SensitivePattern,
+};
 pub use error::{DbSurveyorError, Result};
-pub use models::{Column, DatabaseSchema, DatabaseType, Table, UnifiedDataType};
+pub use models::{
+    AccessLevel, CollectionMode, CollectionStatus, Column, DatabaseInfo, DatabaseSchema,
+    DatabaseServerSchema, DatabaseType, OrderingStrategy, SamplingStrategy, ServerInfo,
+    SortDirection, Table, TableSample, UnifiedDataType,
+};
 
 #[cfg(feature = "encryption")]
 pub use security::encryption;

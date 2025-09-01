@@ -6,6 +6,7 @@
 
 use crate::{Result, models::DatabaseSchema};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Features that database adapters may support
@@ -26,7 +27,11 @@ pub enum AdapterFeature {
 }
 
 /// Configuration for database connections
-#[derive(Debug, Clone)]
+///
+/// # Security
+/// This struct intentionally does NOT store passwords or credentials.
+/// Credentials must be handled separately and never logged or serialized.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionConfig {
     pub host: String,
     pub port: Option<u16>,
@@ -53,8 +58,97 @@ impl Default for ConnectionConfig {
     }
 }
 
+impl std::fmt::Display for ConnectionConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ConnectionConfig({}{}{})",
+            self.host,
+            self.port.map_or_else(String::new, |p| format!(":{}", p)),
+            self.database
+                .as_ref()
+                .map_or_else(String::new, |db| format!("/{}", db))
+        )
+        // Intentionally omit username and never include credentials
+    }
+}
+
+impl ConnectionConfig {
+    /// Validates connection configuration parameters
+    ///
+    /// # Errors
+    /// Returns error if configuration values are invalid or unsafe
+    pub fn validate(&self) -> Result<()> {
+        if self.host.is_empty() {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "host cannot be empty",
+            ));
+        }
+
+        if let Some(port) = self.port {
+            if port == 0 {
+                return Err(crate::error::DbSurveyorError::configuration(
+                    "port must be greater than 0",
+                ));
+            }
+        }
+
+        if self.max_connections == 0 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "max_connections must be greater than 0",
+            ));
+        }
+
+        if self.max_connections > 100 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "max_connections should not exceed 100 for safety",
+            ));
+        }
+
+        if self.connect_timeout.as_secs() == 0 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "connect_timeout must be greater than 0",
+            ));
+        }
+
+        if self.query_timeout.as_secs() == 0 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "query_timeout must be greater than 0",
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Creates a new connection config with safe defaults
+    pub fn new(host: String) -> Self {
+        Self {
+            host,
+            ..Default::default()
+        }
+    }
+
+    /// Builder method to set port
+    pub fn with_port(mut self, port: u16) -> Self {
+        self.port = Some(port);
+        self
+    }
+
+    /// Builder method to set database
+    pub fn with_database(mut self, database: String) -> Self {
+        self.database = Some(database);
+        self
+    }
+
+    /// Builder method to set username
+    pub fn with_username(mut self, username: String) -> Self {
+        self.username = Some(username);
+        self
+    }
+}
+
 /// Configuration for data sampling
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SamplingConfig {
     pub sample_size: u32,
     pub throttle_ms: Option<u64>,
@@ -62,6 +156,67 @@ pub struct SamplingConfig {
     pub warn_sensitive: bool,
     pub timestamp_columns: Vec<String>,
     pub sensitive_detection_patterns: Vec<SensitivePattern>,
+}
+
+/// Configuration for database schema collection
+///
+/// This struct controls all aspects of database schema collection including
+/// connection settings, what database objects to include, and output options.
+///
+/// # Security
+/// - Connection credentials are handled separately and never stored here
+/// - All database operations are read-only by default
+/// - Query timeouts prevent resource exhaustion
+///
+/// # Example
+/// ```rust
+/// use dbsurveyor_core::adapters::{CollectionConfig, ConnectionConfig, OutputFormat};
+///
+/// let connection = ConnectionConfig::new("localhost".to_string())
+///     .with_port(5432)
+///     .with_database("mydb".to_string());
+///
+/// let config = CollectionConfig::new()
+///     .with_connection(connection)
+///     .with_max_concurrent_queries(10)
+///     .unwrap();
+///
+/// assert!(config.validate().is_ok());
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CollectionConfig {
+    /// Database connection configuration (credentials handled separately)
+    pub connection: ConnectionConfig,
+    /// Data sampling configuration
+    pub sampling: SamplingConfig,
+    /// Whether to include system/internal databases
+    pub include_system_databases: bool,
+    /// List of database names to exclude from collection
+    pub exclude_databases: Vec<String>,
+    /// Whether to collect database views
+    pub include_views: bool,
+    /// Whether to collect stored procedures
+    pub include_procedures: bool,
+    /// Whether to collect functions
+    pub include_functions: bool,
+    /// Whether to collect triggers
+    pub include_triggers: bool,
+    /// Whether to collect indexes
+    pub include_indexes: bool,
+    /// Whether to collect constraints
+    pub include_constraints: bool,
+    /// Whether to collect custom/user-defined types
+    pub include_custom_types: bool,
+    /// Maximum number of concurrent database queries (1-50)
+    pub max_concurrent_queries: u32,
+    /// Whether to enable data sampling from tables
+    pub enable_data_sampling: bool,
+    /// Output format for collected schema
+    pub output_format: OutputFormat,
+    /// Whether to enable compression of output
+    pub compression_enabled: bool,
+    /// Whether to enable encryption of output
+    pub encryption_enabled: bool,
 }
 
 impl Default for SamplingConfig {
@@ -95,11 +250,114 @@ impl Default for SamplingConfig {
     }
 }
 
+impl Default for CollectionConfig {
+    fn default() -> Self {
+        Self {
+            connection: ConnectionConfig::default(),
+            sampling: SamplingConfig::default(),
+            include_system_databases: false,
+            exclude_databases: Vec::new(),
+            include_views: true,
+            include_procedures: true,
+            include_functions: true,
+            include_triggers: true,
+            include_indexes: true,
+            include_constraints: true,
+            include_custom_types: true,
+            max_concurrent_queries: 5,
+            enable_data_sampling: false,
+            output_format: OutputFormat::Json,
+            compression_enabled: false,
+            encryption_enabled: false,
+        }
+    }
+}
+
+impl CollectionConfig {
+    /// Validates the collection configuration
+    ///
+    /// # Errors
+    /// Returns error if configuration values are invalid or unsafe
+    pub fn validate(&self) -> Result<()> {
+        if self.max_concurrent_queries == 0 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "max_concurrent_queries must be greater than 0",
+            ));
+        }
+
+        if self.max_concurrent_queries > 50 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "max_concurrent_queries should not exceed 50 for safety",
+            ));
+        }
+
+        if self.connection.max_connections == 0 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "max_connections must be greater than 0",
+            ));
+        }
+
+        if self.connection.connect_timeout.as_secs() > 300 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "connect_timeout should not exceed 300 seconds",
+            ));
+        }
+
+        if self.connection.query_timeout.as_secs() > 600 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "query_timeout should not exceed 600 seconds",
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Creates a new collection config with safe defaults
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Builder method to set connection config
+    pub fn with_connection(mut self, connection: ConnectionConfig) -> Self {
+        self.connection = connection;
+        self
+    }
+
+    /// Builder method to set sampling config
+    pub fn with_sampling(mut self, sampling: SamplingConfig) -> Self {
+        self.sampling = sampling;
+        self
+    }
+
+    /// Builder method to set max concurrent queries with validation
+    pub fn with_max_concurrent_queries(mut self, max: u32) -> Result<Self> {
+        if max == 0 || max > 50 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "max_concurrent_queries must be between 1 and 50",
+            ));
+        }
+        self.max_concurrent_queries = max;
+        Ok(self)
+    }
+}
+
 /// Pattern for detecting sensitive data fields
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SensitivePattern {
     pub pattern: String,
     pub description: String,
+}
+
+/// Output format options for collected schema data
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum OutputFormat {
+    /// Standard JSON format (.dbsurveyor.json)
+    #[default]
+    Json,
+    /// Compressed JSON format (.dbsurveyor.json.zst)
+    CompressedJson,
+    /// Encrypted format (.dbsurveyor.enc)
+    Encrypted,
 }
 
 /// Main trait for database adapters with object-safe design
@@ -254,6 +512,39 @@ pub async fn create_adapter(connection_string: &str) -> Result<Box<dyn DatabaseA
     }
 }
 
+/// Safely redacts credentials from database connection URLs
+///
+/// This function ensures that passwords in connection strings are never
+/// exposed in logs, error messages, or any output.
+///
+/// # Arguments
+/// * `url` - Database connection URL that may contain credentials
+///
+/// # Returns
+/// Returns a sanitized string with passwords masked as "****"
+///
+/// # Example
+/// ```rust
+/// use dbsurveyor_core::adapters::redact_database_url;
+///
+/// let sanitized = redact_database_url("postgres://user:secret@localhost/db");
+/// assert_eq!(sanitized, "postgres://user:****@localhost/db");
+/// assert!(!sanitized.contains("secret"));
+/// ```
+pub fn redact_database_url(url: &str) -> String {
+    // Try to parse as URL first
+    if let Ok(mut parsed_url) = url::Url::parse(url) {
+        if parsed_url.password().is_some() {
+            let _ = parsed_url.set_password(Some("****"));
+        }
+        parsed_url.to_string()
+    } else {
+        // For non-URL formats (like file paths), just return as-is
+        // since they shouldn't contain credentials
+        url.to_string()
+    }
+}
+
 /// Detects database type from connection string
 ///
 /// # Arguments
@@ -325,13 +616,7 @@ pub mod postgres {
 
         async fn collect_schema(&self) -> Result<DatabaseSchema> {
             // Placeholder implementation
-            let db_info = crate::models::DatabaseInfo {
-                name: "placeholder".to_string(),
-                version: None,
-                size_bytes: None,
-                encoding: None,
-                collation: None,
-            };
+            let db_info = crate::models::DatabaseInfo::new("placeholder".to_string());
             Ok(DatabaseSchema::new(db_info))
         }
 
@@ -380,13 +665,7 @@ pub mod mysql {
         }
 
         async fn collect_schema(&self) -> Result<DatabaseSchema> {
-            let db_info = crate::models::DatabaseInfo {
-                name: "placeholder".to_string(),
-                version: None,
-                size_bytes: None,
-                encoding: None,
-                collation: None,
-            };
+            let db_info = crate::models::DatabaseInfo::new("placeholder".to_string());
             Ok(DatabaseSchema::new(db_info))
         }
 
@@ -435,13 +714,7 @@ pub mod sqlite {
         }
 
         async fn collect_schema(&self) -> Result<DatabaseSchema> {
-            let db_info = crate::models::DatabaseInfo {
-                name: "placeholder".to_string(),
-                version: None,
-                size_bytes: None,
-                encoding: None,
-                collation: None,
-            };
+            let db_info = crate::models::DatabaseInfo::new("placeholder".to_string());
             Ok(DatabaseSchema::new(db_info))
         }
 
@@ -488,13 +761,7 @@ pub mod mongodb {
         }
 
         async fn collect_schema(&self) -> Result<DatabaseSchema> {
-            let db_info = crate::models::DatabaseInfo {
-                name: "placeholder".to_string(),
-                version: None,
-                size_bytes: None,
-                encoding: None,
-                collation: None,
-            };
+            let db_info = crate::models::DatabaseInfo::new("placeholder".to_string());
             Ok(DatabaseSchema::new(db_info))
         }
 
@@ -540,13 +807,7 @@ pub mod mssql {
         }
 
         async fn collect_schema(&self) -> Result<DatabaseSchema> {
-            let db_info = crate::models::DatabaseInfo {
-                name: "placeholder".to_string(),
-                version: None,
-                size_bytes: None,
-                encoding: None,
-                collation: None,
-            };
+            let db_info = crate::models::DatabaseInfo::new("placeholder".to_string());
             Ok(DatabaseSchema::new(db_info))
         }
 
@@ -629,5 +890,205 @@ mod tests {
         assert_eq!(config.query_timeout, Duration::from_secs(30));
         assert_eq!(config.max_connections, 10);
         assert!(config.read_only);
+    }
+
+    #[test]
+    fn test_collection_config_default() {
+        let config = CollectionConfig::default();
+        assert!(!config.include_system_databases);
+        assert!(config.exclude_databases.is_empty());
+        assert!(config.include_views);
+        assert!(config.include_procedures);
+        assert!(config.include_functions);
+        assert!(config.include_triggers);
+        assert!(config.include_indexes);
+        assert!(config.include_constraints);
+        assert!(config.include_custom_types);
+        assert_eq!(config.max_concurrent_queries, 5);
+        assert!(!config.enable_data_sampling);
+        assert_eq!(config.output_format, OutputFormat::Json);
+        assert!(!config.compression_enabled);
+        assert!(!config.encryption_enabled);
+    }
+
+    #[test]
+    fn test_output_format_default() {
+        let format = OutputFormat::default();
+        assert_eq!(format, OutputFormat::Json);
+    }
+
+    #[test]
+    fn test_connection_config_validation() {
+        // Valid config should pass
+        let config = ConnectionConfig::new("localhost".to_string());
+        assert!(config.validate().is_ok());
+
+        // Empty host should fail
+        let config = ConnectionConfig {
+            host: String::new(),
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+
+        // Invalid port should fail
+        let config = ConnectionConfig {
+            port: Some(0),
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+
+        // Zero max_connections should fail
+        let config = ConnectionConfig {
+            max_connections: 0,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+
+        // Excessive max_connections should fail
+        let config = ConnectionConfig {
+            max_connections: 200,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_collection_config_validation() {
+        // Valid config should pass
+        let config = CollectionConfig::default();
+        assert!(config.validate().is_ok());
+
+        // Zero max_concurrent_queries should fail
+        let config = CollectionConfig {
+            max_concurrent_queries: 0,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+
+        // Excessive max_concurrent_queries should fail
+        let config = CollectionConfig {
+            max_concurrent_queries: 100,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_connection_config_builder() {
+        let config = ConnectionConfig::new("example.com".to_string())
+            .with_port(5432)
+            .with_database("testdb".to_string())
+            .with_username("testuser".to_string());
+
+        assert_eq!(config.host, "example.com");
+        assert_eq!(config.port, Some(5432));
+        assert_eq!(config.database, Some("testdb".to_string()));
+        assert_eq!(config.username, Some("testuser".to_string()));
+    }
+
+    #[test]
+    fn test_collection_config_builder() {
+        let connection = ConnectionConfig::new("localhost".to_string());
+        let sampling = SamplingConfig::default();
+
+        let config = CollectionConfig::new()
+            .with_connection(connection.clone())
+            .with_sampling(sampling.clone());
+
+        assert_eq!(config.connection.host, "localhost");
+        assert_eq!(config.sampling.sample_size, 100);
+
+        // Test max_concurrent_queries validation
+        let result = CollectionConfig::new().with_max_concurrent_queries(0);
+        assert!(result.is_err());
+
+        let result = CollectionConfig::new().with_max_concurrent_queries(10);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().max_concurrent_queries, 10);
+    }
+
+    #[test]
+    fn test_connection_config_display_no_credentials() {
+        let config = ConnectionConfig::new("example.com".to_string())
+            .with_port(5432)
+            .with_database("testdb".to_string())
+            .with_username("testuser".to_string());
+
+        let display = format!("{}", config);
+
+        // Should contain connection info
+        assert!(display.contains("example.com"));
+        assert!(display.contains("5432"));
+        assert!(display.contains("testdb"));
+
+        // Should NOT contain username (security)
+        assert!(!display.contains("testuser"));
+
+        // Should definitely not contain any password-like strings
+        assert!(!display.contains("password"));
+        assert!(!display.contains("secret"));
+    }
+
+    #[test]
+    fn test_sensitive_pattern_serialization() {
+        let pattern = SensitivePattern {
+            pattern: r"(?i)(password|passwd|pwd)".to_string(),
+            description: "Password field detected".to_string(),
+        };
+
+        // Test serialization/deserialization
+        let json = serde_json::to_string(&pattern).unwrap();
+        let deserialized: SensitivePattern = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(pattern.pattern, deserialized.pattern);
+        assert_eq!(pattern.description, deserialized.description);
+    }
+
+    #[test]
+    fn test_collection_config_serialization() {
+        let config = CollectionConfig::default();
+
+        // Test serialization/deserialization
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: CollectionConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(config.include_views, deserialized.include_views);
+        assert_eq!(
+            config.max_concurrent_queries,
+            deserialized.max_concurrent_queries
+        );
+        assert_eq!(config.output_format, deserialized.output_format);
+    }
+
+    #[test]
+    fn test_redact_database_url() {
+        // Test PostgreSQL URL
+        let url = "postgres://user:secret123@localhost:5432/db";
+        let redacted = redact_database_url(url);
+        assert!(!redacted.contains("secret123"));
+        assert!(redacted.contains("user:****"));
+        assert!(redacted.contains("localhost:5432"));
+        assert!(redacted.contains("/db"));
+
+        // Test MySQL URL
+        let url = "mysql://admin:password@example.com:3306/testdb";
+        let redacted = redact_database_url(url);
+        assert!(!redacted.contains("password"));
+        assert!(redacted.contains("admin:****"));
+
+        // Test URL without password
+        let url = "postgres://user@localhost/db";
+        let redacted = redact_database_url(url);
+        assert_eq!(redacted, url); // Should be unchanged
+
+        // Test SQLite file path (no credentials)
+        let url = "/path/to/database.db";
+        let redacted = redact_database_url(url);
+        assert_eq!(redacted, url); // Should be unchanged
+
+        // Test invalid URL
+        let url = "not-a-valid-url";
+        let redacted = redact_database_url(url);
+        assert_eq!(redacted, url); // Should be unchanged
     }
 }
