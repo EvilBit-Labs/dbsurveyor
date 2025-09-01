@@ -71,14 +71,6 @@ jobs:
             .mega-linter.log
           retention-days: 30
 
-      - name: Upload megalinter report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: megalinter-results
-          path: megalinter-reports/
-          retention-days: 30
-
   test-coverage:
     name: Test Coverage
     runs-on: ubuntu-latest
