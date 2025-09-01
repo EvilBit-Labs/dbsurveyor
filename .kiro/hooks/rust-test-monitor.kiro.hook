@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Rust Test Monitor",
+  "description": "Monitor for changes to Rust code files. Detect changes to source files and ensure corresponding tests remain current. For example, for simple methods, ensure there are current and accurate unit tests, for CLI and output methods, ensure there are snapshot tests using `insta` that compare the rendered output, for performance-sensitive methods ensure there are benchmarks using `criterion`, etc.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.rs",
+      "**/Cargo.toml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A Rust source file has been modified. Please analyze the changes and ensure appropriate tests exist:\n\n1. **Unit Tests**: For business logic, data structures, and utility functions - ensure comprehensive unit tests exist in `#[cfg(test)]` modules or separate test files\n2. **Integration Tests**: For database collectors, CLI commands, and cross-module functionality - ensure integration tests exist in `tests/` directories\n3. **Snapshot Tests**: For CLI output, report generation, and formatted output - ensure `insta` snapshot tests capture expected outputs\n4. **Security Tests**: For credential handling, encryption, and sensitive operations - ensure security-focused tests verify no credential leakage\n5. **Performance Tests**: For database operations, large data processing, and performance-critical paths - ensure `criterion` benchmarks exist\n6. **Property Tests**: For parsers, validators, and complex logic - consider property-based tests using `proptest`\n\nFocus on:\n- Test coverage for new/modified functions\n- Security test coverage for credential-sensitive code\n- Snapshot tests for user-facing output\n- Performance benchmarks for database operations\n- Error handling and edge cases\n\nEnsure tests follow DBSurveyor's security-first principles:\n- No credentials in test outputs\n- Proper error message sanitization\n- Offline operation verification\n- AES-GCM encryption validation\n\nProvide specific recommendations for missing tests and suggest test implementations."
+  }
+}
