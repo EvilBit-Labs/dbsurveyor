@@ -3,8 +3,8 @@ authors = ["EvilBit-Labs"]
 language = "en"
 multilingual = false
 src = "src"
-title = "dbsurveyor Documentation"
-description = "Offline-first database schema collection and documentation tool"
+title = "DBSurveyor Documentation"
+description = "Security-focused, offline-first database schema collection and documentation toolchain"
 
 [build]
 build-dir = "book"

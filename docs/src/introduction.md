@@ -29,3 +29,30 @@ Generate comprehensive, secure database schema documentation for PostgreSQL, MyS
 - **Database Administrators**: Comprehensive documentation and compliance reporting
 - **Security Analysts**: Database security assessment and risk identification
 - **System Administrators**: Exploring inherited or legacy databases with minimal documentation
+
+## Architecture Overview
+
+DBSurveyor uses a dual-binary architecture that separates data collection from documentation generation:
+
+```mermaid
+graph LR
+    A[Database] --> B[dbsurveyor-collect]
+    B --> C[Schema File]
+    C --> D[dbsurveyor]
+    D --> E[Documentation]
+    
+    C -.-> F[Encrypted]
+    C -.-> G[Compressed]
+    
+    E --> H[Markdown]
+    E --> I[HTML]
+    E --> J[SQL DDL]
+    E --> K[Mermaid ERD]
+```
+
+This separation provides several benefits:
+
+- **Security**: Collection can happen in secure environments, documentation generation offline
+- **Flexibility**: Multiple documentation formats from a single collection
+- **Portability**: Schema files can be transferred between environments
+- **Auditability**: Clear separation between data collection and processing
