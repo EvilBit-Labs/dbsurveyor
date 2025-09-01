@@ -113,7 +113,7 @@ pub async fn collect_schema(database_url: &str) -> Result<DatabaseSchema> {
 
 ### Credential Redaction Helper (REQUIRED)
 
-```rust
+````rust
 /// Safely parses and redacts database URLs for logging and error messages.
 ///
 /// This function ensures that passwords in connection strings are never
@@ -161,7 +161,7 @@ mod tests {
         assert!(redacted.contains("localhost/db"));
     }
 }
-```
+````
 
 ## Testing Requirements
 

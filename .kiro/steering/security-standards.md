@@ -50,11 +50,11 @@ pub enum Cipher {
 }
 
 pub struct EncryptedData {
-    pub algorithm: Cipher,             // Concrete enum type
-    pub nonce: [u8; 12],               // Fixed-size 96-bit nonce
-    pub ciphertext: Vec<u8>,           // Encrypted data
-    pub tag: [u8; 16],                 // Separate 128-bit authentication tag
-    pub kdf_params: KdfParams,         // Required KDF parameters
+    pub algorithm: Cipher,     // Concrete enum type
+    pub nonce: [u8; 12],       // Fixed-size 96-bit nonce
+    pub ciphertext: Vec<u8>,   // Encrypted data
+    pub tag: [u8; 16],         // Separate 128-bit authentication tag
+    pub kdf_params: KdfParams, // Required KDF parameters
 }
 ```
 

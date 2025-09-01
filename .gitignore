@@ -105,3 +105,6 @@ env/
 
 # Node.js modules
 node_modules/
+
+# Megalinter reports
+megalinter-reports/

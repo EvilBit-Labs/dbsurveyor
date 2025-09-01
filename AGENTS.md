@@ -37,7 +37,7 @@ The project follows a Rust workspace structure with clear separation of concerns
 The preferred technology stack is consistent across the project:
 
 | Layer             | Technology                                | Notes                                            |
-| ----------------- | ----------------------------------------- | ------------------------------------------------ |
+|-------------------|-------------------------------------------|--------------------------------------------------|
 | **Language**      | Rust 2021 Edition                         | Modern Rust with idiomatic patterns              |
 | **CLI**           | Clap v4 with derive macros                | For clean, user-friendly command-line interfaces |
 | **Async**         | Tokio runtime                             | For async database operations                    |

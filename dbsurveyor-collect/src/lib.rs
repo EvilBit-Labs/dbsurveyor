@@ -70,10 +70,10 @@ pub fn get_database_url(
     database_url_file: Option<PathBuf>,
 ) -> Result<(String, CredentialSource), String> {
     // 1. Try environment variable first
-    if let Ok(url) = env::var("DATABASE_URL")
-        && validate_database_url(&url)
-    {
-        return Ok((url, CredentialSource::Environment));
+    if let Ok(url) = env::var("DATABASE_URL") {
+        if validate_database_url(&url) {
+            return Ok((url, CredentialSource::Environment));
+        }
     }
 
     // 2. Try file if provided
@@ -261,11 +261,19 @@ mod tests {
         fn test_validate_database_url_valid_urls() {
             temp_env::with_vars([("TESTING", Some("1")), ("CI", Some("1"))], || {
                 // Valid URLs
-                assert!(validate_database_url("postgresql://user:pass@localhost/db"));
-                assert!(validate_database_url("postgres://user:pass@localhost/db"));
-                assert!(validate_database_url("mysql://user:pass@localhost/db"));
+                assert!(validate_database_url(
+                    "postgresql://testuser:testpass@localhost/db"
+                ));
+                assert!(validate_database_url(
+                    "postgres://testuser:testpass@localhost/db"
+                ));
+                assert!(validate_database_url(
+                    "mysql://testuser:testpass@localhost/db"
+                ));
                 assert!(validate_database_url("sqlite:///path/to/db.sqlite"));
-                assert!(validate_database_url("mongodb://user:pass@localhost/db"));
+                assert!(validate_database_url(
+                    "mongodb://testuser:testpass@localhost/db"
+                ));
             });
         }
 
@@ -311,14 +319,17 @@ mod tests {
                 [
                     ("TESTING", Some("1")),
                     ("CI", Some("1")),
-                    ("DATABASE_URL", Some("mysql://user:pass@localhost/testdb")),
+                    (
+                        "DATABASE_URL",
+                        Some("mysql://testuser:testpass@localhost/testdb"),
+                    ),
                 ],
                 || {
                     let result = get_database_url(None);
                     assert!(result.is_ok());
 
                     let (url, source) = result.unwrap();
-                    assert_eq!(url, "mysql://user:pass@localhost/testdb");
+                    assert_eq!(url, "mysql://testuser:testpass@localhost/testdb");
                     assert!(matches!(source, CredentialSource::Environment));
                 },
             );
@@ -334,13 +345,14 @@ mod tests {
                     ("DATABASE_URL", None),
                 ],
                 || {
-                    let temp_file =
-                        helpers::create_temp_db_url_file("postgresql://user:pass@localhost/testdb");
+                    let temp_file = helpers::create_temp_db_url_file(
+                        "postgresql://testuser:testpass@localhost/testdb",
+                    );
                     let result = get_database_url(Some(temp_file.path().to_path_buf()));
                     assert!(result.is_ok());
 
                     let (url, source) = result.unwrap();
-                    assert_eq!(url, "postgresql://user:pass@localhost/testdb");
+                    assert_eq!(url, "postgresql://testuser:testpass@localhost/testdb");
                     assert!(matches!(source, CredentialSource::File(_)));
                 },
             );
@@ -352,17 +364,21 @@ mod tests {
                 [
                     ("TESTING", Some("1")),
                     ("CI", Some("1")),
-                    ("DATABASE_URL", Some("mysql://user:pass@localhost/testdb")),
+                    (
+                        "DATABASE_URL",
+                        Some("mysql://testuser:testpass@localhost/testdb"),
+                    ),
                 ],
                 || {
-                    let temp_file =
-                        helpers::create_temp_db_url_file("postgresql://user:pass@localhost/testdb");
+                    let temp_file = helpers::create_temp_db_url_file(
+                        "postgresql://testuser:testpass@localhost/testdb",
+                    );
                     let result = get_database_url(Some(temp_file.path().to_path_buf()));
                     assert!(result.is_ok());
 
                     // Environment should take precedence over file
                     let (url, source) = result.unwrap();
-                    assert_eq!(url, "mysql://user:pass@localhost/testdb");
+                    assert_eq!(url, "mysql://testuser:testpass@localhost/testdb");
                     assert!(matches!(source, CredentialSource::Environment));
                 },
             );
@@ -475,8 +491,9 @@ mod tests {
         #[test]
         fn test_execute_cli_collect_with_file() {
             temp_env::with_vars([("TESTING", Some("1")), ("CI", Some("1"))], || {
-                let temp_file =
-                    helpers::create_temp_db_url_file("postgresql://user:pass@localhost/testdb");
+                let temp_file = helpers::create_temp_db_url_file(
+                    "postgresql://testuser:testpass@localhost/testdb",
+                );
                 let cli = helpers::create_collect_cli(
                     Some(temp_file.path().to_path_buf()),
                     PathBuf::from("output.json"),
@@ -505,7 +522,10 @@ mod tests {
                 [
                     ("TESTING", Some("1")),
                     ("CI", Some("1")),
-                    ("DATABASE_URL", Some("mysql://user:pass@localhost/testdb")),
+                    (
+                        "DATABASE_URL",
+                        Some("mysql://testuser:testpass@localhost/testdb"),
+                    ),
                 ],
                 || {
                     let cli = helpers::create_collect_cli(

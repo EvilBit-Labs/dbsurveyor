@@ -17,19 +17,14 @@
   "htmlWhitespaceSensitivity": "css",
   "overrides": [
     {
-      "files": [
-        "*.yml",
-        "*.yaml"
-      ],
+      "files": ["*.yml", "*.yaml"],
       "options": {
         "tabWidth": 2,
         "singleQuote": false
       }
     },
     {
-      "files": [
-        "*.json"
-      ],
+      "files": ["*.json"],
       "options": {
         "tabWidth": 2
       }
