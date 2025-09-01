@@ -43,7 +43,7 @@ clap = { version = "4.5.45", features = ["derive", "env"] }
 # Database dependencies (feature-gated)
 sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid"] }
 tiberius = { version = "0.12", features = ["tds73", "sql-browser-tokio", "bigdecimal", "time", "chrono"] }
-mongodb = "2.8"
+mongodb = "3.2.5"
 
 # Security dependencies
 aes-gcm = "0.10"
@@ -61,8 +61,8 @@ zstd = "0.13"
 askama = { version = "0.12", features = ["serde-json"] }
 
 # Testing
-testcontainers = "0.15"
-criterion = "0.5"
+testcontainers-modules = "0.13.0"
+criterion = "0.7.0"
 
 # Internal workspace dependencies
 dbsurveyor-core = { path = "dbsurveyor-core" }
