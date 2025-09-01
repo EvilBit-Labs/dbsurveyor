@@ -24,17 +24,17 @@ dbsurveyor-collect <COMMAND>
 
 ### Collection Options
 
-| Option                       | Description                      | Default                     |
-| ---------------------------- | -------------------------------- | --------------------------- |
-| `--database-url <URL>`       | Database connection string       | From `DATABASE_URL` env var |
-| `--output <PATH>`            | Output file path                 | `schema.dbsurveyor.json`    |
-| `--sample <N>`               | Number of sample rows per table  | `100`                       |
-| `--throttle <MS>`            | Delay between operations (ms)    | None                        |
-| `--compress`                 | Compress output using Zstandard  | `false`                     |
-| `--encrypt`                  | Encrypt output using AES-GCM     | `false`                     |
-| `--all-databases`            | Collect all accessible databases | `false`                     |
-| `--include-system-databases` | Include system databases         | `false`                     |
-| `--exclude-databases <LIST>` | Comma-separated list to exclude  | None                        |
+| Option                       | Description                      | Default                     | Status |
+| ---------------------------- | -------------------------------- | --------------------------- | ------ |
+| `--database-url <URL>`       | Database connection string       | From `DATABASE_URL` env var | ✅ Implemented |
+| `--output <PATH>`            | Output file path                 | `schema.dbsurveyor.json`    | ✅ Implemented |
+| `--sample <N>`               | Number of sample rows per table  | `100`                       | 🚧 Planned |
+| `--throttle <MS>`            | Delay between operations (ms)    | None                        | 🚧 Planned |
+| `--compress`                 | Compress output using Zstandard  | `false`                     | ✅ Implemented |
+| `--encrypt`                  | Encrypt output using AES-GCM     | `false`                     | ✅ Implemented |
+| `--all-databases`            | Collect all accessible databases | `false`                     | 🚧 Planned |
+| `--include-system-databases` | Include system databases         | `false`                     | 🚧 Planned |
+| `--exclude-databases <LIST>` | Comma-separated list to exclude  | None                        | 🚧 Planned |
 
 ### Commands
 
@@ -86,13 +86,13 @@ dbsurveyor-collect --throttle 1000 postgres://localhost/db
 
 ### Connection String Formats
 
-| Database   | Format                              | Example                                       |
-| ---------- | ----------------------------------- | --------------------------------------------- |
-| PostgreSQL | `postgres://user:pass@host:port/db` | `postgres://admin:secret@localhost:5432/mydb` |
-| MySQL      | `mysql://user:pass@host:port/db`    | `mysql://root:password@localhost:3306/mydb`   |
-| SQLite     | `sqlite:///path/to/file`            | `sqlite:///home/user/data.db`                 |
-| MongoDB    | `mongodb://user:pass@host:port/db`  | `mongodb://admin:secret@localhost:27017/mydb` |
-| SQL Server | `mssql://user:pass@host:port/db`    | `mssql://sa:password@localhost:1433/mydb`     |
+| Database   | Format                              | Example                                       | Status |
+| ---------- | ----------------------------------- | --------------------------------------------- | ------ |
+| PostgreSQL | `postgres://user:pass@host:port/db` | `postgres://admin:secret@localhost:5432/mydb` | ✅ Implemented |
+| SQLite     | `sqlite:///path/to/file`            | `sqlite:///home/user/data.db`                 | ✅ Implemented |
+| MySQL      | `mysql://user:pass@host:port/db`    | `mysql://root:password@localhost:3306/mydb`   | 🚧 In Development |
+| MongoDB    | `mongodb://user:pass@host:port/db`  | `mongodb://admin:secret@localhost:27017/mydb` | 🚧 Planned |
+| SQL Server | `mssql://user:pass@host:port/db`    | `mssql://sa:password@localhost:1433/mydb`     | 🚧 Planned |
 
 ### Environment Variables
 
@@ -134,12 +134,12 @@ dbsurveyor <COMMAND>
 
 ### Output Formats
 
-| Format     | Description             | Extension |
-| ---------- | ----------------------- | --------- |
-| `markdown` | Markdown documentation  | `.md`     |
-| `html`     | HTML report with search | `.html`   |
-| `json`     | JSON analysis report    | `.json`   |
-| `mermaid`  | Mermaid ERD diagram     | `.mmd`    |
+| Format     | Description             | Extension | Status |
+| ---------- | ----------------------- | --------- | ------ |
+| `markdown` | Markdown documentation  | `.md`     | ✅ Implemented |
+| `json`     | JSON analysis report    | `.json`   | ✅ Implemented |
+| `html`     | HTML report with search | `.html`   | 🚧 Placeholder |
+| `mermaid`  | Mermaid ERD diagram     | `.mmd`    | 🚧 Placeholder |
 
 ### Redaction Modes
 
@@ -192,11 +192,11 @@ dbsurveyor sql <INPUT_FILE> [OPTIONS]
 
 **SQL Dialects:**
 
-- `postgresql` - PostgreSQL dialect
-- `mysql` - MySQL dialect
-- `sqlite` - SQLite dialect
-- `sqlserver` - SQL Server dialect
-- `generic` - Generic SQL (ANSI standard)
+- `postgresql` - PostgreSQL dialect (🚧 Placeholder)
+- `mysql` - MySQL dialect (🚧 Placeholder)
+- `sqlite` - SQLite dialect (🚧 Placeholder)
+- `sqlserver` - SQL Server dialect (🚧 Placeholder)
+- `generic` - Generic SQL (ANSI standard) (🚧 Placeholder)
 
 #### validate
 

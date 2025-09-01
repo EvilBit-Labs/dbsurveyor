@@ -9,10 +9,10 @@ Generate comprehensive, secure database schema documentation for PostgreSQL, MyS
 ## Key Features
 
 - **Dual-Binary Architecture**: Separate collector (`dbsurveyor-collect`) and postprocessor (`dbsurveyor`) for flexible workflows
-- **Multi-Database Support**: PostgreSQL, MySQL, SQLite, SQL Server, MongoDB with unified interface
+- **Database Support**: PostgreSQL (✅), SQLite (✅), MySQL (🚧), MongoDB (🚧), SQL Server (🚧)
 - **Security-First Design**: AES-GCM encryption, credential protection, zero telemetry
 - **Offline Operation**: Complete functionality in air-gapped environments
-- **Comprehensive Documentation**: HTML, Markdown, JSON outputs with ERD generation
+- **Documentation Generation**: Markdown (✅), JSON analysis (✅), HTML/ERD (🚧 in development)
 
 ## Security Guarantees
 

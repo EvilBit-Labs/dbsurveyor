@@ -8,9 +8,9 @@ DBSurveyor supports multiple database engines with comprehensive schema collecti
 | ---------- | ---------- | ------------ | ------- | --------------- |
 | PostgreSQL | ✅ Full    | `postgresql` | ✅ Yes  | 9.6+            |
 | SQLite     | ✅ Full    | `sqlite`     | ✅ Yes  | 3.6+            |
-| MySQL      | ⚠️ Partial | `mysql`      | ❌ No   | 5.7+, 8.0+      |
-| MongoDB    | 🚧 Basic   | `mongodb`    | ❌ No   | 4.0+            |
-| SQL Server | 🚧 Basic   | `mssql`      | ❌ No   | 2017+           |
+| MySQL      | 🚧 Partial | `mysql`      | ❌ No   | 5.7+, 8.0+      |
+| MongoDB    | 🚧 Planned | `mongodb`    | ❌ No   | 4.0+            |
+| SQL Server | 🚧 Planned | `mssql`      | ❌ No   | 2017+           |
 
 **Legend:**
 

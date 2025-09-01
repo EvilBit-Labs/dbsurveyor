@@ -44,7 +44,7 @@ CREATE TABLE posts (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-INSERT INTO users (username, email) VALUES 
+INSERT INTO users (username, email) VALUES
     ('alice', 'alice@example.com'),
     ('bob', 'bob@example.com');
 EOF
@@ -65,12 +65,11 @@ cat schema.md
 # Step 1: Collect schema from PostgreSQL
 dbsurveyor-collect postgres://user:password@localhost:5432/mydb
 
-# Step 2: Generate HTML documentation
-dbsurveyor generate schema.dbsurveyor.json --format html
+# Step 2: Generate Markdown documentation (HTML is placeholder)
+dbsurveyor generate schema.dbsurveyor.json --format markdown
 
-# Open the HTML report
-open schema.html  # macOS
-xdg-open schema.html  # Linux
+# View the generated documentation
+cat schema.md
 ```
 
 ## Example 3: Encrypted Schema Collection
@@ -131,17 +130,17 @@ DBSurveyor generates several types of files:
 
 ### Schema Files (from collector)
 
-- `schema.dbsurveyor.json` - Standard JSON format
+- `schema.dbsurveyor.json` - Standard JSON format ([specification](./json-schema-specification.md))
 - `schema.dbsurveyor.json.zst` - Compressed format (with `--compress`)
 - `schema.enc` - Encrypted format (with `--encrypt`)
 
 ### Documentation Files (from generator)
 
-- `schema.md` - Markdown documentation
-- `schema.html` - HTML report with search
-- `schema.sql` - SQL DDL reconstruction
-- `schema.mmd` - Mermaid ERD diagram
-- `schema_analysis.json` - Analysis report
+- `schema.md` - Markdown documentation (✅ implemented)
+- `schema_analysis.json` - Analysis report (✅ implemented)
+- `schema.html` - HTML report with search (🚧 placeholder)
+- `schema.sql` - SQL DDL reconstruction (🚧 placeholder)
+- `schema.mmd` - Mermaid ERD diagram (🚧 placeholder)
 
 ## Next Steps
 

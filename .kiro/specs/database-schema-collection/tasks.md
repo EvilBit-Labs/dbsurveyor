@@ -58,7 +58,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - ✅ **ENHANCEMENTS**: Added comprehensive multi-column FK support, proper ordinal position handling, and detailed logging for debugging
   - _Requirements: 1.1, 1.2, 1.7_
 
-- [ ] 2.6 Create comprehensive JSON Schema specification for .dbsurveyor.json output format
+- [x] 2.6 Create comprehensive JSON Schema specification for .dbsurveyor.json output format
   - Design comprehensive JSON Schema based on Frictionless Data Table Schema specification as foundation
   - Define complete schema for all implemented data structures:
     - DatabaseSchema root object with format_version, database_info, collection_metadata

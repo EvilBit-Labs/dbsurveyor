@@ -59,21 +59,24 @@ dbsurveyor-collect postgres://user:pass@localhost/db
 # With encryption and compression
 dbsurveyor-collect --encrypt --compress --output schema.enc postgres://localhost/db
 
-# Multi-database collection
+# Multi-database collection (planned)
 dbsurveyor-collect --all-databases --exclude-databases system,temp postgres://localhost
 
 # Test connection only
 dbsurveyor-collect test postgres://user:pass@localhost/db
 ```
 
-**Features:**
+**Current Features:**
 
-- PostgreSQL, MySQL, SQLite, MongoDB, SQL Server support (feature-gated)
-- Read-only operations with configurable timeouts
-- Optional AES-GCM encryption with password-based key derivation
-- Zstandard compression for large schemas
-- Multi-database server enumeration
-- Credential sanitization in all outputs
+- ✅ PostgreSQL support with comprehensive schema collection
+- ✅ SQLite support (default feature)
+- ✅ Read-only operations with configurable timeouts (30s default)
+- ✅ AES-GCM encryption with Argon2id key derivation
+- ✅ Zstandard compression for large schemas
+- ✅ Credential sanitization in all outputs
+- ✅ JSON Schema validation for all outputs
+- 🚧 MySQL, MongoDB, SQL Server support (feature-gated, in development)
+- 🚧 Multi-database server enumeration (planned)
 
 ### `dbsurveyor` - Documentation Generator
 
@@ -96,14 +99,18 @@ dbsurveyor sql schema.json --dialect postgresql --output schema.sql
 dbsurveyor validate schema.enc
 ```
 
-**Features:**
+**Current Features:**
 
-- Markdown, HTML, JSON, and Mermaid ERD output formats
-- Encrypted input file support with password prompts
-- Compressed input file support (.json.zst)
-- SQL DDL reconstruction for multiple dialects
-- Schema validation and analysis tools
-- Completely offline operation (no network dependencies)
+- ✅ JSON Schema validation for input files
+- ✅ Encrypted input file support with AES-GCM decryption
+- ✅ Compressed input file support (.json.zst)
+- ✅ Basic Markdown documentation generation
+- ✅ Schema analysis and statistics
+- ✅ File format validation
+- ✅ Completely offline operation (no network dependencies)
+- 🚧 Advanced HTML reports with search (placeholder implementation)
+- 🚧 SQL DDL reconstruction for multiple dialects (placeholder implementation)
+- 🚧 Mermaid ERD diagram generation (placeholder implementation)
 
 ### Known Security Advisories
 
@@ -170,6 +177,68 @@ just list-workflows
 just validate-workflows
 ```
 
+## Implementation Status
+
+### ✅ Completed Features
+
+**Core Architecture:**
+
+- Dual-binary architecture (collector + postprocessor)
+- Security-first design with comprehensive credential protection
+- Offline-only operation with zero telemetry
+- JSON Schema validation for all outputs (v1.0 format)
+
+**Database Support:**
+
+- PostgreSQL adapter with full schema collection (tables, columns, indexes, constraints, foreign keys)
+- SQLite adapter support
+- Connection pooling with security-focused defaults
+- Read-only operations with configurable timeouts
+
+**Security Features:**
+
+- AES-GCM-256 encryption with random 96-bit nonces
+- Argon2id key derivation (64 MiB memory, 3 iterations, 4 threads)
+- Memory-safe credential handling with automatic zeroing
+- Comprehensive credential sanitization in logs and errors
+- JSON Schema validation prevents sensitive data leakage
+
+**Output & Compression:**
+
+- Zstandard compression for large schema files
+- Multiple output formats (.json, .json.zst, .enc)
+- Basic Markdown documentation generation
+- JSON analysis reports with statistics
+
+**Development & Testing:**
+
+- Comprehensive test suite with nextest and testcontainers
+- Security-focused development workflow with justfile
+- CI/CD pipeline with vulnerability scanning and SBOM generation
+- 55%+ test coverage with cargo-llvm-cov
+
+### 🚧 In Development
+
+**Database Adapters:**
+
+- MySQL adapter (feature-gated, basic structure in place)
+- MongoDB adapter (planned)
+- SQL Server adapter (planned)
+
+**Advanced Features:**
+
+- Multi-database server collection
+- Data sampling with intelligent ordering strategies
+- Advanced HTML reports with search functionality
+- SQL DDL reconstruction for multiple dialects
+- Mermaid ERD diagram generation
+
+**Data Processing:**
+
+- Configurable data redaction patterns
+- Advanced schema analysis and insights
+- Performance optimization for large schemas
+
 ## Installation
 
 ### From Source (Recommended)
@@ -199,13 +268,13 @@ Control which database engines are compiled in:
 ```toml
 [features]
 default = ["postgresql", "sqlite"]
-postgresql = ["sqlx/postgres"]  # PostgreSQL support
-mysql = ["sqlx/mysql"]          # MySQL support  
-sqlite = ["sqlx/sqlite"]        # SQLite support
-mongodb = ["mongodb"]           # MongoDB support
-mssql = ["tiberius"]           # SQL Server support
-compression = ["zstd"]          # Zstandard compression
-encryption = ["aes-gcm", "argon2"]  # AES-GCM encryption
+postgresql = ["sqlx/postgres"]  # PostgreSQL support (✅ implemented)
+mysql = ["sqlx/mysql"]          # MySQL support (🚧 in development)
+sqlite = ["sqlx/sqlite"]        # SQLite support (✅ implemented)
+mongodb = ["mongodb"]           # MongoDB support (🚧 planned)
+mssql = ["tiberius"]           # SQL Server support (🚧 planned)
+compression = ["zstd"]          # Zstandard compression (✅ implemented)
+encryption = ["aes-gcm", "argon2"]  # AES-GCM encryption (✅ implemented)
 ```
 
 ### Enhanced Testing with Nextest
@@ -226,6 +295,8 @@ just test-ci
 just test-unit           # Unit tests only
 just test-integration    # Integration tests only
 just test-encryption     # Security/encryption tests
+just test-postgres       # PostgreSQL-specific tests
+just test-sqlite         # SQLite-specific tests
 ```
 
 **Benefits of Nextest:**
@@ -234,6 +305,7 @@ just test-encryption     # Security/encryption tests
 - 🔍 **Better output** with structured results and timing
 - 🔄 **Retry mechanisms** for flaky test handling
 - 🏗️ **CI-optimized** profiles for different environments
+- 🔒 **Security test isolation** with sequential execution for sensitive tests
 
 ## Usage Examples
 
@@ -305,6 +377,9 @@ dbsurveyor-collect
 # Logging configuration
 export RUST_LOG=debug  # Enable debug logging
 export RUST_LOG=dbsurveyor_collect=trace  # Trace specific module
+
+# Disable colored output (useful for CI)
+export NO_COLOR=1
 ```
 
 ## Documentation
@@ -337,4 +412,13 @@ just pre-commit
 
 # Build and serve documentation locally
 just docs
+
+# Test specific database adapters
+just test-postgres       # PostgreSQL integration tests
+just test-sqlite         # SQLite integration tests
+
+# Security testing
+just test-encryption     # AES-GCM encryption tests
+just test-credential-security  # Credential sanitization tests
+just test-offline        # Offline operation verification
 ```

@@ -1,39 +1,24 @@
 # Output Formats
 
-DBSurveyor supports multiple output formats for both schema collection and documentation generation. This guide details all available formats and their use cases.
+DBSurveyor generates structured output in multiple formats to support different use cases and workflows.
 
-## Collection Output Formats
+## Schema File Formats
 
-The `dbsurveyor-collect` tool generates schema files in these formats:
+### Standard JSON Format (.dbsurveyor.json)
 
-### Standard JSON (.dbsurveyor.json)
-
-**Default format** for schema collection.
-
-```bash
-# Generate standard JSON
-dbsurveyor-collect postgres://localhost/db
-# Creates: schema.dbsurveyor.json
-```
-
-**Characteristics**:
-
-- Human-readable JSON with pretty printing
-- Complete schema metadata
-- Compatible with all documentation generators
-- No compression or encryption
-
-**Example Structure**:
+The primary output format is a JSON file following the DBSurveyor Schema v1.0 specification:
 
 ```json
 {
   "format_version": "1.0",
   "database_info": {
-    "name": "mydb",
+    "name": "production_db",
     "version": "13.7",
-    "size_bytes": 1048576,
+    "size_bytes": 1073741824,
     "encoding": "UTF8",
-    "collation": "en_US.UTF-8"
+    "collation": "en_US.UTF-8",
+    "access_level": "Full",
+    "collection_status": "Success"
   },
   "tables": [
     {
@@ -42,99 +27,82 @@ dbsurveyor-collect postgres://localhost/db
       "columns": [
         {
           "name": "id",
-          "data_type": {
-            "Integer": { "bits": 32, "signed": true }
-          },
+          "data_type": {"Integer": {"bits": 32, "signed": true}},
           "is_nullable": false,
           "is_primary_key": true,
+          "is_auto_increment": true,
           "ordinal_position": 1
         }
       ],
       "primary_key": {
         "name": "users_pkey",
         "columns": ["id"]
-      }
+      },
+      "foreign_keys": [],
+      "indexes": [],
+      "constraints": []
     }
   ],
+  "views": [],
+  "indexes": [],
+  "constraints": [],
+  "procedures": [],
+  "functions": [],
+  "triggers": [],
+  "custom_types": [],
   "collection_metadata": {
     "collected_at": "2024-01-15T10:30:00Z",
-    "collection_duration_ms": 5432,
-    "collector_version": "0.1.0",
+    "collection_duration_ms": 1500,
+    "collector_version": "1.0.0",
     "warnings": []
   }
 }
 ```
 
-### Compressed JSON (.dbsurveyor.json.zst)
+### Compressed Format (.dbsurveyor.json.zst)
 
-**Zstandard compressed** format for large schemas.
+Large schema files can be compressed using Zstandard compression:
 
 ```bash
-# Generate compressed format
-dbsurveyor-collect --compress postgres://localhost/db
-# Creates: schema.dbsurveyor.json.zst
+# Generate compressed output
+dbsurveyor-collect --compress postgres://localhost/large_db
+
+# Postprocessor automatically detects and decompresses
+dbsurveyor generate schema.dbsurveyor.json.zst
 ```
 
-**Characteristics**:
+**Benefits:**
 
-- 60-80% size reduction typical
+- 60-80% size reduction for large schemas
 - Fast compression/decompression
-- Maintains full schema fidelity
-- Automatic detection by documentation tools
+- Maintains full data integrity
 
-**Use Cases**:
+### Encrypted Format (.enc)
 
-- Large databases (>1000 tables)
-- Network transfer optimization
-- Long-term storage
-- CI/CD artifact optimization
-
-**Compression Stats Example**:
+Sensitive schema data can be encrypted using AES-GCM-256:
 
 ```bash
-# Original: 2.5 MB
-# Compressed: 450 KB (82% reduction)
-ls -lh schema.*
-# -rw-r--r-- 1 user user 2.5M schema.dbsurveyor.json
-# -rw-r--r-- 1 user user 450K schema.dbsurveyor.json.zst
+# Generate encrypted output (prompts for password)
+dbsurveyor-collect --encrypt postgres://localhost/sensitive_db
+
+# Postprocessor prompts for decryption password
+dbsurveyor generate schema.enc
 ```
 
-### Encrypted JSON (.enc)
-
-**AES-GCM encrypted** format for sensitive schemas.
-
-```bash
-# Generate encrypted format (prompts for password)
-dbsurveyor-collect --encrypt postgres://localhost/db
-# Creates: schema.enc
-```
-
-**Characteristics**:
+**Security Features:**
 
 - AES-GCM-256 authenticated encryption
+- Argon2id key derivation (64 MiB memory, 3 iterations)
 - Random 96-bit nonces (never reused)
-- Argon2id key derivation
-- Embedded KDF parameters and salt
-- Password-based encryption
+- Embedded KDF parameters for decryption
 
-**Security Features**:
-
-- **Algorithm**: AES-GCM-256
-- **Nonce**: 96-bit random (12 bytes)
-- **Auth Tag**: 128-bit (16 bytes)
-- **KDF**: Argon2id v1.3
-- **Salt**: 128-bit random (16 bytes)
-- **Memory Cost**: 64 MiB
-- **Time Cost**: 3 iterations
-- **Parallelism**: 4 threads
-
-**Encrypted File Structure**:
+**Encrypted File Structure:**
 
 ```json
 {
   "algorithm": "AES-GCM-256",
   "nonce": [/* 12 bytes */],
-  "ciphertext": [/* encrypted schema data */],
+  "ciphertext": [/* encrypted data */],
   "auth_tag": [/* 16 bytes */],
   "kdf_params": {
     "salt": [/* 16 bytes */],
@@ -146,496 +114,323 @@ dbsurveyor-collect --encrypt postgres://localhost/db
 }
 ```
 
-### Combined Formats
+## Documentation Formats
+
+### Markdown Documentation (.md)
+
+**Status**: ✅ Implemented
+
+Basic Markdown documentation with schema overview:
 
 ```bash
-# Compressed + Encrypted (maximum efficiency + security)
-dbsurveyor-collect --compress --encrypt postgres://localhost/db
-# Creates: schema.enc (compressed data is encrypted)
+dbsurveyor generate schema.json --format markdown
 ```
 
-## Documentation Output Formats
+**Output Example:**
 
-The `dbsurveyor` tool generates documentation in multiple formats:
+```markdown
+# Database Schema: production_db
 
-### Markdown Documentation
-
-**Best for**: Version control, wikis, documentation sites
-
-```bash
-# Generate Markdown (default)
-dbsurveyor generate schema.dbsurveyor.json
-# Creates: schema.md
-```
-
-**Features**:
-
-- Clean, readable text format
-- Table of contents with navigation
-- Code blocks for SQL examples
-- Compatible with GitHub, GitLab, etc.
-- Mermaid diagram integration
-
-**Example Output**:
-
-````markdown
-# Database Schema: mydb
-
-Generated by DBSurveyor v0.1.0  
+Generated by DBSurveyor v1.0.0
 Collection Date: 2024-01-15 10:30:00 UTC
 
 ## Summary
 
-- **Database**: mydb (PostgreSQL 13.7)
-- **Tables**: 15
+- **Tables**: 25
 - **Views**: 3
-- **Indexes**: 28
-- **Constraints**: 42
+- **Indexes**: 47
 
 ## Tables
 
 ### users
-
-**Schema**: public  
-**Rows**: ~1,250  
-**Size**: 128 KB
-
-| Column | Type | Nullable | Default | Description |
-|--------|------|----------|---------|-------------|
-| id | INTEGER | NO | nextval('users_id_seq') | Primary key |
-| username | VARCHAR(50) | NO | | Unique username |
-| email | VARCHAR(255) | YES | | Contact email |
-| created_at | TIMESTAMP | NO | CURRENT_TIMESTAMP | Creation time |
-
-#### Indexes
-
-- **users_pkey** (PRIMARY): id
-- **users_username_key** (UNIQUE): username
-- **idx_users_email**: email
-
-#### Constraints
-
-- **users_pkey**: PRIMARY KEY (id)
-- **users_username_key**: UNIQUE (username)
-
-### orders
-
-**Schema**: public  
-**Rows**: ~5,430  
-**Size**: 512 KB
-
-| Column | Type | Nullable | Default | Description |
-|--------|------|----------|---------|-------------|
-| id | INTEGER | NO | nextval('orders_id_seq') | Primary key |
-| user_id | INTEGER | NO | | Foreign key to users |
-| total | DECIMAL(10,2) | NO | | Order total |
-| created_at | TIMESTAMP | NO | CURRENT_TIMESTAMP | Order date |
-
-#### Foreign Keys
-
-- **fk_orders_user_id**: user_id → users(id)
-
-## Entity Relationship Diagram
-
-```mermaid
-erDiagram
-    users {
-        int id PK
-        varchar username UK
-        varchar email
-        timestamp created_at
-    }
-    orders {
-        int id PK
-        int user_id FK
-        decimal total
-        timestamp created_at
-    }
-    users ||--o{ orders : "has many"
-````
-
-## Views
-
-### active_users
-
-**Schema**: public\
-**Definition**:
-
-```sql
-SELECT id, username, email 
-FROM users 
-WHERE last_login > (CURRENT_DATE - INTERVAL '30 days');
+- **Schema**: public
+- **Columns**: 5
+- **Primary Key**: id
 ```
 
-````
+### JSON Analysis Report (.json)
 
-### HTML Reports
+**Status**: ✅ Implemented
 
-**Best for**: Interactive browsing, presentations, sharing
+Structured analysis data for programmatic consumption:
 
 ```bash
-# Generate HTML report
-dbsurveyor --format html schema.dbsurveyor.json
-# Creates: schema.html
-````
-
-**Features**:
-
-- Interactive search and filtering
-- Collapsible sections
-- Syntax highlighting
-- Responsive design
-- Offline-capable (no external dependencies)
-- Dark/light theme support
-
-**HTML Structure**:
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Database Schema: mydb</title>
-    <style>/* Embedded CSS */</style>
-</head>
-<body>
-    <nav><!-- Table of contents --></nav>
-    <main>
-        <header>
-            <h1>Database Schema: mydb</h1>
-            <div class="search-box">
-                <input type="text" placeholder="Search tables, columns...">
-            </div>
-        </header>
-        
-        <section class="summary">
-            <!-- Database summary -->
-        </section>
-        
-        <section class="tables">
-            <!-- Interactive table listings -->
-        </section>
-    </main>
-    <script>/* Embedded JavaScript */</script>
-</body>
-</html>
+dbsurveyor analyze schema.json --detailed
 ```
 
-### JSON Analysis
-
-**Best for**: Programmatic processing, integration, APIs
-
-```bash
-# Generate JSON analysis
-dbsurveyor --format json schema.dbsurveyor.json
-# Creates: schema_analysis.json
-```
-
-**Features**:
-
-- Structured data for automation
-- Statistics and metrics
-- Relationship analysis
-- Machine-readable format
-- API integration ready
-
-**Example Output**:
+**Output Example:**
 
 ```json
 {
-  "database_name": "mydb",
-  "database_type": "PostgreSQL",
-  "analysis_date": "2024-01-15T10:30:00Z",
-  "summary": {
-    "table_count": 15,
-    "view_count": 3,
-    "index_count": 28,
-    "constraint_count": 42,
-    "procedure_count": 5,
-    "function_count": 12,
-    "trigger_count": 8,
-    "custom_type_count": 3
-  },
-  "size_analysis": {
-    "total_size_bytes": 10485760,
-    "largest_tables": [
-      {
-        "name": "audit_log",
-        "size_bytes": 5242880,
-        "row_count": 125000
-      }
-    ]
-  },
-  "relationships": [
-    {
-      "from_table": "orders",
-      "from_column": "user_id",
-      "to_table": "users",
-      "to_column": "id",
-      "relationship_type": "foreign_key",
-      "constraint_name": "fk_orders_user_id"
-    }
-  ],
-  "data_types": {
-    "most_common": [
-      { "type": "INTEGER", "count": 45 },
-      { "type": "VARCHAR", "count": 38 },
-      { "type": "TIMESTAMP", "count": 22 }
-    ]
-  },
-  "naming_patterns": {
-    "table_naming": "snake_case",
-    "column_naming": "snake_case",
-    "common_prefixes": ["id", "created", "updated"],
-    "common_suffixes": ["_id", "_at", "_date"]
+  "database_name": "production_db",
+  "table_count": 25,
+  "view_count": 3,
+  "index_count": 47,
+  "constraint_count": 32,
+  "collection_date": "2024-01-15T10:30:00Z",
+  "analysis": {
+    "largest_table": "audit_log",
+    "most_indexes": "users",
+    "foreign_key_relationships": 18
   }
 }
 ```
 
-### Mermaid ERD Diagrams
+### HTML Report (.html)
 
-**Best for**: Visual database design, architecture documentation
+**Status**: 🚧 Placeholder Implementation
+
+Interactive HTML reports with search and navigation:
 
 ```bash
-# Generate Mermaid ERD
-dbsurveyor --format mermaid schema.dbsurveyor.json
-# Creates: schema.mmd
+dbsurveyor generate schema.json --format html
 ```
 
-**Features**:
+**Planned Features:**
 
-- Entity Relationship Diagrams
-- Visual table relationships
-- Compatible with Mermaid.js
-- Can be embedded in Markdown
-- GitHub/GitLab integration
+- Interactive table browser
+- Search functionality
+- Relationship visualization
+- Responsive design for mobile/desktop
+- Offline-compatible (no external dependencies)
 
-**Example Output**:
+### Mermaid ERD (.mmd)
+
+**Status**: 🚧 Placeholder Implementation
+
+Entity Relationship Diagrams using Mermaid syntax:
+
+```bash
+dbsurveyor generate schema.json --format mermaid
+```
+
+**Planned Output:**
 
 ```mermaid
 erDiagram
     users {
-        int id PK "Primary key"
-        varchar username UK "Unique username"
-        varchar email "Contact email"
-        timestamp created_at "Account creation"
-        timestamp last_login "Last login time"
+        int id PK
+        string username
+        string email UK
+        datetime created_at
     }
-    
+
     orders {
-        int id PK "Order ID"
-        int user_id FK "User reference"
-        decimal total "Order total amount"
-        varchar status "Order status"
-        timestamp created_at "Order date"
-        timestamp updated_at "Last update"
+        int id PK
+        int user_id FK
+        decimal total
+        datetime created_at
     }
-    
-    order_items {
-        int id PK "Item ID"
-        int order_id FK "Order reference"
-        int product_id FK "Product reference"
-        int quantity "Item quantity"
-        decimal price "Item price"
-    }
-    
-    products {
-        int id PK "Product ID"
-        varchar name "Product name"
-        text description "Product description"
-        decimal price "Current price"
-        int stock_quantity "Available stock"
-        timestamp created_at "Product added"
-    }
-    
-    users ||--o{ orders : "places"
-    orders ||--o{ order_items : "contains"
-    products ||--o{ order_items : "included_in"
+
+    users ||--o{ orders : "has many"
 ```
 
-## SQL DDL Reconstruction
+### SQL DDL (.sql)
 
-**Best for**: Database migration, schema recreation
+**Status**: 🚧 Placeholder Implementation
+
+Reconstructed SQL DDL for schema recreation:
 
 ```bash
-# Generate PostgreSQL DDL
-dbsurveyor sql schema.dbsurveyor.json --dialect postgresql
-# Creates: schema.sql
-
-# Generate MySQL DDL
-dbsurveyor sql schema.dbsurveyor.json --dialect mysql --output mysql-schema.sql
+dbsurveyor sql schema.json --dialect postgresql --output recreate.sql
 ```
 
-**Supported Dialects**:
+**Planned Features:**
 
-- `postgresql` - PostgreSQL-specific syntax
-- `mysql` - MySQL-specific syntax
-- `sqlite` - SQLite-specific syntax
-- `sqlserver` - SQL Server-specific syntax
-- `generic` - ANSI SQL standard
+- Multiple SQL dialect support (PostgreSQL, MySQL, SQLite, SQL Server)
+- Complete schema recreation scripts
+- Data type mapping between databases
+- Constraint and index recreation
+- Migration script generation
 
-**Example PostgreSQL Output**:
+## Unified Data Type System
 
-```sql
--- Database Schema: mydb
--- Generated by DBSurveyor v0.1.0
--- Source: PostgreSQL 13.7
+DBSurveyor uses a unified type system to represent data types across different databases:
 
--- Create schemas
-CREATE SCHEMA IF NOT EXISTS public;
+### Basic Types
 
--- Create custom types
-CREATE TYPE status_enum AS ENUM ('active', 'inactive', 'pending');
-
--- Create tables
-CREATE TABLE public.users (
-    id INTEGER NOT NULL DEFAULT nextval('users_id_seq'::regclass),
-    username VARCHAR(50) NOT NULL,
-    email VARCHAR(255),
-    status status_enum DEFAULT 'active',
-    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP WITHOUT TIME ZONE
-);
-
-CREATE TABLE public.orders (
-    id INTEGER NOT NULL DEFAULT nextval('orders_id_seq'::regclass),
-    user_id INTEGER NOT NULL,
-    total DECIMAL(10,2) NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending',
-    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITHOUT TIME ZONE
-);
-
--- Create sequences
-CREATE SEQUENCE users_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-CREATE SEQUENCE orders_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
--- Create primary keys
-ALTER TABLE public.users ADD CONSTRAINT users_pkey PRIMARY KEY (id);
-ALTER TABLE public.orders ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
-
--- Create unique constraints
-ALTER TABLE public.users ADD CONSTRAINT users_username_key UNIQUE (username);
-
--- Create foreign keys
-ALTER TABLE public.orders 
-    ADD CONSTRAINT fk_orders_user_id 
-    FOREIGN KEY (user_id) REFERENCES public.users(id);
-
--- Create indexes
-CREATE INDEX idx_users_email ON public.users USING btree (email);
-CREATE INDEX idx_orders_status ON public.orders USING btree (status);
-CREATE INDEX idx_orders_created_at ON public.orders USING btree (created_at);
-
--- Create views
-CREATE VIEW public.active_users AS
-    SELECT id, username, email, created_at
-    FROM public.users
-    WHERE status = 'active' AND last_login > (CURRENT_DATE - INTERVAL '30 days');
-
--- Create functions
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Create triggers
-CREATE TRIGGER update_orders_updated_at
-    BEFORE UPDATE ON public.orders
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+```json
+{
+  "String": {"max_length": 255},
+  "Integer": {"bits": 32, "signed": true},
+  "Float": {"precision": 53},
+  "Boolean": null,
+  "Date": null,
+  "DateTime": {"with_timezone": true},
+  "Time": {"with_timezone": false}
+}
 ```
 
-## Format Comparison
+### Advanced Types
 
-| Format     | Size   | Speed  | Features    | Use Case          |
-| ---------- | ------ | ------ | ----------- | ----------------- |
-| JSON       | Large  | Fast   | Complete    | Development, APIs |
-| Compressed | Small  | Fast   | Complete    | Storage, transfer |
-| Encrypted  | Medium | Medium | Secure      | Sensitive data    |
-| Markdown   | Medium | Fast   | Readable    | Documentation     |
-| HTML       | Large  | Medium | Interactive | Presentations     |
-| Mermaid    | Small  | Fast   | Visual      | Architecture      |
-| SQL DDL    | Medium | Fast   | Executable  | Migration         |
+```json
+{
+  "Binary": {"max_length": 1024},
+  "Json": null,
+  "Uuid": null,
+  "Array": {
+    "element_type": {"String": {"max_length": 50}}
+  },
+  "Custom": {"type_name": "user_status_enum"}
+}
+```
 
-## File Extensions and Detection
+### Database-Specific Mapping
 
-DBSurveyor automatically detects file formats based on extensions:
+| DBSurveyor Type | PostgreSQL | MySQL | SQLite | MongoDB |
+|-----------------|------------|-------|--------|---------|
+| `String` | `VARCHAR`, `TEXT` | `VARCHAR`, `TEXT` | `TEXT` | `string` |
+| `Integer` | `INTEGER`, `BIGINT` | `INT`, `BIGINT` | `INTEGER` | `int`, `long` |
+| `Float` | `REAL`, `DOUBLE` | `FLOAT`, `DOUBLE` | `REAL` | `double` |
+| `Boolean` | `BOOLEAN` | `BOOLEAN` | `INTEGER` | `bool` |
+| `Json` | `JSON`, `JSONB` | `JSON` | `TEXT` | `object` |
+| `Array` | `ARRAY[]` | `JSON` | `TEXT` | `array` |
+| `Custom` | `ENUM`, `DOMAIN` | `ENUM` | N/A | N/A |
 
-| Extension          | Format        | Auto-Detection |
-| ------------------ | ------------- | -------------- |
-| `.json`            | Standard JSON | ✅             |
-| `.dbsurveyor.json` | Standard JSON | ✅             |
-| `.zst`             | Compressed    | ✅             |
-| `.json.zst`        | Compressed    | ✅             |
-| `.enc`             | Encrypted     | ✅             |
-| `.md`              | Markdown      | ✅             |
-| `.html`            | HTML          | ✅             |
-| `.mmd`             | Mermaid       | ✅             |
-| `.sql`             | SQL DDL       | ✅             |
+## Schema Validation
 
-## Best Practices
+All output files are validated against the DBSurveyor JSON Schema v1.0:
 
-### Collection Format Selection
+### Validation Features
+
+- **Format Version Checking**: Ensures compatibility
+- **Required Field Validation**: All mandatory fields present
+- **Data Type Validation**: Correct type structure
+- **Security Validation**: No credential fields allowed
+- **Relationship Validation**: Foreign key consistency
+
+### Validation Errors
 
 ```bash
-# Development: Use standard JSON
-dbsurveyor-collect postgres://localhost/dev_db
+# Validate a schema file
+dbsurveyor validate schema.json
 
-# Production: Use encryption
-dbsurveyor-collect --encrypt postgres://prod-server/db
-
-# Large databases: Use compression
-dbsurveyor-collect --compress postgres://warehouse/big_db
-
-# Maximum security: Use both
-dbsurveyor-collect --compress --encrypt postgres://sensitive/db
+# Example validation error
+Error: Schema validation failed
+- Missing required field: collection_metadata.collected_at
+- Invalid data type: expected Integer, found String
+- Security violation: credential field detected in column default_value
 ```
 
-### Documentation Format Selection
+## File Size Considerations
+
+### Compression Recommendations
+
+| Schema Size | Recommendation | Expected Compression |
+|-------------|----------------|---------------------|
+| < 1 MB | Standard JSON | N/A |
+| 1-10 MB | Zstandard compression | 60-70% reduction |
+| > 10 MB | Compression + chunking | 70-80% reduction |
+
+### Large Schema Handling
+
+For very large databases (1000+ tables):
 
 ```bash
-# Version control: Use Markdown
-dbsurveyor --format markdown schema.json
+# Use compression for large schemas
+dbsurveyor-collect --compress postgres://localhost/large_db
 
-# Presentations: Use HTML
-dbsurveyor --format html schema.json
-
-# Architecture docs: Use Mermaid
-dbsurveyor --format mermaid schema.json
-
-# Automation: Use JSON
-dbsurveyor --format json schema.json
-
-# Migration: Use SQL DDL
-dbsurveyor sql schema.json --dialect postgresql
+# Consider sampling for development
+dbsurveyor-collect --sample 10 postgres://localhost/large_db
 ```
 
-### Multi-Format Generation
+## Security Considerations
+
+### Credential Protection
+
+All output formats guarantee:
+
+- No database credentials in any output file
+- Connection strings sanitized in metadata
+- Error messages sanitized
+- Validation prevents credential leakage
+
+### Encryption Best Practices
 
 ```bash
-# Generate all formats
-for format in markdown html json mermaid; do
-    dbsurveyor --format $format schema.dbsurveyor.json
-done
+# Use strong passwords for encryption
+dbsurveyor-collect --encrypt postgres://localhost/sensitive_db
 
-# Generate SQL for multiple dialects
-for dialect in postgresql mysql sqlite; do
-    dbsurveyor sql schema.json --dialect $dialect --output schema-$dialect.sql
-done
+# Verify encrypted file integrity
+dbsurveyor validate schema.enc
 ```
 
-This comprehensive format support ensures DBSurveyor can integrate into any workflow or toolchain while maintaining security and performance requirements.
+### Airgap Compatibility
+
+All formats work completely offline:
+
+- No external dependencies in generated files
+- Self-contained documentation
+- Local-only processing
+- No network calls during generation
+
+## Format Evolution
+
+### Version Compatibility
+
+- **v1.0**: Current format with full backward compatibility
+- **Future versions**: Additive changes only
+- **Migration tools**: Automatic format upgrades
+- **Deprecation policy**: 2-version support window
+
+### Schema Extensions
+
+The format supports extensions for:
+
+- Database-specific features
+- Custom metadata
+- Plugin-generated data
+- Performance metrics
+
+## Integration Examples
+
+### CI/CD Pipeline
+
+```yaml
+# Generate schema documentation in CI
+- name: Collect Database Schema
+  run: |
+    dbsurveyor-collect --compress $DATABASE_URL
+    dbsurveyor generate schema.dbsurveyor.json.zst --format markdown
+
+- name: Upload Documentation
+  uses: actions/upload-artifact@v3
+  with:
+    name: database-docs
+    path: schema.md
+```
+
+### Programmatic Access
+
+```python
+import json
+
+# Load schema data
+with open('schema.dbsurveyor.json') as f:
+    schema = json.load(f)
+
+# Analyze tables
+for table in schema['tables']:
+    print(f"Table: {table['name']}")
+    print(f"Columns: {len(table['columns'])}")
+```
+
+### Documentation Automation
+
+```bash
+#!/bin/bash
+# Automated documentation generation
+
+# Collect from multiple environments
+dbsurveyor-collect --output prod.json $PROD_DB_URL
+dbsurveyor-collect --output staging.json $STAGING_DB_URL
+
+# Generate documentation
+dbsurveyor generate prod.json --format html --output prod-schema.html
+dbsurveyor generate staging.json --format html --output staging-schema.html
+
+# Compare schemas (future feature)
+# dbsurveyor compare prod.json staging.json --output diff.html
+```
+
+This comprehensive output format system ensures that DBSurveyor can adapt to various workflows while maintaining security and compatibility guarantees.

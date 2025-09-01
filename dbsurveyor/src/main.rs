@@ -217,6 +217,14 @@ async fn main() -> Result<()> {
     // Initialize logging
     init_logging(cli.global.verbose, cli.global.quiet)?;
 
+    // Initialize JSON Schema validator
+    dbsurveyor_core::initialize_schema_validator().map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
+            "Failed to initialize schema validator: {}",
+            e
+        ))
+    })?;
+
     // Handle commands
     match &cli.command {
         Some(Command::Generate(args)) => {
@@ -319,11 +327,12 @@ async fn load_json_schema(data: &[u8]) -> Result<DatabaseSchema> {
         ))
     })?;
 
-    serde_json::from_str(json_str).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::Serialization {
-            context: "Failed to parse schema JSON".to_string(),
-            source: e,
-        }
+    // Use the validation function that combines parsing, validation, and deserialization
+    dbsurveyor_core::validate_and_parse_schema(json_str).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
+            "Schema validation failed: {}",
+            e
+        ))
     })
 }
 

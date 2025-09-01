@@ -15,6 +15,7 @@
 
 - [CLI Reference](./cli-reference.md)
 - [Output Formats](./output-formats.md)
+- [JSON Schema Specification](./json-schema-specification.md)
 - [Database Support](./database-support.md)
 - [Troubleshooting](./troubleshooting.md)
 

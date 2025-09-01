@@ -20,6 +20,7 @@ pub mod adapters;
 pub mod error;
 pub mod models;
 pub mod security;
+pub mod validation;
 
 // Re-export commonly used types
 pub use adapters::{
@@ -35,3 +36,7 @@ pub use models::{
 
 #[cfg(feature = "encryption")]
 pub use security::encryption;
+
+pub use validation::{
+    ValidationError, initialize_schema_validator, validate_and_parse_schema, validate_schema_output,
+};
