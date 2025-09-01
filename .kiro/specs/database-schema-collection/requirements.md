@@ -28,7 +28,7 @@ This feature implements the core database schema collection and documentation fu
 
 **User Story:** As a security analyst, I want the tool to operate with minimal network connectivity and zero telemetry, so that I can use it in air-gapped environments without security concerns.
 
-#### Security & Offline Operation Criteria
+#### Acceptance Criteria
 
 1. WHEN the collector tool is running THEN it SHALL only initiate network connections to the target database for schema collection
 2. WHEN the postprocessor is running THEN it SHALL make zero network connections and operate entirely on local files
@@ -42,7 +42,7 @@ This feature implements the core database schema collection and documentation fu
 
 **User Story:** As a developer, I want to generate human-readable documentation from collected schema data, so that I can understand inherited database systems quickly.
 
-#### Documentation Generation Criteria
+#### Acceptance Criteria
 
 1. WHEN I provide a .dbsurveyor.json file THEN the system SHALL generate comprehensive Markdown documentation
 2. WHEN generating documentation THEN it SHALL include table-of-contents navigation and relationship diagrams
@@ -54,7 +54,7 @@ This feature implements the core database schema collection and documentation fu
 
 **User Story:** As a compliance officer, I want to identify potentially sensitive data fields, so that I can assess PII/PCI compliance risks.
 
-#### Compliance & Data Classification Criteria
+#### Acceptance Criteria
 
 1. WHEN analyzing schema data THEN the system SHALL classify fields based on naming patterns and data types
 2. WHEN sensitive fields are detected THEN they SHALL be flagged with confidence scores
@@ -67,7 +67,7 @@ This feature implements the core database schema collection and documentation fu
 
 **User Story:** As a red team operator, I want to throttle database queries and encrypt outputs, so that I can collect intelligence covertly without detection.
 
-#### Covert Operation & Rate Limiting Criteria
+#### Acceptance Criteria
 
 1. WHEN rate limiting is configured THEN the system SHALL throttle queries to the specified rate
 2. WHEN encryption is requested THEN output files SHALL be encrypted with AES-GCM
@@ -79,7 +79,7 @@ This feature implements the core database schema collection and documentation fu
 
 **User Story:** As a database administrator, I want the ability to recreate database structures from collected metadata, so that I can replicate schemas in new environments when explicitly directed.
 
-#### Schema Rehydration Criteria
+#### Acceptance Criteria
 
 1. WHEN rehydration mode is enabled THEN the postprocessor SHALL generate executable DDL statements from collected metadata (uses data from Requirement 1)
 2. WHEN creating new database structures THEN the system SHALL only execute when explicitly directed by the user (maintains read-only principle from Requirement 1)
@@ -91,7 +91,7 @@ This feature implements the core database schema collection and documentation fu
 
 **User Story:** As a developer, I want to easily extend the tool to support new database types through a plugin architecture, so that the system can evolve with emerging database technologies.
 
-#### Plugin Architecture & Extensibility Criteria
+#### Acceptance Criteria
 
 1. WHEN implementing a new database adapter THEN it SHALL conform to a standardized Rust trait interface
 2. WHEN a plugin is loaded THEN the system SHALL validate its compatibility and security
@@ -106,7 +106,7 @@ This feature implements the core database schema collection and documentation fu
 
 **User Story:** As a security operator, I want configurable data sampling and throttling capabilities, so that I can control the collection process for operational security.
 
-#### Data Sampling & Operational Security Criteria
+#### Acceptance Criteria
 
 1. WHEN sampling data THEN the system SHALL collect the most recent N rows per table using best-effort ordering (extends metadata collection from Requirement 1)
 2. WHEN throttling is configured THEN the collector SHALL control the rate of database queries to reduce detection risk (supports covert operation from Requirement 5)
@@ -121,7 +121,7 @@ This feature implements the core database schema collection and documentation fu
 
 **User Story:** As a system administrator, I want multiple output formats with optional compression and encryption, so that I can securely store and transport database metadata.
 
-#### Output Format & Storage Criteria
+#### Acceptance Criteria
 
 1. WHEN collection is complete THEN the system SHALL generate .dbsurveyor.json with format_version "1.0" (structured output from Requirement 1)
 2. WHEN compression is requested THEN the system SHALL output .dbsurveyor.json.zst using Zstandard compression (efficiency for large schemas from Requirement 1)
