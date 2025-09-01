@@ -104,7 +104,7 @@ pub struct ForeignKey {
 }
 
 /// Referential actions for foreign keys
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReferentialAction {
     Cascade,
     SetNull,

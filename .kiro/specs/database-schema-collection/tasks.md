@@ -61,6 +61,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
     - Idle connection management: idle_timeout (default: 10min), max_lifetime (default: 1hour)
     - Pool configuration via environment variables and config files
     - Runtime pool parameter validation and adjustment
+  - Increase minimum test coverage threshold to 70% for dbsurveyor-core
+    - If it does not meet the minimum threshold, develop additional test cases to meet the requirement
+    - Ensure all major functionality is covered by unit tests, benchmarks, and testcontainer-based integration tests (where appropriate)
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 6. Add intelligent data sampling to PostgreSQL adapter
@@ -74,6 +77,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Add sensitive data detection patterns (warnings only, no redaction) with log-only sensitive-data warnings
   - Implement configurable parameters: sampling frequency, max concurrent queries, jitter, backoff policy, timeout values
   - Test with various table structures and data types
+  - Increase minimum test coverage threshold to 70% for dbsurveyor-collector and dbsurveyor-core; do not lower it again
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
 - [ ] 7. Implement multi-database collection for PostgreSQL

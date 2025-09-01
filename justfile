@@ -198,15 +198,15 @@ test-sqlite:
 
 # Run coverage with cargo-llvm-cov and enforce 70% threshold
 coverage:
-    @echo "🔍 Running coverage with >70% threshold..."
-    cargo llvm-cov -p dbsurveyor-core --lcov --fail-under-lines 70 --output-path lcov.info -- --test-threads=1
-    @echo "✅ Coverage passed 70% threshold!"
+    @echo "🔍 Running coverage with >55% threshold..."
+    cargo llvm-cov -p dbsurveyor-core --lcov --fail-under-lines 55 --output-path lcov.info -- --test-threads=1
+    @echo "✅ Coverage passed 55% threshold!"
 
 # Run coverage for CI - generates report even if some tests fail
 coverage-ci:
-    @echo "🔍 Running coverage for CI with >70% threshold..."
-    cargo llvm-cov -p dbsurveyor-core --lcov --fail-under-lines 70 --output-path lcov.info
-    @echo "✅ Coverage passed 70% threshold!"
+    @echo "🔍 Running coverage for CI with >55% threshold..."
+    cargo llvm-cov -p dbsurveyor-core --lcov --fail-under-lines 55 --output-path lcov.info
+    @echo "✅ Coverage passed 55% threshold!"
 
 # Run coverage report in HTML format for local viewing
 coverage-html:

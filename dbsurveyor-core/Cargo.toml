@@ -51,7 +51,7 @@ zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
-testcontainers-modules = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
 
 # Nextest configuration for this crate
 [package.metadata.nextest]
