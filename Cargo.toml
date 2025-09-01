@@ -24,26 +24,45 @@ categories = ["command-line-utilities", "database"]
 # - Feature flags ensure minimal attack surface for airgap deployments
 
 [workspace.dependencies]
-# Shared workspace dependencies - will be added as features are implemented
-# CLI framework
-clap = { version = "4.5.45", features = ["derive", "env"] }
-
-# Async runtime
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
-
-# Serialization
+# Core dependencies
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+thiserror = "2.0.16"
+anyhow = "1.0"
+async-trait = "0.1"
+url = "2.5"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
-# Error handling
-anyhow = "1.0"
-thiserror = "2.0.16"
+# CLI dependencies
+clap = { version = "4.5.45", features = ["derive", "env"] }
 
-# Logging (structured, no external reporting)
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# Database dependencies (feature-gated)
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid"] }
+tiberius = { version = "0.12", features = ["tds73", "sql-browser-tokio", "bigdecimal", "time", "chrono"] }
+mongodb = "2.8"
+
+# Security dependencies
+aes-gcm = "0.10"
+argon2 = "0.5.3"
+password-hash = "0.5"
+zeroize = { version = "1.7", features = ["derive"] }
+rand = "0.9.2"
+rpassword = "7.3"
+base64 = "0.22"
+
+# Compression
+zstd = "0.13"
+
+# Template engine
+askama = { version = "0.12", features = ["serde-json"] }
+
+# Testing
+testcontainers = "0.15"
+criterion = "0.5"
 
 # Internal workspace dependencies
 dbsurveyor-core = { path = "dbsurveyor-core" }
