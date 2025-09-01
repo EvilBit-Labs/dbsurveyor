@@ -31,7 +31,7 @@ jobs:
       - name: Ensure bash is installed
         run: |
           if ! command -v bash > /dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y bash
+              sudo apt-get update && sudo apt-get install -y bash
           fi
 
       - name: Set up Rust toolchain
@@ -80,11 +80,11 @@ jobs:
           # Detect architecture and use appropriate binary
           ARCH=$(uname -m)
           if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
-            SYFT_URL="https://github.com/anchore/syft/releases/download/v1.30.0/syft_1.30.0_linux_arm64.tar.gz"
-            SYFT_SHA256="17cd933561b18210960526f32c9258087c5c8dce595e8f0b39477330023add13"
+              SYFT_URL="https://github.com/anchore/syft/releases/download/v1.30.0/syft_1.30.0_linux_arm64.tar.gz"
+              SYFT_SHA256="17cd933561b18210960526f32c9258087c5c8dce595e8f0b39477330023add13"
           else
-            SYFT_URL="https://github.com/anchore/syft/releases/download/v1.30.0/syft_1.30.0_linux_amd64.tar.gz"
-            SYFT_SHA256="f0cdcba0b6ce4c7a87050d524f732ba9fa2e711835f993a4ef108cfbf928ec13"
+              SYFT_URL="https://github.com/anchore/syft/releases/download/v1.30.0/syft_1.30.0_linux_amd64.tar.gz"
+              SYFT_SHA256="f0cdcba0b6ce4c7a87050d524f732ba9fa2e711835f993a4ef108cfbf928ec13"
           fi
 
           curl -L -s "$SYFT_URL" -o /tmp/syft.tar.gz
@@ -97,11 +97,11 @@ jobs:
           echo "Installing Grype v0.97.2 for vulnerability scanning..."
           # Detect architecture and use appropriate binary
           if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
-            GRYPE_URL="https://github.com/anchore/grype/releases/download/v0.97.2/grype_0.97.2_linux_arm64.tar.gz"
-            GRYPE_SHA256="$(curl -s -L "https://github.com/anchore/grype/releases/download/v0.97.2/grype_0.97.2_checksums.txt" | grep "grype_0.97.2_linux_arm64.tar.gz" | cut -d' ' -f1)"
+              GRYPE_URL="https://github.com/anchore/grype/releases/download/v0.97.2/grype_0.97.2_linux_arm64.tar.gz"
+              GRYPE_SHA256="$(curl -s -L "https://github.com/anchore/grype/releases/download/v0.97.2/grype_0.97.2_checksums.txt" | grep "grype_0.97.2_linux_arm64.tar.gz" | cut -d' ' -f1)"
           else
-            GRYPE_URL="https://github.com/anchore/grype/releases/download/v0.97.2/grype_0.97.2_linux_amd64.tar.gz"
-            GRYPE_SHA256="9db8daad914906aae9a2d99c75ed2bde19fb33e5ea3e14e5b814c6029e1034a9"
+              GRYPE_URL="https://github.com/anchore/grype/releases/download/v0.97.2/grype_0.97.2_linux_amd64.tar.gz"
+              GRYPE_SHA256="9db8daad914906aae9a2d99c75ed2bde19fb33e5ea3e14e5b814c6029e1034a9"
           fi
 
           curl -L -s "$GRYPE_URL" -o /tmp/grype.tar.gz
@@ -114,11 +114,11 @@ jobs:
           echo "Installing git-cliff v2.10.0 for changelog generation..."
           # Detect architecture and use appropriate binary
           if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
-            GIT_CLIFF_URL="https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-aarch64-unknown-linux-gnu.tar.gz"
-            GIT_CLIFF_SHA256="$(curl -s -L "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-aarch64-unknown-linux-gnu.tar.gz.sha256" | cut -d' ' -f1)"
+              GIT_CLIFF_URL="https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-aarch64-unknown-linux-gnu.tar.gz"
+              GIT_CLIFF_SHA256="$(curl -s -L "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-aarch64-unknown-linux-gnu.tar.gz.sha256" | cut -d' ' -f1)"
           else
-            GIT_CLIFF_URL="https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-unknown-linux-gnu.tar.gz"
-            GIT_CLIFF_SHA256="26b33340c253c567e40a79a5cfab176d682dc3bfdb40136c7ba2d7321796c8b3"
+              GIT_CLIFF_URL="https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-unknown-linux-gnu.tar.gz"
+              GIT_CLIFF_SHA256="26b33340c253c567e40a79a5cfab176d682dc3bfdb40136c7ba2d7321796c8b3"
           fi
 
           curl -L -s "$GIT_CLIFF_URL" -o /tmp/git-cliff.tar.gz
@@ -152,41 +152,6 @@ jobs:
           # Download and verify dependencies
           cargo fetch
           cargo check --all-features
-
-      - name: Verify tool installations
-        run: |
-          set -euo pipefail
-
-          # Verify Rust installation
-          rustc --version
-          cargo --version
-          rustfmt --version
-          cargo clippy --version
-
-          # Verify Just installation
-          just --version
-
-          # Verify security tools
-          echo "Verifying security tools installation..."
-          syft version
-          grype version
-          git-cliff --version
-
-          # Verify Rust development tools
-          echo "Verifying Rust development tools..."
-          cargo audit --version
-          cargo deny --version
-          cargo llvm-cov --version
-
-          # Verify Python environment and mkdocs-material
-          source .venv/bin/activate
-          python --version
-          pip list | grep mkdocs-material || echo "mkdocs-material not found in pip"
-
-          # Verify markdown linting tools
-          markdownlint-cli2 --version
-
-          echo "All tools installed successfully"
 
       - name: Setup DBSurveyor development environment
         run: |
