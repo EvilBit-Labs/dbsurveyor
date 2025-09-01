@@ -14,4 +14,6 @@ DISABLE_LINTERS:
     - REPOSITORY_SECRETLINT # Just an endless stream of false positives. Every test and every example has a fake secret in it that it will complain about.
     - REPOSITORY_TRIVY # Doesn't work in CI, just crashes.
 
+ACTION_ACTIONLINT_FILTER_REGEX_EXCLUDE: ".*release\\.yml$"
+
 SHOW_ELAPSED_TIME: true
