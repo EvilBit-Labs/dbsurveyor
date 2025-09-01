@@ -100,5 +100,6 @@ env/
 # Node.js modules
 node_modules/
 
-# Megalinter reports
+# Ephemeral files
 megalinter-reports/
+public/
