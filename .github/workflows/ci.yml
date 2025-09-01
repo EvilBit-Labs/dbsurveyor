@@ -52,8 +52,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run MegaLinter
-        uses: oxsecurity/megalinter@v6
+      - name: Run MegaLinter (Rust flavor)
+        uses: oxsecurity/megalinter/flavors/rust@v6.22.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MEGALINTER_CONFIG: .mega-linter.yml
