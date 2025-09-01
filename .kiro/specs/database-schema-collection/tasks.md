@@ -41,7 +41,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - ✅ **ENHANCEMENTS**: Enhanced validation for database names and usernames, improved auto-increment detection, added pool health checks, better error context
   - _Requirements: 1.1, 1.2, 1.7_
 
-- [ ] 2.4 Add constraint and index collection
+- [x] 2.4 Add constraint and index collection
   - Query information_schema.table_constraints for constraints
   - Extract primary keys, foreign keys, unique constraints, and check constraints
   - Query pg_catalog.pg_indexes for index information
@@ -58,7 +58,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 2.6 Add comprehensive PostgreSQL adapter testing
-  - Set up testcontainers for PostgreSQL integration testing
+  - Set up testcontainers for PostgreSQL integration testing, this is a HARD requirement and must be accomplished. Mocks and unit tests are not sufficient alternatives.
   - Test connection pooling with various configurations
   - Test schema collection with different PostgreSQL versions
   - Add tests for edge cases (empty schemas, special characters)
@@ -93,6 +93,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Add idle connection management: idle_timeout (default: 10min), max_lifetime (default: 1hour)
   - Support pool configuration via environment variables and config files
   - Add runtime pool parameter validation and adjustment
+  - Testing must also include via testcontainers against an actual postgres database
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 5.2 Add comprehensive connection pool testing

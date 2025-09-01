@@ -47,27 +47,45 @@ async fn test_postgres_schema_enumeration() -> Result<(), Box<dyn std::error::Er
         .execute(&pool)
         .await; // Ignore error if schema already exists
 
-    // Create test table in public schema (ignore error if exists)
+    // Create test table in public schema with constraints and indexes (ignore error if exists)
     let _ = sqlx::query(
         "CREATE TABLE public.test_table (
             id SERIAL PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW()
+            name VARCHAR(100) NOT NULL UNIQUE,
+            email VARCHAR(255) UNIQUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            CONSTRAINT check_name_length CHECK (length(name) > 0)
         )",
     )
     .execute(&pool)
     .await; // Ignore error if table already exists
 
-    // Create test table in custom schema (ignore error if exists)
+    // Create additional index
+    let _ = sqlx::query(
+        "CREATE INDEX idx_test_table_created_at ON public.test_table (created_at DESC)",
+    )
+    .execute(&pool)
+    .await; // Ignore error if index already exists
+
+    // Create test table in custom schema with foreign key (ignore error if exists)
     let _ = sqlx::query(
         "CREATE TABLE test_schema.custom_table (
             id SERIAL PRIMARY KEY,
+            test_table_id INTEGER REFERENCES public.test_table(id) ON DELETE CASCADE,
             data TEXT,
-            active BOOLEAN DEFAULT TRUE
+            active BOOLEAN DEFAULT TRUE,
+            CONSTRAINT check_data_not_empty CHECK (data IS NULL OR length(data) > 0)
         )",
     )
     .execute(&pool)
     .await; // Ignore error if table already exists
+
+    // Create composite index
+    let _ = sqlx::query(
+        "CREATE INDEX idx_custom_table_composite ON test_schema.custom_table (test_table_id, active)"
+    )
+    .execute(&pool)
+    .await; // Ignore error if index already exists
 
     // Create a view (ignore error if exists)
     let _ = sqlx::query(
@@ -132,12 +150,22 @@ async fn test_postgres_schema_enumeration() -> Result<(), Box<dyn std::error::Er
     assert!(!name_column.is_auto_increment);
     assert!(!name_column.is_nullable);
 
+    let email_column = public_table
+        .columns
+        .iter()
+        .find(|c| c.name == "email")
+        .expect("email column not found");
+    assert_eq!(email_column.ordinal_position, 3);
+    assert!(!email_column.is_primary_key);
+    assert!(!email_column.is_auto_increment);
+    assert!(email_column.is_nullable);
+
     let created_at_column = public_table
         .columns
         .iter()
         .find(|c| c.name == "created_at")
         .expect("created_at column not found");
-    assert_eq!(created_at_column.ordinal_position, 3);
+    assert_eq!(created_at_column.ordinal_position, 4);
     assert!(!created_at_column.is_primary_key);
     assert!(!created_at_column.is_auto_increment);
     assert!(created_at_column.is_nullable); // Default allows NULL
@@ -190,6 +218,154 @@ async fn test_postgres_schema_enumeration() -> Result<(), Box<dyn std::error::Er
 
     assert_eq!(test_view.name, "test_view");
     assert_eq!(test_view.schema.as_deref(), Some("public"));
+
+    // Test constraint and index collection
+
+    // Verify primary key is collected
+    assert!(public_table.primary_key.is_some());
+    let pk = public_table.primary_key.as_ref().unwrap();
+    assert_eq!(pk.columns, vec!["id"]);
+
+    // Verify constraints are collected
+    assert!(!public_table.constraints.is_empty());
+
+    // Find primary key constraint
+    let pk_constraint = public_table
+        .constraints
+        .iter()
+        .find(|c| {
+            matches!(
+                c.constraint_type,
+                dbsurveyor_core::models::ConstraintType::PrimaryKey
+            )
+        })
+        .expect("Primary key constraint not found");
+    assert_eq!(pk_constraint.columns, vec!["id"]);
+
+    // Find unique constraints
+    let unique_constraints: Vec<_> = public_table
+        .constraints
+        .iter()
+        .filter(|c| {
+            matches!(
+                c.constraint_type,
+                dbsurveyor_core::models::ConstraintType::Unique
+            )
+        })
+        .collect();
+    assert!(
+        !unique_constraints.is_empty(),
+        "Should have unique constraints"
+    );
+
+    // Find check constraint - look for our specific constraint
+    let check_constraint = public_table
+        .constraints
+        .iter()
+        .find(|c| {
+            matches!(
+                c.constraint_type,
+                dbsurveyor_core::models::ConstraintType::Check
+            ) && c
+                .check_clause
+                .as_ref()
+                .is_some_and(|clause| clause.to_lowercase().contains("length"))
+        })
+        .expect("Check constraint with length check not found");
+    assert!(check_constraint.check_clause.is_some());
+    assert!(
+        check_constraint
+            .check_clause
+            .as_ref()
+            .unwrap()
+            .to_lowercase()
+            .contains("length")
+    );
+
+    // Verify indexes are collected
+    assert!(!public_table.indexes.is_empty());
+
+    // Find primary key index
+    let pk_index = public_table
+        .indexes
+        .iter()
+        .find(|i| i.is_primary)
+        .expect("Primary key index not found");
+    assert!(pk_index.is_unique);
+    assert_eq!(pk_index.columns.len(), 1);
+    assert_eq!(pk_index.columns[0].name, "id");
+
+    // Find our custom index
+    let custom_index = public_table
+        .indexes
+        .iter()
+        .find(|i| i.name.contains("created_at"))
+        .expect("Custom index on created_at not found");
+    assert!(!custom_index.is_primary);
+    assert_eq!(custom_index.columns.len(), 1);
+    assert_eq!(custom_index.columns[0].name, "created_at");
+    assert_eq!(
+        custom_index.columns[0].sort_order,
+        Some(dbsurveyor_core::models::SortOrder::Descending)
+    );
+
+    // Test custom table constraints and indexes
+    assert!(custom_table.primary_key.is_some());
+    assert!(!custom_table.constraints.is_empty());
+    assert!(!custom_table.indexes.is_empty());
+
+    // Find foreign key constraint
+    let fk_constraint = custom_table
+        .constraints
+        .iter()
+        .find(|c| {
+            matches!(
+                c.constraint_type,
+                dbsurveyor_core::models::ConstraintType::ForeignKey
+            )
+        })
+        .expect("Foreign key constraint not found");
+    assert_eq!(fk_constraint.columns, vec!["test_table_id"]);
+
+    // Find composite index
+    let composite_index = custom_table
+        .indexes
+        .iter()
+        .find(|i| i.name.contains("composite"))
+        .expect("Composite index not found");
+    assert_eq!(composite_index.columns.len(), 2);
+    assert!(
+        composite_index
+            .columns
+            .iter()
+            .any(|c| c.name == "test_table_id")
+    );
+    assert!(composite_index.columns.iter().any(|c| c.name == "active"));
+
+    // Verify schema-level aggregation
+    assert!(
+        !schema.indexes.is_empty(),
+        "Schema should have aggregated indexes"
+    );
+    assert!(
+        !schema.constraints.is_empty(),
+        "Schema should have aggregated constraints"
+    );
+
+    // Count total indexes and constraints
+    let total_table_indexes: usize = schema.tables.iter().map(|t| t.indexes.len()).sum();
+    let total_table_constraints: usize = schema.tables.iter().map(|t| t.constraints.len()).sum();
+
+    assert_eq!(
+        schema.indexes.len(),
+        total_table_indexes,
+        "Schema indexes should match sum of table indexes"
+    );
+    assert_eq!(
+        schema.constraints.len(),
+        total_table_constraints,
+        "Schema constraints should match sum of table constraints"
+    );
 
     // Verify no credentials in schema output
     let schema_json = serde_json::to_string(&schema)?;
@@ -772,6 +948,176 @@ async fn test_postgres_data_type_mapping() -> Result<(), Box<dyn std::error::Err
     // Verify no credentials in output
     let schema_json = serde_json::to_string(&schema)?;
     assert!(!schema_json.contains("postgres:postgres"));
+
+    Ok(())
+}
+
+/// Test constraint and index collection with edge cases
+#[tokio::test]
+async fn test_postgres_constraints_and_indexes() -> Result<(), Box<dyn std::error::Error>> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+
+    // Wait for PostgreSQL to be ready
+    let max_attempts = 30;
+    let mut attempts = 0;
+    while attempts < max_attempts {
+        if let Ok(pool) = PgPool::connect(&database_url).await {
+            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
+                pool.close().await;
+                break;
+            }
+            pool.close().await;
+        }
+        attempts += 1;
+        if attempts < max_attempts {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+
+    if attempts >= max_attempts {
+        panic!(
+            "PostgreSQL failed to become ready after {} attempts",
+            max_attempts
+        );
+    }
+
+    let pool = PgPool::connect(&database_url).await?;
+
+    // Create test table with various constraints and indexes
+    let _ = sqlx::query("DROP TABLE IF EXISTS constraint_test CASCADE")
+        .execute(&pool)
+        .await;
+
+    sqlx::query(
+        "CREATE TABLE constraint_test (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            age INTEGER CHECK (age >= 0 AND age <= 150),
+            status VARCHAR(20) DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT NOW()
+        )",
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create additional indexes
+    sqlx::query("CREATE INDEX idx_constraint_test_status ON constraint_test (status)")
+        .execute(&pool)
+        .await?;
+
+    sqlx::query(
+        "CREATE INDEX idx_constraint_test_created_desc ON constraint_test (created_at DESC)",
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create composite index
+    sqlx::query(
+        "CREATE INDEX idx_constraint_test_composite ON constraint_test (status, created_at)",
+    )
+    .execute(&pool)
+    .await?;
+
+    pool.close().await;
+
+    // Test schema collection
+    let adapter = PostgresAdapter::new(&database_url).await?;
+    let schema = adapter.collect_schema().await?;
+
+    // Find our test table
+    let test_table = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "constraint_test")
+        .expect("constraint_test table not found");
+
+    // Verify constraints were collected
+    assert!(
+        !test_table.constraints.is_empty(),
+        "Should have constraints"
+    );
+
+    // Check for primary key constraint
+    let pk_constraint = test_table
+        .constraints
+        .iter()
+        .find(|c| {
+            matches!(
+                c.constraint_type,
+                dbsurveyor_core::models::ConstraintType::PrimaryKey
+            )
+        })
+        .expect("Primary key constraint not found");
+    assert_eq!(pk_constraint.columns, vec!["id"]);
+
+    // Check for unique constraint
+    let unique_constraint = test_table
+        .constraints
+        .iter()
+        .find(|c| {
+            matches!(
+                c.constraint_type,
+                dbsurveyor_core::models::ConstraintType::Unique
+            )
+        })
+        .expect("Unique constraint not found");
+    assert_eq!(unique_constraint.columns, vec!["email"]);
+
+    // Check for check constraint
+    let check_constraint = test_table
+        .constraints
+        .iter()
+        .find(|c| {
+            matches!(
+                c.constraint_type,
+                dbsurveyor_core::models::ConstraintType::Check
+            )
+        })
+        .expect("Check constraint not found");
+    assert!(check_constraint.check_clause.is_some());
+
+    // Verify indexes were collected
+    assert!(!test_table.indexes.is_empty(), "Should have indexes");
+
+    // Check for primary key index
+    let pk_index = test_table
+        .indexes
+        .iter()
+        .find(|i| i.is_primary)
+        .expect("Primary key index not found");
+    assert!(pk_index.is_unique);
+    assert_eq!(pk_index.columns.len(), 1);
+    assert_eq!(pk_index.columns[0].name, "id");
+
+    // Check for descending index
+    let desc_index = test_table
+        .indexes
+        .iter()
+        .find(|i| i.name.contains("created_desc"))
+        .expect("Descending index not found");
+    assert_eq!(desc_index.columns.len(), 1);
+    assert_eq!(desc_index.columns[0].name, "created_at");
+    assert_eq!(
+        desc_index.columns[0].sort_order,
+        Some(dbsurveyor_core::models::SortOrder::Descending)
+    );
+
+    // Check for composite index
+    let composite_index = test_table
+        .indexes
+        .iter()
+        .find(|i| i.name.contains("composite"))
+        .expect("Composite index not found");
+    assert_eq!(composite_index.columns.len(), 2);
+    assert!(composite_index.columns.iter().any(|c| c.name == "status"));
+    assert!(
+        composite_index
+            .columns
+            .iter()
+            .any(|c| c.name == "created_at")
+    );
 
     Ok(())
 }

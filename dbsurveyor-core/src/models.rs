@@ -133,7 +133,7 @@ pub struct IndexColumn {
 }
 
 /// Sort order for index columns
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SortOrder {
     Ascending,
     Descending,

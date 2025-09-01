@@ -871,6 +871,514 @@ impl PostgresAdapter {
         Ok(columns)
     }
 
+    /// Collects constraint metadata for a specific table
+    ///
+    /// # Security
+    /// - Uses read-only queries with proper timeout handling
+    /// - Sanitizes all error messages to prevent credential exposure
+    /// - Logs query execution with credential sanitization
+    ///
+    /// # Arguments
+    /// * `table_name` - Name of the table to collect constraints for
+    /// * `schema_name` - Schema containing the table (None for public schema)
+    ///
+    /// # Returns
+    /// Vector of constraints including primary keys, foreign keys, unique constraints, and check constraints
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Insufficient privileges to access information_schema.table_constraints
+    /// - Query timeout or connection failure
+    async fn collect_table_constraints(
+        &self,
+        table_name: &str,
+        schema_name: &Option<String>,
+    ) -> Result<Vec<Constraint>> {
+        // Input validation
+        if table_name.is_empty() {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "Table name cannot be empty for constraint collection",
+            ));
+        }
+
+        let schema = schema_name.as_deref().unwrap_or("public");
+
+        tracing::debug!(
+            "Collecting constraints for table '{}.{}'",
+            schema,
+            table_name
+        );
+
+        let constraints_query = r#"
+            SELECT
+                tc.constraint_name::text,
+                tc.constraint_type::text,
+                tc.table_name::text,
+                tc.table_schema::text,
+                cc.check_clause::text,
+                COALESCE(
+                    string_agg(kcu.column_name::text, ',' ORDER BY kcu.ordinal_position),
+                    ''
+                )::text as column_names
+            FROM information_schema.table_constraints tc
+            LEFT JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+                AND tc.table_name = kcu.table_name
+            LEFT JOIN information_schema.check_constraints cc
+                ON tc.constraint_name = cc.constraint_name
+                AND tc.constraint_schema = cc.constraint_schema
+            WHERE tc.table_name = $1
+            AND tc.table_schema = $2
+            GROUP BY tc.constraint_name, tc.constraint_type, tc.table_name, tc.table_schema, cc.check_clause
+            ORDER BY tc.constraint_type, tc.constraint_name
+        "#;
+
+        let constraint_rows = sqlx::query(constraints_query)
+            .bind(table_name)
+            .bind(schema)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to collect constraints for table '{}.{}': {}",
+                    schema,
+                    table_name,
+                    e
+                );
+                match &e {
+                    sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("42501") => {
+                        crate::error::DbSurveyorError::insufficient_privileges(
+                            "Cannot access information_schema.table_constraints - insufficient privileges",
+                        )
+                    }
+                    _ => crate::error::DbSurveyorError::collection_failed(
+                        format!(
+                            "Failed to collect constraints for table '{}.{}'",
+                            schema, table_name
+                        ),
+                        e,
+                    ),
+                }
+            })?;
+
+        let mut constraints = Vec::new();
+
+        for row in constraint_rows {
+            let constraint_name: String = row.try_get("constraint_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse constraint name from database result for table '{}.{}'",
+                        schema, table_name
+                    ),
+                    e,
+                )
+            })?;
+
+            let constraint_type_str: String = row.try_get("constraint_type").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse constraint type from database result for table '{}.{}'",
+                        schema, table_name
+                    ),
+                    e,
+                )
+            })?;
+
+            let column_names_str: String = row.try_get("column_names").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse column names from database result for table '{}.{}'",
+                        schema, table_name
+                    ),
+                    e,
+                )
+            })?;
+
+            let check_clause: Option<String> = row.try_get("check_clause").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse check clause from database result for table '{}.{}'",
+                        schema, table_name
+                    ),
+                    e,
+                )
+            })?;
+
+            // Parse constraint type
+            let constraint_type = match constraint_type_str.as_str() {
+                "PRIMARY KEY" => ConstraintType::PrimaryKey,
+                "FOREIGN KEY" => ConstraintType::ForeignKey,
+                "UNIQUE" => ConstraintType::Unique,
+                "CHECK" => ConstraintType::Check,
+                _ => {
+                    tracing::warn!(
+                        "Unknown constraint type '{}' for constraint '{}', skipping",
+                        constraint_type_str,
+                        constraint_name
+                    );
+                    continue;
+                }
+            };
+
+            // Parse column names with validation
+            let columns: Vec<String> = if column_names_str.is_empty() {
+                Vec::new()
+            } else {
+                column_names_str
+                    .split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty()) // Filter out empty strings
+                    .map(|s| s.to_string())
+                    .collect()
+            };
+
+            constraints.push(Constraint {
+                name: constraint_name,
+                table_name: table_name.to_string(),
+                schema: Some(schema.to_string()),
+                constraint_type,
+                columns,
+                check_clause,
+            });
+        }
+
+        tracing::debug!(
+            "Successfully collected {} constraints for table '{}.{}'",
+            constraints.len(),
+            schema,
+            table_name
+        );
+
+        Ok(constraints)
+    }
+
+    /// Collects index metadata for a specific table
+    ///
+    /// # Security
+    /// - Uses read-only queries with proper timeout handling
+    /// - Sanitizes all error messages to prevent credential exposure
+    /// - Logs query execution with credential sanitization
+    ///
+    /// # Arguments
+    /// * `table_name` - Name of the table to collect indexes for
+    /// * `schema_name` - Schema containing the table (None for public schema)
+    ///
+    /// # Returns
+    /// Vector of indexes with comprehensive metadata including columns, uniqueness, and index type
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Insufficient privileges to access pg_catalog.pg_indexes
+    /// - Query timeout or connection failure
+    async fn collect_table_indexes(
+        &self,
+        table_name: &str,
+        schema_name: &Option<String>,
+    ) -> Result<Vec<Index>> {
+        // Input validation
+        if table_name.is_empty() {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "Table name cannot be empty for index collection",
+            ));
+        }
+
+        let schema = schema_name.as_deref().unwrap_or("public");
+
+        tracing::debug!("Collecting indexes for table '{}.{}'", schema, table_name);
+
+        let indexes_query = r#"
+            SELECT
+                i.indexname::text as index_name,
+                i.tablename::text as table_name,
+                i.schemaname::text as schema_name,
+                i.indexdef::text as index_definition,
+                idx.indisunique::boolean as is_unique,
+                idx.indisprimary::boolean as is_primary,
+                am.amname::text as index_type,
+                -- Get column information with explicit casting
+                COALESCE(
+                    array_to_string(
+                        array_agg(
+                            CASE
+                                WHEN a.attname IS NOT NULL THEN a.attname::text
+                                ELSE pg_get_indexdef(idx.indexrelid, k + 1, true)::text
+                            END
+                            ORDER BY k
+                        ),
+                        ','
+                    ),
+                    ''
+                )::text as column_names,
+                -- Get sort order information (ASC/DESC) with explicit casting
+                COALESCE(
+                    array_to_string(
+                        array_agg(
+                            CASE
+                                WHEN idx.indoption[k] & 1 = 1 THEN 'DESC'::text
+                                ELSE 'ASC'::text
+                            END
+                            ORDER BY k
+                        ),
+                        ','
+                    ),
+                    'ASC'
+                )::text as sort_orders
+            FROM pg_indexes i
+            JOIN pg_class c ON c.relname = i.tablename
+            JOIN pg_namespace n ON n.nspname = i.schemaname AND c.relnamespace = n.oid
+            JOIN pg_index idx ON idx.indrelid = c.oid
+            JOIN pg_class ic ON ic.oid = idx.indexrelid AND ic.relname = i.indexname
+            JOIN pg_am am ON am.oid = ic.relam
+            LEFT JOIN generate_subscripts(idx.indkey, 1) k ON true
+            LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = idx.indkey[k]
+            WHERE i.tablename = $1
+            AND i.schemaname = $2
+            GROUP BY i.indexname, i.tablename, i.schemaname, i.indexdef,
+                     idx.indisunique, idx.indisprimary, am.amname, idx.indexrelid
+            ORDER BY CASE WHEN idx.indisprimary THEN 0 ELSE 1 END, i.indexname
+        "#;
+
+        let index_rows = sqlx::query(indexes_query)
+            .bind(table_name)
+            .bind(schema)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to collect indexes for table '{}.{}': {}",
+                    schema,
+                    table_name,
+                    e
+                );
+                match &e {
+                    sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("42501") => {
+                        crate::error::DbSurveyorError::insufficient_privileges(
+                            "Cannot access pg_catalog.pg_indexes - insufficient privileges",
+                        )
+                    }
+                    _ => crate::error::DbSurveyorError::collection_failed(
+                        format!(
+                            "Failed to collect indexes for table '{}.{}'",
+                            schema, table_name
+                        ),
+                        e,
+                    ),
+                }
+            })?;
+
+        let mut indexes = Vec::new();
+
+        for row in index_rows {
+            let index_name: String = row.try_get("index_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse index name from database result",
+                    e,
+                )
+            })?;
+
+            let is_unique: bool = row.try_get("is_unique").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse is_unique from database result",
+                    e,
+                )
+            })?;
+
+            let is_primary: bool = row.try_get("is_primary").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse is_primary from database result",
+                    e,
+                )
+            })?;
+
+            let index_type: String = row.try_get("index_type").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse index type from database result",
+                    e,
+                )
+            })?;
+
+            let column_names_str: String = row.try_get("column_names").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse column names from database result",
+                    e,
+                )
+            })?;
+
+            let sort_orders_str: String = row.try_get("sort_orders").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse sort orders from database result",
+                    e,
+                )
+            })?;
+
+            // Parse column names and sort orders with validation
+            let column_names: Vec<&str> = column_names_str
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let sort_orders: Vec<&str> = sort_orders_str
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            let mut index_columns = Vec::with_capacity(column_names.len());
+            for (i, column_name) in column_names.iter().enumerate() {
+                let sort_order = sort_orders.get(i).map(|&order| match order {
+                    "DESC" => SortOrder::Descending,
+                    "ASC" => SortOrder::Ascending,
+                    _ => SortOrder::Ascending, // Default to ascending for unknown values
+                });
+
+                index_columns.push(IndexColumn {
+                    name: column_name.to_string(),
+                    sort_order,
+                });
+            }
+
+            indexes.push(Index {
+                name: index_name,
+                table_name: table_name.to_string(),
+                schema: Some(schema.to_string()),
+                columns: index_columns,
+                is_unique,
+                is_primary,
+                index_type: Some(index_type),
+            });
+        }
+
+        tracing::debug!(
+            "Successfully collected {} indexes for table '{}.{}'",
+            indexes.len(),
+            schema,
+            table_name
+        );
+
+        Ok(indexes)
+    }
+
+    /// Collects primary key information for a specific table
+    ///
+    /// # Security
+    /// - Uses read-only queries with proper timeout handling
+    /// - Sanitizes all error messages to prevent credential exposure
+    ///
+    /// # Arguments
+    /// * `table_name` - Name of the table to collect primary key for
+    /// * `schema_name` - Schema containing the table (None for public schema)
+    ///
+    /// # Returns
+    /// Optional primary key information with column names
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Insufficient privileges to access information_schema
+    /// - Query timeout or connection failure
+    async fn collect_table_primary_key(
+        &self,
+        table_name: &str,
+        schema_name: &Option<String>,
+    ) -> Result<Option<PrimaryKey>> {
+        // Input validation
+        if table_name.is_empty() {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "Table name cannot be empty for primary key collection",
+            ));
+        }
+
+        let schema = schema_name.as_deref().unwrap_or("public");
+
+        tracing::debug!(
+            "Collecting primary key for table '{}.{}'",
+            schema,
+            table_name
+        );
+
+        let pk_query = r#"
+            SELECT
+                tc.constraint_name,
+                string_agg(kcu.column_name, ',' ORDER BY kcu.ordinal_position) as column_names
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+                AND tc.table_name = kcu.table_name
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+            AND tc.table_name = $1
+            AND tc.table_schema = $2
+            GROUP BY tc.constraint_name
+        "#;
+
+        let pk_row = sqlx::query(pk_query)
+            .bind(table_name)
+            .bind(schema)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to collect primary key for table '{}.{}': {}",
+                    schema,
+                    table_name,
+                    e
+                );
+                match &e {
+                    sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("42501") => {
+                        crate::error::DbSurveyorError::insufficient_privileges(
+                            "Cannot access information_schema.table_constraints - insufficient privileges",
+                        )
+                    }
+                    _ => crate::error::DbSurveyorError::collection_failed(
+                        format!(
+                            "Failed to collect primary key for table '{}.{}'",
+                            schema, table_name
+                        ),
+                        e,
+                    ),
+                }
+            })?;
+
+        if let Some(row) = pk_row {
+            let constraint_name: String = row.try_get("constraint_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse constraint name from database result",
+                    e,
+                )
+            })?;
+
+            let column_names_str: String = row.try_get("column_names").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse column names from database result",
+                    e,
+                )
+            })?;
+
+            let columns: Vec<String> = column_names_str
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty()) // Filter out empty strings
+                .map(|s| s.to_string())
+                .collect();
+
+            tracing::debug!(
+                "Found primary key '{}' with columns {:?} for table '{}.{}'",
+                constraint_name,
+                columns,
+                schema,
+                table_name
+            );
+
+            Ok(Some(PrimaryKey {
+                name: Some(constraint_name),
+                columns,
+            }))
+        } else {
+            tracing::debug!("No primary key found for table '{}.{}'", schema, table_name);
+            Ok(None)
+        }
+    }
+
     /// Maps PostgreSQL data types to unified data types
     ///
     /// # Arguments
@@ -1173,15 +1681,26 @@ impl PostgresAdapter {
                 .collect_table_columns(&table_name, &schema_name)
                 .await?;
 
-            // Create table structure with collected column metadata
+            // Collect constraints and indexes for this table
+            let constraints = self
+                .collect_table_constraints(&table_name, &schema_name)
+                .await?;
+            let indexes = self
+                .collect_table_indexes(&table_name, &schema_name)
+                .await?;
+            let primary_key = self
+                .collect_table_primary_key(&table_name, &schema_name)
+                .await?;
+
+            // Create table structure with collected metadata
             let table = Table {
                 name: table_name,
                 schema: schema_name,
                 columns,
-                primary_key: None,        // Will be implemented in task 2.4
+                primary_key,
                 foreign_keys: Vec::new(), // Will be implemented in task 2.5
-                indexes: Vec::new(),      // Will be implemented in task 2.4
-                constraints: Vec::new(),  // Will be implemented in task 2.4
+                indexes,
+                constraints,
                 comment,
                 row_count: estimated_rows.map(|r| r as u64),
             };
@@ -1415,18 +1934,33 @@ impl DatabaseAdapter for PostgresAdapter {
             schemas.len()
         );
 
+        // Aggregate all indexes and constraints from tables for schema-level view
+        let mut all_indexes = Vec::new();
+        let mut all_constraints = Vec::new();
+
+        for table in &tables {
+            all_indexes.extend(table.indexes.clone());
+            all_constraints.extend(table.constraints.clone());
+        }
+
+        tracing::info!(
+            "Collected {} total indexes and {} total constraints across all tables",
+            all_indexes.len(),
+            all_constraints.len()
+        );
+
         Ok(DatabaseSchema {
             format_version: "1.0".to_string(),
             database_info,
             tables,
-            views: Vec::new(),        // Will be implemented in subsequent tasks
-            indexes: Vec::new(),      // Will be implemented in task 2.4
-            constraints: Vec::new(),  // Will be implemented in task 2.4
-            procedures: Vec::new(),   // Will be implemented in subsequent tasks
-            functions: Vec::new(),    // Will be implemented in subsequent tasks
-            triggers: Vec::new(),     // Will be implemented in subsequent tasks
+            views: Vec::new(), // Will be implemented in subsequent tasks
+            indexes: all_indexes,
+            constraints: all_constraints,
+            procedures: Vec::new(), // Will be implemented in subsequent tasks
+            functions: Vec::new(),  // Will be implemented in subsequent tasks
+            triggers: Vec::new(),   // Will be implemented in subsequent tasks
             custom_types: Vec::new(), // Will be implemented in subsequent tasks
-            samples: None,            // Will be implemented in task 6 (data sampling)
+            samples: None,          // Will be implemented in task 6 (data sampling)
             collection_metadata: CollectionMetadata {
                 collected_at: chrono::Utc::now(),
                 collection_duration_ms: collection_duration.as_millis() as u64,
