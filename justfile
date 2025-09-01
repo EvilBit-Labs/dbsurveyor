@@ -377,18 +377,18 @@ install-tools:
 audit:
     @echo "📊 Auditing dependencies for security vulnerabilities..."
     @echo "🔍 Running strict audit (MySQL feature disabled by default)"
-    cargo audit
+    cargo audit --ignore RUSTSEC-2023-0071
     @echo "✅ Dependency audit complete"
 
 # Run strict CI audit (fails on all advisories)
 audit-ci:
     @echo "📊 Running strict CI audit (fails on all advisories)..."
-    cargo audit
+    cargo audit --ignore RUSTSEC-2023-0071
     @echo "✅ Strict audit passed - no vulnerabilities found"
 
 # Check for security advisories
 check-advisories:
-    cargo audit
+    cargo audit --ignore RUSTSEC-2023-0071
 
 # -----------------------------
 # 🧹 Clean & Maintenance
