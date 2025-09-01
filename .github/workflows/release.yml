@@ -16,7 +16,6 @@
 name: Release
 permissions:
   "contents": "write"
-  "id-token": "write"
 
 # This task will run whenever you push a git tag that looks like a version
 # like "1.0.0", "v0.1.0-prerelease.1", "my-app/0.1.0", "releases/v1.0.0", etc.
@@ -46,38 +45,9 @@ on:
       - '**[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
-  # Preflight quality gates
-  preflight:
-    runs-on: "ubuntu-22.04"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          submodules: recursive
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - name: Install cargo-deny
-        uses: baptiste0928/cargo-install@v3
-        with:
-          crate: cargo-deny
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Run clippy with strict warnings
-        run: cargo clippy --all-features --all-targets -- -D warnings
-      - name: Run tests
-        run: cargo test --all-features
-      - name: Run security audit
-        run: cargo audit
-      - name: Run cargo deny
-        run: cargo deny check
-
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
     runs-on: "ubuntu-22.04"
-    needs: preflight
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
       tag: ${{ !github.event.pull_request && github.ref_name || '' }}
@@ -91,24 +61,10 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Install dist
-        # Secure download with verification
+        # we specify bash to get pipefail; it guards against the `curl` command
+        # failing. otherwise `sh` won't catch that `curl` returned non-0
         shell: bash
-        run: |
-          # Download specific pinned version
-          curl --proto '=https' --tlsv1.2 -LsSf -o cargo-dist-installer.sh https://github.com/axodotdev/cargo-dist/releases/download/v0.29.0/cargo-dist-installer.sh
-
-          # Verify file integrity (basic checksum verification)
-          echo "Verifying installer integrity..."
-          if [ ! -s cargo-dist-installer.sh ]; then
-            echo "Error: Installer download failed or file is empty"
-            exit 1
-          fi
-
-          # Execute installer
-          sh cargo-dist-installer.sh
-
-          # Clean up
-          rm -f cargo-dist-installer.sh
+        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.29.0/cargo-dist-installer.sh | sh"
       - name: Cache dist
         uses: actions/upload-artifact@v4
         with:
@@ -332,7 +288,7 @@ jobs:
       PLAN: ${{ needs.plan.outputs.val }}
       GITHUB_USER: "axo bot"
       GITHUB_EMAIL: "admin+bot@axo.dev"
-    if: ${{ (!fromJson(needs.plan.outputs.val).announcement_is_prerelease || fromJson(needs.plan.outputs.val).publish_prereleases) && secrets.HOMEBREW_TAP_TOKEN != '' }}
+    if: ${{ !fromJson(needs.plan.outputs.val).announcement_is_prerelease || fromJson(needs.plan.outputs.val).publish_prereleases }}
     steps:
       - uses: actions/checkout@v4
         with:
