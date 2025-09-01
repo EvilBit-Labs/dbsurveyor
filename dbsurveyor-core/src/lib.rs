@@ -802,12 +802,13 @@ mod tests {
         assert_eq!(host.as_str(), "localhost:5432");
 
         // Test host with credentials (should be redacted)
-        let host_with_creds = SafeHost::new("user:pass@localhost:5432/db".to_string())?;
+        let host_with_creds = SafeHost::new("testuser:testpass@localhost:5432/db".to_string())?;
         assert_eq!(host_with_creds.as_str(), "localhost:5432/db");
 
         // Test URL parsing
-        let url_host =
-            SafeHost::new("postgresql://user:secret@db.example.com:5432/production".to_string())?;
+        let url_host = SafeHost::new(
+            "postgresql://testuser:testpass@db.example.com:5432/production".to_string(),
+        )?;
         assert_eq!(url_host.as_str(), "db.example.com:5432/production");
 
         // Test FromStr implementation
@@ -824,11 +825,11 @@ mod tests {
         assert_eq!(display, "localhost:5432");
 
         // Test that credentials are not displayed
-        let host_with_creds = SafeHost::new("admin:secret@prod.db:5432/main".to_string())?;
+        let host_with_creds = SafeHost::new("testadmin:testsecret@prod.db:5432/main".to_string())?;
         let display_with_creds = format!("{host_with_creds}");
         assert_eq!(display_with_creds, "prod.db:5432/main");
-        assert!(!display_with_creds.contains("secret"));
-        assert!(!display_with_creds.contains("admin:secret"));
+        assert!(!display_with_creds.contains("testsecret"));
+        assert!(!display_with_creds.contains("testadmin:testsecret"));
 
         Ok(())
     }

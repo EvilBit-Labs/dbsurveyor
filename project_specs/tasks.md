@@ -443,8 +443,8 @@ WARNING: Sample data may contain sensitive information. Review outputs before sh
 
 ## Requirements Coverage Matrix
 
-| Requirement | Task Coverage                                              | Status     |
-| ----------- | ---------------------------------------------------------- | ---------- |
+| Requirement | Task Coverage                                              | Status    |
+|-------------|------------------------------------------------------------|-----------|
 | **F000**    | TASK-001                                                   | ✅ Covered |
 | **F001**    | TASK-002                                                   | ✅ Covered |
 | **F002**    | TASK-002, TASK-020                                         | ✅ Covered |
@@ -475,7 +475,7 @@ WARNING: Sample data may contain sensitive information. Review outputs before sh
 ## Performance Budgets Summary
 
 | Component           | Budget   | Measurement                    | Requirement |
-| ------------------- | -------- | ------------------------------ | ----------- |
+|---------------------|----------|--------------------------------|-------------|
 | CLI Startup         | < 100ms  | Time to display help/version   | F021        |
 | Database Connection | < 5s     | Time to establish connection   | F010        |
 | Schema Enumeration  | < 10s    | 1000 tables discovery          | F021        |

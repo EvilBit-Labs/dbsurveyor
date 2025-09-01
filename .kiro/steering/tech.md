@@ -137,11 +137,14 @@ just validate-workflows  # Validate GitHub Actions syntax
 default = ["postgresql", "sqlite", "mongodb"]
 postgresql = ["dep:sqlx", "sqlx/postgres"]
 sqlite = ["dep:sqlx", "sqlx/sqlite"]
-mysql = ["dep:sqlx", "sqlx/mysql"]  # Intentionally excluded from default/CI for security
+mysql = [
+  "dep:sqlx",
+  "sqlx/mysql",
+] # Intentionally excluded from default/CI for security
 mssql = ["tiberius"]
 mongodb = ["dep:mongodb"]
 compression = ["zstd"]
-encryption = ["aes-gcm", "argon2"]  # argon2 for KDF, not ring
+encryption = ["aes-gcm", "argon2"] # argon2 for KDF, not ring
 ```
 
 ## Security Configuration

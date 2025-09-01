@@ -1,7 +1,7 @@
 # Requirements Document: dbsurveyor
 
 | Field            | Value       |
-| ---------------- | ----------- |
+|------------------|-------------|
 | **Project Name** | dbsurveyor  |
 | **Version**      | 1.0         |
 | **Status**       | Draft       |
@@ -274,7 +274,7 @@ Comprehensive user stories are detailed in the [user_stories.md](user_stories.md
 Aligned with business requirements priority:
 
 | Priority   | Features                                      | Justification                                                                                                                           |
-| ---------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+|------------|-----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | **High**   | F000–F007, F014, F015, F021, F022, F023       | Core functionality: dual-binary architecture, database survey, portable output, offline mode, pluggable engines, throttling/compression |
 | **Medium** | F016–F019, F013                               | Processing features: SQL reconstruction, report/diagram modes, Pro features, data sampling with privacy controls                        |
 | **Low**    | F020, advanced diagrams, anonymized redaction | HTML output (Pro), advanced visualizations, enhanced privacy features                                                                   |
@@ -551,18 +551,18 @@ tui = ["ratatui"]                                  # Optional TUI preview (out-o
 ### 9.1 Standard Compliance Table
 
 | Standard                    | Requirement            | Compliance Status | Implementation Notes                      |
-| --------------------------- | ---------------------- | ----------------- | ----------------------------------------- |
-| **Pipeline Standard**       | GitHub Actions CI/CD   | ✅ Compliant      | Using just recipes for task automation    |
-| **Security Standard**       | No telemetry           | ✅ Compliant      | Zero external communication               |
-| **Security Standard**       | Credential protection  | ✅ Compliant      | AES-GCM encryption, no plaintext storage  |
-| **Documentation Standard**  | User documentation     | ✅ Compliant      | Comprehensive CLI help and user guide     |
-| **Documentation Standard**  | API documentation      | ✅ Compliant      | Code documentation and schema definitions |
-| **Testing Standard**        | Unit test coverage     | ✅ Compliant      | Minimum 80% code coverage target          |
-| **Testing Standard**        | Integration testing    | ✅ Compliant      | Database integration test suite           |
-| **Release Standard**        | Semantic versioning    | ✅ Compliant      | Following SemVer specification            |
-| **Release Standard**        | Signed releases        | ✅ Compliant      | GPG-signed release artifacts              |
-| **Offline Standard**        | Air-gap operation      | ✅ Compliant      | Complete offline functionality            |
-| **Cross-Platform Standard** | Multi-platform support | ✅ Compliant      | Linux, macOS, Windows binaries            |
+|-----------------------------|------------------------|-------------------|-------------------------------------------|
+| **Pipeline Standard**       | GitHub Actions CI/CD   | ✅ Compliant       | Using just recipes for task automation    |
+| **Security Standard**       | No telemetry           | ✅ Compliant       | Zero external communication               |
+| **Security Standard**       | Credential protection  | ✅ Compliant       | AES-GCM encryption, no plaintext storage  |
+| **Documentation Standard**  | User documentation     | ✅ Compliant       | Comprehensive CLI help and user guide     |
+| **Documentation Standard**  | API documentation      | ✅ Compliant       | Code documentation and schema definitions |
+| **Testing Standard**        | Unit test coverage     | ✅ Compliant       | Minimum 80% code coverage target          |
+| **Testing Standard**        | Integration testing    | ✅ Compliant       | Database integration test suite           |
+| **Release Standard**        | Semantic versioning    | ✅ Compliant       | Following SemVer specification            |
+| **Release Standard**        | Signed releases        | ✅ Compliant       | GPG-signed release artifacts              |
+| **Offline Standard**        | Air-gap operation      | ✅ Compliant       | Complete offline functionality            |
+| **Cross-Platform Standard** | Multi-platform support | ✅ Compliant       | Linux, macOS, Windows binaries            |
 
 ### 9.2 Standard Deviations
 
@@ -577,7 +577,7 @@ None identified. This project fully complies with all applicable EvilBit Labs st
 ## 10. Document Metadata
 
 | Attribute             | Value                                                                                                                                                                       |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Document Type**     | Requirements Specification                                                                                                                                                  |
 | **Classification**    | Internal                                                                                                                                                                    |
 | **Review Status**     | Updated - Aligned with Business Requirements                                                                                                                                |
@@ -585,9 +585,9 @@ None identified. This project fully complies with all applicable EvilBit Labs st
 | **Related Documents** | [user_stories.md](user_stories.md) - Comprehensive user stories with requirement mappings<br/>[tasks.md](tasks.md) - Detailed implementation tasks with acceptance criteria |
 | **Repository**        | dbsurveyor                                                                                                                                                                  |
 | **Branch**            | main                                                                                                                                                                        |
-| **Commit SHA**        | 2025-08-28 (Updated to align with dbsurveyor_requirements.md)                                              |
-| **Last Modified**     | 2025-08-28 (Updated to align with dbsurveyor_requirements.md)                                              |
-| **Change Rationale**  | Updated requirements to align with business requirements document and ensure consistency with project specifications                                                                                    |
+| **Commit SHA**        | 2025-08-28 (Updated to align with dbsurveyor_requirements.md)                                                                                                               |
+| **Last Modified**     | 2025-08-28 (Updated to align with dbsurveyor_requirements.md)                                                                                                               |
+| **Change Rationale**  | Updated requirements to align with business requirements document and ensure consistency with project specifications                                                        |
 
 ---
 

@@ -23,7 +23,7 @@ DBSurveyor is a security-focused database documentation tool written in Rust tha
 ## Technology Stack
 
 | Layer             | Technology                               | Notes                                               |
-| ----------------- | ---------------------------------------- | --------------------------------------------------- |
+|-------------------|------------------------------------------|-----------------------------------------------------|
 | **Language**      | Rust 2021 Edition                        | Modern Rust with idiomatic patterns                 |
 | **CLI**           | Clap v4 with derive macros               | Clean, user-friendly command-line interface         |
 | **Async Runtime** | Tokio                                    | For async database operations                       |

@@ -71,6 +71,18 @@ lint:
     cargo clippy --all-targets --features postgresql,sqlite,encryption,compression -- -D warnings
     @echo "✅ Rust Quality Gate passed - zero warnings enforced"
 
+# Run MegaLinter with Rust flavor (local development)
+megalinter:
+    @echo "🔍 Running MegaLinter with Rust flavor..."
+    @if command -v npx >/dev/null 2>&1; then \
+        npx mega-linter-runner --flavor rust; \
+    else \
+        echo "❌ npx not found. Please install Node.js and npm first."; \
+        echo "   Visit: https://nodejs.org/"; \
+        exit 1; \
+    fi
+    @echo "✅ MegaLinter completed!"
+
 # Run all linting and formatting checks
 check: format-check lint pre-commit
     @echo "✅ All checks passed!"
