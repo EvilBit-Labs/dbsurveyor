@@ -198,6 +198,7 @@
         "Wasi",
         "WASI",
         "wasmtime",
+        "whichlang",
         "wikilink",
         "winapi",
         "zeroize",

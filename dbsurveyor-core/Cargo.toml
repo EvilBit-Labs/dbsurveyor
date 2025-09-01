@@ -52,3 +52,20 @@ zstd = { workspace = true, optional = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
 testcontainers-modules = { workspace = true }
+
+# Nextest configuration for this crate
+[package.metadata.nextest]
+# Security tests should run sequentially
+[[package.metadata.nextest.overrides]]
+filter = "test(security) or test(encryption) or test(credential)"
+test-group = "security"
+
+# Integration tests with limited parallelism
+[[package.metadata.nextest.overrides]]
+filter = "test(integration)"
+test-group = "integration"
+
+# Unit tests can run in parallel
+[[package.metadata.nextest.overrides]]
+filter = "not test(security) and not test(encryption) and not test(credential) and not test(integration)"
+test-group = "unit"

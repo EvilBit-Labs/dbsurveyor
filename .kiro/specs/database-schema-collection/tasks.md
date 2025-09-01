@@ -4,14 +4,15 @@ Convert the feature design into a series of prompts for a code-generation LLM th
 
 ## Task List
 
-- [-] 1. Implement actual AES-GCM encryption and Argon2id key derivation
+- [x] 1. Implement actual AES-GCM encryption and Argon2id key derivation ✅ **COMPLETED**
 
-  - Replace placeholder encryption functions in `dbsurveyor-core/src/security.rs`
-  - Implement `encrypt_data` function using aes-gcm crate with random 96-bit nonces
-  - Implement `decrypt_data` function with proper nonce and tag validation
-  - Use Argon2id for key derivation with exact settings: 16-byte salt, version 1.3, time cost 3, memory 64 MiB, parallelism 4
-  - Embed KDF parameters and salt in EncryptedData structure for decryption validation
-  - Add comprehensive tests for encryption/decryption roundtrip and nonce uniqueness
+  - ✅ Replace placeholder encryption functions in `dbsurveyor-core/src/security.rs`
+  - ✅ Implement `encrypt_data` function using aes-gcm crate with random 96-bit nonces
+  - ✅ Implement `decrypt_data` function with proper nonce and tag validation
+  - ✅ Use Argon2id for key derivation with exact settings: 16-byte salt, version 1.3, time cost 3, memory 64 MiB, parallelism 4
+  - ✅ Embed KDF parameters and salt in EncryptedData structure for decryption validation
+  - ✅ Add comprehensive tests for encryption/decryption roundtrip and nonce uniqueness
+  - ✅ **BONUS**: Added cryptographic constants, validation helper functions, and optimized test performance
   - _Requirements: 2.7, 9.3, 9.4, 9.5_
 
 - [ ] 2. Implement PostgreSQL schema collection with real database queries

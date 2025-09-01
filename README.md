@@ -110,6 +110,33 @@ just list-workflows
 just validate-workflows
 ```
 
+### Enhanced Testing with Nextest
+
+DBSurveyor uses [cargo-nextest](https://nexte.st/) for faster, more reliable test execution:
+
+```bash
+# Run all tests with nextest (default)
+just test
+
+# Fast development testing
+just test-dev
+
+# CI-optimized testing with verbose output
+just test-ci
+
+# Run specific test types
+just test-unit           # Unit tests only
+just test-integration    # Integration tests only
+just test-encryption     # Security/encryption tests
+```
+
+**Benefits of Nextest:**
+
+- ⚡ **Faster execution** through intelligent parallel testing
+- 🔍 **Better output** with structured results and timing
+- 🔄 **Retry mechanisms** for flaky test handling
+- 🏗️ **CI-optimized** profiles for different environments
+
 ### Key Development Commands
 
 ```bash

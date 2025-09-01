@@ -30,7 +30,7 @@ sqlite = ["dbsurveyor-core/sqlite", "sqlx/sqlite"]
 mongodb = ["dbsurveyor-core/mongodb"]
 mssql = ["dbsurveyor-core/mssql"]
 # Optional features
-compression = ["dbsurveyor-core/compression"]
+compression = ["dbsurveyor-core/compression", "dep:zstd"]
 encryption = ["dbsurveyor-core/encryption"]
 
 [dependencies]
@@ -55,3 +55,20 @@ zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
 testcontainers-modules = { workspace = true }
+
+# Nextest configuration for collector crate
+[package.metadata.nextest]
+# Database integration tests need sequential execution to avoid conflicts
+[[package.metadata.nextest.overrides]]
+filter = "test(postgres) or test(mysql) or test(sqlite) or test(mongodb) or test(integration)"
+test-group = "integration"
+
+# Security and credential tests run sequentially
+[[package.metadata.nextest.overrides]]
+filter = "test(security) or test(credential) or test(encryption)"
+test-group = "security"
+
+# Unit tests can run in parallel
+[[package.metadata.nextest.overrides]]
+filter = "not test(postgres) and not test(mysql) and not test(sqlite) and not test(mongodb) and not test(integration) and not test(security) and not test(credential) and not test(encryption)"
+test-group = "unit"

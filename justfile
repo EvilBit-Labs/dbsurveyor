@@ -29,6 +29,7 @@ install-cargo-tools:
     @if ! command -v cargo-audit >/dev/null 2>&1; then cargo install cargo-audit; fi
     @if ! command -v cargo-deny >/dev/null 2>&1; then cargo install cargo-deny; fi
     @if ! command -v cargo-llvm-cov >/dev/null 2>&1; then cargo install cargo-llvm-cov; fi
+    @if ! command -v cargo-nextest >/dev/null 2>&1; then cargo install cargo-nextest; fi
     @echo "✅ Cargo tools installed"
 
 # Install security tools
@@ -120,9 +121,9 @@ rust-fmt-check:
 rust-clippy:
     cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-# Run all Rust tests
+# Run all Rust tests with nextest
 rust-test:
-    cargo test --features postgresql,sqlite,encryption,compression --workspace
+    cargo nextest run --features postgresql,sqlite,encryption,compression --workspace
 
 # Run Rust test coverage with HTML report
 rust-cov:
@@ -140,44 +141,60 @@ qa-cov: rust-fmt-check rust-clippy rust-test rust-cov
 # 🧪 Testing & Coverage
 # -----------------------------
 
-# Run all tests with security verification
+# Run all tests with security verification using nextest
 test:
-    @echo "🧪 Running test suite with security checks..."
+    @echo "🧪 Running test suite with nextest and security checks..."
     @echo "⚠️  Testing offline-only operation - no external network calls allowed"
-    # Run dbsurveyor-collect tests sequentially to avoid environment variable conflicts
-    cargo test -p dbsurveyor-collect --features postgresql,sqlite --verbose -- --test-threads=1
-    # Run all other tests normally
-    cargo test --workspace --exclude dbsurveyor-collect --features encryption,compression --verbose
+    # Run all tests with nextest parallel execution
+    cargo nextest run --workspace --features postgresql,sqlite,encryption,compression
     @echo "✅ All tests passed - security guarantees maintained"
 
-# Run tests excluding benchmarks
+# Run tests excluding benchmarks with nextest
 test-no-bench:
-    cargo test --features postgresql,sqlite,encryption,compression --lib --bins --tests
+    cargo nextest run --features postgresql,sqlite,encryption,compression --lib --bins --tests
 
-# Run integration tests only
+# Run integration tests only with nextest
 test-integration:
-    cargo test --test '*' --features postgresql,sqlite,encryption,compression
+    cargo nextest run --test '*' --features postgresql,sqlite,encryption,compression --test-group integration
 
-# Run unit tests only
+# Run unit tests only with nextest
 test-unit:
-    cargo test --lib --features postgresql,sqlite,encryption,compression
+    cargo nextest run --lib --features postgresql,sqlite,encryption,compression --test-group unit
 
-# Run doctests only
+# Run doctests only (nextest doesn't support doctests, use cargo test)
 test-doc:
     cargo test --doc --features postgresql,sqlite,encryption,compression
 
-# Run tests for specific database engines
+# Run tests with CI profile (for CI environments)
+test-ci:
+    @echo "🤖 Running tests with CI profile..."
+    cargo nextest run --profile ci --features postgresql,sqlite,encryption,compression --workspace
+    @echo "✅ CI tests completed"
+
+# Run tests with dev profile (for local development)
+test-dev:
+    @echo "🚀 Running tests with dev profile..."
+    cargo nextest run --profile dev --features postgresql,sqlite,encryption,compression --workspace
+    @echo "✅ Dev tests completed"
+
+# Run tests with verbose output for debugging
+test-verbose:
+    @echo "🔍 Running tests with verbose output..."
+    cargo nextest run --features postgresql,sqlite,encryption,compression --workspace --nocapture
+    @echo "✅ Verbose tests completed"
+
+# Run tests for specific database engines with nextest
 test-postgres:
     @echo "🐘 Testing PostgreSQL adapter..."
-    cargo test postgres --verbose
+    cargo nextest run postgres --features postgresql
 
 test-mysql:
     @echo "🐬 Testing MySQL adapter..."
-    cargo test mysql --verbose
+    cargo nextest run mysql --features mysql
 
 test-sqlite:
     @echo "📦 Testing SQLite adapter..."
-    cargo test sqlite --verbose
+    cargo nextest run sqlite --features sqlite
 
 # Run coverage with cargo-llvm-cov and enforce 70% threshold
 coverage:
@@ -212,19 +229,19 @@ coverage-clean:
 # Verify encryption capabilities (AES-GCM with random nonce)
 test-encryption:
     @echo "🔐 Testing AES-GCM encryption with random nonce generation..."
-    cargo test encryption --verbose -- --nocapture
+    cargo nextest run encryption --features encryption --test-group security --nocapture
     @echo "✅ Encryption tests passed - AES-GCM security verified"
 
 # Test offline operation (no network calls)
 test-offline:
     @echo "✈️  Testing complete offline operation..."
-    cargo test offline --verbose
+    cargo nextest run offline --test-group security
     @echo "✅ Offline operation verified - airgap compatible"
 
 # Verify no credentials leak into outputs
 test-credential-security:
     @echo "🔑 Testing credential security..."
-    cargo test credential_security --verbose -- --nocapture
+    cargo nextest run credential_security --test-group security --nocapture
     @echo "✅ Credential security verified - no leakage detected"
 
 # Full security validation suite
@@ -391,7 +408,7 @@ package-airgap:
 # -----------------------------
 
 # CI-friendly check that runs all validation
-ci-check: format-check lint test coverage-ci
+ci-check: format-check lint test-ci coverage-ci
     @echo "✅ All CI checks passed!"
 
 # Fast CI check without coverage (for quick feedback)
@@ -399,7 +416,7 @@ ci-check-fast: format-check lint test-no-bench
     @echo "✅ Fast CI checks passed!"
 
 # Full comprehensive checks - runs all non-interactive verifications
-full-checks: format-check lint test coverage audit-ci build-release
+full-checks: format-check lint test-ci coverage audit-ci build-release
     @echo "✅ All full checks passed!"
 
 # CI-friendly QA check (respects TERM=dumb)
@@ -414,9 +431,9 @@ ci-qa: rust-fmt-check rust-clippy rust-test
 dev: format lint test coverage
     @echo "✅ Development checks complete!"
 
-# Watch for changes and run tests
+# Watch for changes and run tests with nextest
 watch:
-    cargo watch -x "test --features postgresql,sqlite,encryption,compression"
+    cargo watch -x "nextest run --features postgresql,sqlite,encryption,compression"
 
 # Watch for changes and run checks
 watch-check:

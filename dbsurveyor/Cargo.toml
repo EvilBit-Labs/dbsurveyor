@@ -49,3 +49,20 @@ zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
 # No additional dev dependencies needed for now
+
+# Nextest configuration for postprocessor crate
+[package.metadata.nextest]
+# Template and output generation tests
+[[package.metadata.nextest.overrides]]
+filter = "test(template) or test(output) or test(generation)"
+test-group = "unit"
+
+# Security tests run sequentially
+[[package.metadata.nextest.overrides]]
+filter = "test(security) or test(credential) or test(encryption)"
+test-group = "security"
+
+# Integration tests with file I/O
+[[package.metadata.nextest.overrides]]
+filter = "test(integration) or test(file)"
+test-group = "integration"
