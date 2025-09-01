@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Initial project setup with security-first approach
 - Database schema documentation and analysis capabilities
 - Offline-only operation with no telemetry
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI/CD pipeline with security scanning
 
 ### Security
+
 - Enforced offline-only operation
 - No credentials in output files
 - Process isolation and audit-friendly separation (dual-binary model)

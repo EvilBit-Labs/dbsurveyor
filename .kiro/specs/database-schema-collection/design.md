@@ -2757,7 +2757,7 @@ enable = true
 
 ### Documentation Content Structure
 
-```
+```text
 docs/
 ├── book.toml
 ├── src/
