@@ -26,6 +26,16 @@ pub struct PostgresAdapter {
     pub config: ConnectionConfig,
 }
 
+impl std::fmt::Debug for PostgresAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PostgresAdapter")
+            .field("config", &self.config)
+            .field("pool_size", &self.pool.size())
+            .field("pool_idle", &self.pool.num_idle())
+            .finish()
+    }
+}
+
 impl PostgresAdapter {
     /// Creates a new PostgreSQL adapter with connection pooling
     ///
@@ -83,8 +93,10 @@ impl PostgresAdapter {
     /// Tuple of (active_connections, idle_connections, total_connections)
     pub fn pool_stats(&self) -> (u32, u32, u32) {
         let size = self.pool.size();
-        let idle = self.pool.num_idle() as u32;
-        (size - idle, idle, size)
+        let idle = self.pool.num_idle();
+        // Convert to u32 safely, using saturating conversion to prevent overflow
+        let idle_u32 = idle.min(u32::MAX as usize) as u32;
+        (size.saturating_sub(idle_u32), idle_u32, size)
     }
 
     /// Closes the connection pool gracefully
@@ -364,8 +376,9 @@ impl PostgresAdapter {
 
         // Set application name for connection tracking
         let app_name = format!("dbsurveyor-collect-{}", env!("CARGO_PKG_VERSION"));
-        sqlx::query("SET application_name = $1")
-            .bind(app_name)
+        // Note: SET commands don't support parameterized queries, so we use format!
+        // The app_name is safe since it's constructed from known values
+        sqlx::query(&format!("SET application_name = '{}'", app_name))
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -420,10 +433,10 @@ impl PostgresAdapter {
         let db_info_query = r#"
             SELECT
                 current_database() as name,
-                pg_database_size(current_database()) as size_bytes,
-                pg_encoding_to_char(encoding) as encoding,
-                datcollate as collation,
-                r.rolname as owner
+                COALESCE(pg_database_size(current_database()), 0) as size_bytes,
+                COALESCE(pg_encoding_to_char(encoding), 'UTF8') as encoding,
+                COALESCE(datcollate, 'C') as collation,
+                COALESCE(r.rolname, 'unknown') as owner
             FROM pg_database d
             LEFT JOIN pg_roles r ON d.datdba = r.oid
             WHERE d.datname = current_database()
@@ -433,17 +446,43 @@ impl PostgresAdapter {
             .fetch_one(&self.pool)
             .await
             .map_err(|e| {
+                tracing::error!("Database information query failed: {}", e);
                 crate::error::DbSurveyorError::collection_failed(
-                    "Failed to get database information",
+                    "Failed to query database metadata from pg_database",
                     e,
                 )
             })?;
 
-        let name: String = row.get("name");
-        let size_bytes: Option<i64> = row.get("size_bytes");
-        let encoding: Option<String> = row.get("encoding");
-        let collation: Option<String> = row.get("collation");
-        let owner: Option<String> = row.get("owner");
+        let name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse database name from result",
+                e,
+            )
+        })?;
+        let size_bytes: Option<i64> = row.try_get("size_bytes").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse database size from result",
+                e,
+            )
+        })?;
+        let encoding: Option<String> = row.try_get("encoding").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse database encoding from result",
+                e,
+            )
+        })?;
+        let collation: Option<String> = row.try_get("collation").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse database collation from result",
+                e,
+            )
+        })?;
+        let owner: Option<String> = row.try_get("owner").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse database owner from result",
+                e,
+            )
+        })?;
 
         // Check if this is a system database
         let is_system_database = matches!(name.as_str(), "template0" | "template1" | "postgres");
@@ -494,18 +533,11 @@ impl PostgresAdapter {
             .map_err(|e| {
                 tracing::error!("Failed to enumerate schemas: {}", e);
                 match &e {
-                    sqlx::Error::Database(db_err) => {
-                        if db_err.code().as_deref() == Some("42501") {
-                            // Insufficient privilege error code
-                            crate::error::DbSurveyorError::insufficient_privileges(
-                                "Cannot access information_schema.schemata - insufficient privileges"
-                            )
-                        } else {
-                            crate::error::DbSurveyorError::collection_failed(
-                                "Failed to enumerate database schemas",
-                                e,
-                            )
-                        }
+                    sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("42501") => {
+                        // Insufficient privilege error code
+                        crate::error::DbSurveyorError::insufficient_privileges(
+                            "Cannot access information_schema.schemata - insufficient privileges",
+                        )
                     }
                     _ => crate::error::DbSurveyorError::collection_failed(
                         "Failed to enumerate database schemas",
@@ -516,7 +548,12 @@ impl PostgresAdapter {
 
         let mut schemas = Vec::new();
         for row in schema_rows {
-            let schema_name: String = row.get("schema_name");
+            let schema_name: String = row.try_get("schema_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse schema name from database result",
+                    e,
+                )
+            })?;
             schemas.push(schema_name);
         }
 
@@ -564,24 +601,19 @@ impl PostgresAdapter {
 
         tracing::debug!("Executing table enumeration query");
 
+        tracing::debug!("Executing table enumeration query");
+
         let table_rows = sqlx::query(tables_query)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to enumerate tables: {}", e);
                 match &e {
-                    sqlx::Error::Database(db_err) => {
-                        if db_err.code().as_deref() == Some("42501") {
-                            // Insufficient privilege error code
-                            crate::error::DbSurveyorError::insufficient_privileges(
-                                "Cannot access information_schema.tables - insufficient privileges"
-                            )
-                        } else {
-                            crate::error::DbSurveyorError::collection_failed(
-                                "Failed to enumerate database tables",
-                                e,
-                            )
-                        }
+                    sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("42501") => {
+                        // Insufficient privilege error code
+                        crate::error::DbSurveyorError::insufficient_privileges(
+                            "Cannot access information_schema.tables - insufficient privileges",
+                        )
                     }
                     _ => crate::error::DbSurveyorError::collection_failed(
                         "Failed to enumerate database tables",
@@ -595,13 +627,48 @@ impl PostgresAdapter {
         let mut view_count = 0;
 
         for row in &table_rows {
-            let table_name: String = row.get("table_name");
-            let schema_name: Option<String> = row.get("table_schema");
-            let table_type: String = row.get("table_type");
-            let comment: Option<String> = row.get("table_comment");
-            let estimated_rows: Option<i64> = row.get("estimated_rows");
-            let _table_size: Option<String> = row.get("table_size"); // Human readable size
-            let _table_size_bytes: Option<i64> = row.get("table_size_bytes");
+            let table_name: String = row.try_get("table_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse table name from database result",
+                    e,
+                )
+            })?;
+            let schema_name: Option<String> = row.try_get("table_schema").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse schema name from database result",
+                    e,
+                )
+            })?;
+            let table_type: String = row.try_get("table_type").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse table type from database result",
+                    e,
+                )
+            })?;
+            let comment: Option<String> = row.try_get("table_comment").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse table comment from database result",
+                    e,
+                )
+            })?;
+            let estimated_rows: Option<i64> = row.try_get("estimated_rows").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse estimated rows from database result",
+                    e,
+                )
+            })?;
+            let _table_size: Option<String> = row.try_get("table_size").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse table size from database result",
+                    e,
+                )
+            })?; // Human readable size
+            let _table_size_bytes: Option<i64> = row.try_get("table_size_bytes").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    "Failed to parse table size bytes from database result",
+                    e,
+                )
+            })?;
 
             // Count table types for logging
             match table_type.as_str() {
@@ -612,8 +679,8 @@ impl PostgresAdapter {
 
             // Create basic table structure - detailed collection will be implemented in subsequent tasks
             let table = Table {
-                name: table_name.clone(),
-                schema: schema_name.clone(),
+                name: table_name,
+                schema: schema_name,
                 columns: Vec::new(),      // Will be implemented in task 2.3
                 primary_key: None,        // Will be implemented in task 2.4
                 foreign_keys: Vec::new(), // Will be implemented in task 2.5
@@ -626,8 +693,8 @@ impl PostgresAdapter {
             tracing::debug!(
                 "Found {} '{}' in schema '{}' with {} estimated rows",
                 table_type.to_lowercase(),
-                table_name,
-                schema_name.as_deref().unwrap_or("public"),
+                table.name,
+                table.schema.as_deref().unwrap_or("public"),
                 estimated_rows.unwrap_or(0)
             );
 
@@ -644,7 +711,11 @@ impl PostgresAdapter {
         // Log size information if available
         let total_size_bytes: i64 = table_rows
             .iter()
-            .filter_map(|row| row.get::<Option<i64>, _>("table_size_bytes"))
+            .filter_map(|row| {
+                row.try_get::<Option<i64>, _>("table_size_bytes")
+                    .ok()
+                    .flatten()
+            })
             .sum();
 
         if total_size_bytes > 0 {
@@ -705,13 +776,13 @@ impl PostgresAdapter {
 
         if table_access_test == 0 {
             return Err(crate::error::DbSurveyorError::insufficient_privileges(
-                "No access to information_schema tables - cannot perform schema collection"
+                "No access to information_schema tables - cannot perform schema collection",
             ));
         }
 
         // Test access to pg_class for additional metadata (optional)
         let pg_class_access = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM pg_class WHERE relname = 'pg_class' LIMIT 1"
+            "SELECT COUNT(*) FROM pg_class WHERE relname = 'pg_class' LIMIT 1",
         )
         .fetch_optional(&self.pool)
         .await;
@@ -774,8 +845,9 @@ impl DatabaseAdapter for PostgresAdapter {
         let mut warnings = Vec::new();
 
         tracing::info!(
-            "Starting PostgreSQL schema collection for database: {}",
-            super::redact_database_url(&format!("{}:{}", self.config.host, self.config.port.unwrap_or(5432)))
+            "Starting PostgreSQL schema collection for database: {}:{}",
+            self.config.host,
+            self.config.port.unwrap_or(5432)
         );
 
         // Set up session security settings
@@ -821,13 +893,13 @@ impl DatabaseAdapter for PostgresAdapter {
 
         // Log schema distribution for debugging
         if !schemas.is_empty() && !tables.is_empty() {
-            let mut schema_table_counts = std::collections::HashMap::new();
+            let mut schema_table_counts = std::collections::HashMap::with_capacity(schemas.len());
             for table in &tables {
                 let schema_name = table.schema.as_deref().unwrap_or("public");
                 *schema_table_counts.entry(schema_name).or_insert(0) += 1;
             }
 
-            for (schema, count) in schema_table_counts {
+            for (schema, count) in &schema_table_counts {
                 tracing::debug!("Schema '{}': {} tables/views", schema, count);
             }
         }
@@ -1067,36 +1139,70 @@ mod tests {
         assert!(result.is_err());
     }
 
-
-
     #[test]
     fn test_map_postgresql_type_basic_types() {
         use crate::models::UnifiedDataType;
 
         // Test string types
-        let varchar_type = PostgresAdapter::map_postgresql_type("character varying", Some(255), None, None).unwrap();
-        assert!(matches!(varchar_type, UnifiedDataType::String { max_length: Some(255) }));
+        let varchar_type =
+            PostgresAdapter::map_postgresql_type("character varying", Some(255), None, None)
+                .unwrap();
+        assert!(matches!(
+            varchar_type,
+            UnifiedDataType::String {
+                max_length: Some(255)
+            }
+        ));
 
         let text_type = PostgresAdapter::map_postgresql_type("text", None, None, None).unwrap();
-        assert!(matches!(text_type, UnifiedDataType::String { max_length: None }));
+        assert!(matches!(
+            text_type,
+            UnifiedDataType::String { max_length: None }
+        ));
 
         // Test integer types
         let int_type = PostgresAdapter::map_postgresql_type("integer", None, None, None).unwrap();
-        assert!(matches!(int_type, UnifiedDataType::Integer { bits: 32, signed: true }));
+        assert!(matches!(
+            int_type,
+            UnifiedDataType::Integer {
+                bits: 32,
+                signed: true
+            }
+        ));
 
         let bigint_type = PostgresAdapter::map_postgresql_type("bigint", None, None, None).unwrap();
-        assert!(matches!(bigint_type, UnifiedDataType::Integer { bits: 64, signed: true }));
+        assert!(matches!(
+            bigint_type,
+            UnifiedDataType::Integer {
+                bits: 64,
+                signed: true
+            }
+        ));
 
         // Test boolean type
         let bool_type = PostgresAdapter::map_postgresql_type("boolean", None, None, None).unwrap();
         assert!(matches!(bool_type, UnifiedDataType::Boolean));
 
         // Test timestamp types
-        let timestamp_type = PostgresAdapter::map_postgresql_type("timestamp without time zone", None, None, None).unwrap();
-        assert!(matches!(timestamp_type, UnifiedDataType::DateTime { with_timezone: false }));
+        let timestamp_type =
+            PostgresAdapter::map_postgresql_type("timestamp without time zone", None, None, None)
+                .unwrap();
+        assert!(matches!(
+            timestamp_type,
+            UnifiedDataType::DateTime {
+                with_timezone: false
+            }
+        ));
 
-        let timestamptz_type = PostgresAdapter::map_postgresql_type("timestamp with time zone", None, None, None).unwrap();
-        assert!(matches!(timestamptz_type, UnifiedDataType::DateTime { with_timezone: true }));
+        let timestamptz_type =
+            PostgresAdapter::map_postgresql_type("timestamp with time zone", None, None, None)
+                .unwrap();
+        assert!(matches!(
+            timestamptz_type,
+            UnifiedDataType::DateTime {
+                with_timezone: true
+            }
+        ));
 
         // Test JSON types
         let json_type = PostgresAdapter::map_postgresql_type("json", None, None, None).unwrap();
@@ -1110,27 +1216,52 @@ mod tests {
         assert!(matches!(uuid_type, UnifiedDataType::Uuid));
 
         // Test array type
-        let array_type = PostgresAdapter::map_postgresql_type("integer[]", None, None, None).unwrap();
+        let array_type =
+            PostgresAdapter::map_postgresql_type("integer[]", None, None, None).unwrap();
         if let UnifiedDataType::Array { element_type } = array_type {
-            assert!(matches!(*element_type, UnifiedDataType::Integer { bits: 32, signed: true }));
+            assert!(matches!(
+                *element_type,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true
+                }
+            ));
         } else {
             panic!("Expected array type");
         }
 
         // Test custom type
-        let custom_type = PostgresAdapter::map_postgresql_type("custom_enum", None, None, None).unwrap();
-        assert!(matches!(custom_type, UnifiedDataType::Custom { type_name } if type_name == "custom_enum"));
+        let custom_type =
+            PostgresAdapter::map_postgresql_type("custom_enum", None, None, None).unwrap();
+        assert!(
+            matches!(custom_type, UnifiedDataType::Custom { type_name } if type_name == "custom_enum")
+        );
     }
 
     #[test]
     fn test_map_referential_action() {
         use crate::models::ReferentialAction;
 
-        assert_eq!(PostgresAdapter::map_referential_action("c"), Some(ReferentialAction::Cascade));
-        assert_eq!(PostgresAdapter::map_referential_action("n"), Some(ReferentialAction::SetNull));
-        assert_eq!(PostgresAdapter::map_referential_action("d"), Some(ReferentialAction::SetDefault));
-        assert_eq!(PostgresAdapter::map_referential_action("r"), Some(ReferentialAction::Restrict));
-        assert_eq!(PostgresAdapter::map_referential_action("a"), Some(ReferentialAction::NoAction));
+        assert_eq!(
+            PostgresAdapter::map_referential_action("c"),
+            Some(ReferentialAction::Cascade)
+        );
+        assert_eq!(
+            PostgresAdapter::map_referential_action("n"),
+            Some(ReferentialAction::SetNull)
+        );
+        assert_eq!(
+            PostgresAdapter::map_referential_action("d"),
+            Some(ReferentialAction::SetDefault)
+        );
+        assert_eq!(
+            PostgresAdapter::map_referential_action("r"),
+            Some(ReferentialAction::Restrict)
+        );
+        assert_eq!(
+            PostgresAdapter::map_referential_action("a"),
+            Some(ReferentialAction::NoAction)
+        );
         assert_eq!(PostgresAdapter::map_referential_action("x"), None);
     }
 
@@ -1151,23 +1282,40 @@ mod tests {
     #[test]
     fn test_connection_config_validation_limits() {
         // Test max connections limit
-        let mut config = ConnectionConfig::default();
-        config.max_connections = 101; // Over limit
+        let config = ConnectionConfig {
+            max_connections: 101, // Over limit
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
 
-        config.max_connections = 50; // Within limit
+        let config = ConnectionConfig {
+            max_connections: 50, // Within limit
+            ..Default::default()
+        };
         assert!(config.validate().is_ok());
 
-        // Test zero values
-        config.max_connections = 0;
+        // Test zero max connections
+        let config = ConnectionConfig {
+            max_connections: 0,
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
 
-        config.max_connections = 10;
-        config.connect_timeout = Duration::from_secs(0);
+        // Test zero connect timeout
+        let config = ConnectionConfig {
+            max_connections: 10,
+            connect_timeout: Duration::from_secs(0),
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
 
-        config.connect_timeout = Duration::from_secs(30);
-        config.query_timeout = Duration::from_secs(0);
+        // Test zero query timeout
+        let config = ConnectionConfig {
+            max_connections: 10,
+            connect_timeout: Duration::from_secs(30),
+            query_timeout: Duration::from_secs(0),
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
     }
 

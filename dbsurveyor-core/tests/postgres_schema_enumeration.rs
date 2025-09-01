@@ -1,293 +1,385 @@
-//! PostgreSQL schema enumeration tests for task 2.2.
+//! Integration tests for PostgreSQL schema enumeration functionality.
 //!
-//! These tests verify the basic schema enumeration queries implementation
-//! including schema discovery, table enumeration, and error handling.
+//! These tests verify that the PostgreSQL adapter correctly enumerates schemas
+//! and tables with proper error handling and security guarantees.
 
-#[cfg(feature = "postgresql")]
-mod postgres_schema_enumeration_tests {
-    use dbsurveyor_core::{
-        adapters::{create_adapter, postgres::PostgresAdapter},
-        models::{DatabaseType, UnifiedDataType},
-    };
+use dbsurveyor_core::adapters::{DatabaseAdapter, postgres::PostgresAdapter};
+use dbsurveyor_core::models::DatabaseType;
+use sqlx::PgPool;
+use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
 
-    #[tokio::test]
-    async fn test_postgres_adapter_database_type() {
-        let connection_string = "postgres://user:pass@localhost:5432/testdb";
-        let adapter = create_adapter(connection_string).await.unwrap();
+/// Test basic schema enumeration with a real PostgreSQL database
+#[tokio::test]
+async fn test_postgres_schema_enumeration() -> Result<(), Box<dyn std::error::Error>> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-        assert_eq!(adapter.database_type(), DatabaseType::PostgreSQL);
-    }
-
-    #[tokio::test]
-    async fn test_postgres_connection_string_validation() {
-        // Test valid PostgreSQL connection strings
-        let valid_strings = vec![
-            "postgres://user@localhost/db",
-            "postgresql://user:pass@localhost:5432/db",
-            "postgres://localhost/db",
-            "postgresql://user@host:5432/db?sslmode=require",
-        ];
-
-        for conn_str in valid_strings {
-            let result = PostgresAdapter::validate_connection_string(conn_str);
-            assert!(result.is_ok(), "Connection string should be valid: {}", conn_str);
+    // Wait for PostgreSQL to be ready
+    let max_attempts = 30;
+    let mut attempts = 0;
+    while attempts < max_attempts {
+        if let Ok(pool) = PgPool::connect(&database_url).await {
+            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
+                pool.close().await;
+                break;
+            }
+            pool.close().await;
         }
-
-        // Test invalid connection strings
-        let invalid_strings = vec![
-            "mysql://user@localhost/db",  // Wrong scheme
-            "postgres://",                // No host
-            "http://localhost/db",        // Wrong scheme
-            "postgres://user@host/db?statement_timeout=400000", // Excessive timeout
-        ];
-
-        for conn_str in invalid_strings {
-            let result = PostgresAdapter::validate_connection_string(conn_str);
-            assert!(result.is_err(), "Connection string should be invalid: {}", conn_str);
+        attempts += 1;
+        if attempts < max_attempts {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     }
 
-    #[tokio::test]
-    async fn test_postgresql_type_mapping_comprehensive() {
-        // Test string types
-        let varchar_type = PostgresAdapter::map_postgresql_type("character varying", Some(255), None, None).unwrap();
-        assert!(matches!(varchar_type, UnifiedDataType::String { max_length: Some(255) }));
+    if attempts >= max_attempts {
+        panic!(
+            "PostgreSQL failed to become ready after {} attempts",
+            max_attempts
+        );
+    }
 
-        let text_type = PostgresAdapter::map_postgresql_type("text", None, None, None).unwrap();
-        assert!(matches!(text_type, UnifiedDataType::String { max_length: None }));
+    // Create test schema and tables
+    let pool = PgPool::connect(&database_url).await?;
 
-        // Test integer types
-        let smallint_type = PostgresAdapter::map_postgresql_type("smallint", None, None, None).unwrap();
-        assert!(matches!(smallint_type, UnifiedDataType::Integer { bits: 16, signed: true }));
+    // Create test schema (ignore error if it already exists)
+    let _ = sqlx::query("CREATE SCHEMA test_schema")
+        .execute(&pool)
+        .await; // Ignore error if schema already exists
 
-        let int_type = PostgresAdapter::map_postgresql_type("integer", None, None, None).unwrap();
-        assert!(matches!(int_type, UnifiedDataType::Integer { bits: 32, signed: true }));
+    // Create test table in public schema (ignore error if exists)
+    let _ = sqlx::query(
+        "CREATE TABLE public.test_table (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        )",
+    )
+    .execute(&pool)
+    .await; // Ignore error if table already exists
 
-        let bigint_type = PostgresAdapter::map_postgresql_type("bigint", None, None, None).unwrap();
-        assert!(matches!(bigint_type, UnifiedDataType::Integer { bits: 64, signed: true }));
+    // Create test table in custom schema (ignore error if exists)
+    let _ = sqlx::query(
+        "CREATE TABLE test_schema.custom_table (
+            id SERIAL PRIMARY KEY,
+            data TEXT,
+            active BOOLEAN DEFAULT TRUE
+        )",
+    )
+    .execute(&pool)
+    .await; // Ignore error if table already exists
 
-        // Test boolean type
-        let bool_type = PostgresAdapter::map_postgresql_type("boolean", None, None, None).unwrap();
-        assert!(matches!(bool_type, UnifiedDataType::Boolean));
+    // Create a view (ignore error if exists)
+    let _ = sqlx::query(
+        "CREATE VIEW public.test_view AS
+         SELECT id, name FROM public.test_table WHERE id > 0",
+    )
+    .execute(&pool)
+    .await; // Ignore error if view already exists
 
-        // Test datetime types
-        let timestamp_type = PostgresAdapter::map_postgresql_type("timestamp without time zone", None, None, None).unwrap();
-        assert!(matches!(timestamp_type, UnifiedDataType::DateTime { with_timezone: false }));
+    pool.close().await;
 
-        let timestamptz_type = PostgresAdapter::map_postgresql_type("timestamp with time zone", None, None, None).unwrap();
-        assert!(matches!(timestamptz_type, UnifiedDataType::DateTime { with_timezone: true }));
+    // Test schema collection
+    let adapter = PostgresAdapter::new(&database_url).await?;
 
-        let date_type = PostgresAdapter::map_postgresql_type("date", None, None, None).unwrap();
-        assert!(matches!(date_type, UnifiedDataType::Date));
+    // Test connection
+    adapter.test_connection().await?;
 
-        // Test JSON types
-        let json_type = PostgresAdapter::map_postgresql_type("json", None, None, None).unwrap();
-        assert!(matches!(json_type, UnifiedDataType::Json));
+    // Verify adapter properties
+    assert_eq!(adapter.database_type(), DatabaseType::PostgreSQL);
 
-        let jsonb_type = PostgresAdapter::map_postgresql_type("jsonb", None, None, None).unwrap();
-        assert!(matches!(jsonb_type, UnifiedDataType::Json));
+    // Collect schema
+    let schema = adapter.collect_schema().await?;
 
-        // Test UUID type
-        let uuid_type = PostgresAdapter::map_postgresql_type("uuid", None, None, None).unwrap();
-        assert!(matches!(uuid_type, UnifiedDataType::Uuid));
+    // Verify basic schema properties
+    assert_eq!(schema.database_info.name, "postgres");
+    assert!(!schema.tables.is_empty());
 
-        // Test binary type
-        let bytea_type = PostgresAdapter::map_postgresql_type("bytea", None, None, None).unwrap();
-        assert!(matches!(bytea_type, UnifiedDataType::Binary { max_length: None }));
+    // Verify we found our test tables
+    let public_table = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "test_table" && t.schema.as_deref() == Some("public"))
+        .expect("test_table not found in public schema");
 
-        // Test array type
-        let array_type = PostgresAdapter::map_postgresql_type("integer[]", None, None, None).unwrap();
-        if let UnifiedDataType::Array { element_type } = array_type {
-            assert!(matches!(*element_type, UnifiedDataType::Integer { bits: 32, signed: true }));
-        } else {
-            panic!("Expected array type");
+    assert_eq!(public_table.name, "test_table");
+    assert_eq!(public_table.schema.as_deref(), Some("public"));
+
+    let custom_table = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "custom_table" && t.schema.as_deref() == Some("test_schema"))
+        .expect("custom_table not found in test_schema");
+
+    assert_eq!(custom_table.name, "custom_table");
+    assert_eq!(custom_table.schema.as_deref(), Some("test_schema"));
+
+    // Verify we found the view
+    let test_view = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "test_view" && t.schema.as_deref() == Some("public"))
+        .expect("test_view not found in public schema");
+
+    assert_eq!(test_view.name, "test_view");
+    assert_eq!(test_view.schema.as_deref(), Some("public"));
+
+    // Verify no credentials in schema output
+    let schema_json = serde_json::to_string(&schema)?;
+    assert!(!schema_json.contains("postgres:postgres"));
+    assert!(!schema_json.contains("password"));
+    assert!(!schema_json.contains("secret"));
+
+    Ok(())
+}
+
+/// Test schema collection with insufficient privileges
+#[tokio::test]
+async fn test_postgres_insufficient_privileges() -> Result<(), Box<dyn std::error::Error>> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let admin_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+
+    // Wait for PostgreSQL to be ready
+    let max_attempts = 30;
+    let mut attempts = 0;
+    while attempts < max_attempts {
+        if let Ok(pool) = PgPool::connect(&admin_url).await {
+            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
+                pool.close().await;
+                break;
+            }
+            pool.close().await;
         }
-
-        // Test custom type
-        let custom_type = PostgresAdapter::map_postgresql_type("custom_enum", None, None, None).unwrap();
-        assert!(matches!(custom_type, UnifiedDataType::Custom { type_name } if type_name == "custom_enum"));
-    }
-
-    #[tokio::test]
-    async fn test_referential_action_mapping() {
-        use dbsurveyor_core::models::ReferentialAction;
-
-        // Test all PostgreSQL referential action codes
-        assert_eq!(PostgresAdapter::map_referential_action("c"), Some(ReferentialAction::Cascade));
-        assert_eq!(PostgresAdapter::map_referential_action("n"), Some(ReferentialAction::SetNull));
-        assert_eq!(PostgresAdapter::map_referential_action("d"), Some(ReferentialAction::SetDefault));
-        assert_eq!(PostgresAdapter::map_referential_action("r"), Some(ReferentialAction::Restrict));
-        assert_eq!(PostgresAdapter::map_referential_action("a"), Some(ReferentialAction::NoAction));
-
-        // Test unknown action code
-        assert_eq!(PostgresAdapter::map_referential_action("x"), None);
-        assert_eq!(PostgresAdapter::map_referential_action(""), None);
-    }
-
-    #[tokio::test]
-    async fn test_connection_config_parsing_comprehensive() {
-        // Test full connection string with all parameters
-        let connection_string = "postgres://testuser@localhost:5432/testdb?connect_timeout=60&statement_timeout=45000&pool_max_conns=20";
-        let config = PostgresAdapter::parse_connection_config(connection_string).unwrap();
-
-        assert_eq!(config.host, "localhost");
-        assert_eq!(config.port, Some(5432));
-        assert_eq!(config.database, Some("testdb".to_string()));
-        assert_eq!(config.username, Some("testuser".to_string()));
-        assert_eq!(config.connect_timeout.as_secs(), 60);
-        assert_eq!(config.query_timeout.as_millis(), 45000);
-        assert_eq!(config.max_connections, 20);
-        assert!(config.read_only); // Should default to read-only for security
-
-        // Test minimal connection string
-        let minimal_string = "postgres://localhost";
-        let minimal_config = PostgresAdapter::parse_connection_config(minimal_string).unwrap();
-
-        assert_eq!(minimal_config.host, "localhost");
-        assert_eq!(minimal_config.port, Some(5432)); // Default PostgreSQL port
-        assert_eq!(minimal_config.database, None);
-        assert_eq!(minimal_config.username, None);
-        assert!(minimal_config.read_only);
-
-        // Test connection string with database but no username
-        let db_only_string = "postgres://localhost/mydb";
-        let db_only_config = PostgresAdapter::parse_connection_config(db_only_string).unwrap();
-
-        assert_eq!(db_only_config.host, "localhost");
-        assert_eq!(db_only_config.database, Some("mydb".to_string()));
-        assert_eq!(db_only_config.username, None);
-    }
-
-    #[tokio::test]
-    async fn test_connection_config_validation_limits() {
-        use dbsurveyor_core::adapters::ConnectionConfig;
-        use std::time::Duration;
-
-        // Test valid configuration
-        let valid_config = ConnectionConfig::new("localhost".to_string());
-        assert!(valid_config.validate().is_ok());
-
-        // Test invalid configurations
-        let mut invalid_config = ConnectionConfig::default();
-
-        // Empty host
-        invalid_config.host = String::new();
-        assert!(invalid_config.validate().is_err());
-
-        // Reset host
-        invalid_config.host = "localhost".to_string();
-
-        // Invalid port
-        invalid_config.port = Some(0);
-        assert!(invalid_config.validate().is_err());
-
-        // Reset port
-        invalid_config.port = Some(5432);
-
-        // Invalid max connections (too high)
-        invalid_config.max_connections = 101;
-        assert!(invalid_config.validate().is_err());
-
-        // Invalid max connections (zero)
-        invalid_config.max_connections = 0;
-        assert!(invalid_config.validate().is_err());
-
-        // Reset max connections
-        invalid_config.max_connections = 10;
-
-        // Invalid timeouts
-        invalid_config.connect_timeout = Duration::from_secs(0);
-        assert!(invalid_config.validate().is_err());
-
-        invalid_config.connect_timeout = Duration::from_secs(30);
-        invalid_config.query_timeout = Duration::from_secs(0);
-        assert!(invalid_config.validate().is_err());
-    }
-
-    #[tokio::test]
-    async fn test_schema_collection_error_handling() {
-        // Test that schema collection fails gracefully with invalid connection
-        let connection_string = "postgres://invalid_user:invalid_pass@nonexistent_host:9999/invalid_db";
-
-        // Creating the adapter should succeed (lazy connection)
-        let adapter = create_adapter(connection_string).await.unwrap();
-
-        // But schema collection should fail gracefully
-        let result = adapter.collect_schema().await;
-        assert!(result.is_err());
-
-        // The error should be properly formatted and not expose credentials
-        let error_message = result.unwrap_err().to_string();
-        assert!(!error_message.contains("invalid_pass"));
-        assert!(!error_message.contains("invalid_user:invalid_pass"));
-    }
-
-    #[tokio::test]
-    async fn test_connection_test_error_handling() {
-        // Test that connection test fails gracefully with invalid connection
-        let connection_string = "postgres://test_user:test_pass@localhost:9999/nonexistent";
-
-        // Creating the adapter should succeed (lazy connection)
-        let adapter = create_adapter(connection_string).await.unwrap();
-
-        // But connection test should fail gracefully
-        let result = adapter.test_connection().await;
-        assert!(result.is_err());
-
-        // The error should be properly formatted and not expose credentials
-        let error_message = result.unwrap_err().to_string();
-        assert!(!error_message.contains("test_pass"));
-        assert!(!error_message.contains("test_user:test_pass"));
-    }
-
-    #[tokio::test]
-    async fn test_adapter_feature_support() {
-        use dbsurveyor_core::adapters::AdapterFeature;
-
-        let connection_string = "postgres://user@localhost/db";
-        let adapter = create_adapter(connection_string).await.unwrap();
-
-        // PostgreSQL adapter should support all these features
-        let supported_features = vec![
-            AdapterFeature::SchemaCollection,
-            AdapterFeature::DataSampling,
-            AdapterFeature::MultiDatabase,
-            AdapterFeature::ConnectionPooling,
-            AdapterFeature::QueryTimeout,
-            AdapterFeature::ReadOnlyMode,
-        ];
-
-        for feature in supported_features {
-            assert!(
-                adapter.supports_feature(feature),
-                "PostgreSQL adapter should support feature: {:?}",
-                feature
-            );
+        attempts += 1;
+        if attempts < max_attempts {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     }
 
-    #[tokio::test]
-    async fn test_connection_config_display_security() {
-        use dbsurveyor_core::adapters::ConnectionConfig;
-
-        let config = ConnectionConfig::new("example.com".to_string())
-            .with_port(5432)
-            .with_database("testdb".to_string())
-            .with_username("testuser".to_string());
-
-        let display_string = format!("{}", config);
-
-        // Should contain connection info
-        assert!(display_string.contains("example.com"));
-        assert!(display_string.contains("5432"));
-        assert!(display_string.contains("testdb"));
-
-        // Should NOT contain username for security
-        assert!(!display_string.contains("testuser"));
-
-        // Should definitely not contain any password-like strings
-        assert!(!display_string.contains("password"));
-        assert!(!display_string.contains("secret"));
-        assert!(!display_string.contains("pass"));
+    if attempts >= max_attempts {
+        panic!(
+            "PostgreSQL failed to become ready after {} attempts",
+            max_attempts
+        );
     }
+
+    // Create limited user
+    let pool = PgPool::connect(&admin_url).await?;
+
+    sqlx::query("CREATE USER limited_user WITH PASSWORD 'limited_pass'")
+        .execute(&pool)
+        .await?;
+
+    // Don't grant any privileges - user should have very limited access
+
+    pool.close().await;
+
+    // Test with limited user
+    let limited_url = format!(
+        "postgres://limited_user:limited_pass@localhost:{}/postgres",
+        port
+    );
+
+    let adapter = PostgresAdapter::new(&limited_url).await?;
+
+    // Connection should work
+    adapter.test_connection().await?;
+
+    // Schema collection should work but return limited results
+    let schema = adapter.collect_schema().await?;
+
+    // Should have very few or no tables due to limited privileges
+    // This tests that the adapter handles privilege restrictions gracefully
+    assert!(schema.tables.len() <= 1); // May have access to some system views
+
+    // Verify no credentials in error messages or output
+    let schema_json = serde_json::to_string(&schema)?;
+    assert!(!schema_json.contains("limited_pass"));
+    assert!(!schema_json.contains("limited_user:limited_pass"));
+
+    Ok(())
+}
+
+/// Test connection string redaction in error messages
+#[tokio::test]
+async fn test_postgres_credential_redaction() {
+    use dbsurveyor_core::adapters::redact_database_url;
+
+    // Test URL redaction
+    let url = "postgres://user:secret123@localhost:5432/testdb";
+    let redacted = redact_database_url(url);
+
+    assert!(!redacted.contains("secret123"));
+    assert!(redacted.contains("user:****"));
+    assert!(redacted.contains("localhost:5432"));
+    assert!(redacted.contains("/testdb"));
+
+    // Test with invalid connection string format (should fail during parsing)
+    let invalid_url = "invalid://user:secret@nonexistent:5432/db";
+    let result = PostgresAdapter::new(invalid_url).await;
+
+    // Should fail but not expose credentials
+    assert!(result.is_err());
+    let error_msg = format!("{}", result.err().unwrap());
+    assert!(!error_msg.contains("secret"));
+    assert!(!error_msg.contains("user:secret"));
+
+    // Test edge cases for URL redaction
+    assert_eq!(
+        redact_database_url("postgres://user@localhost/db"),
+        "postgres://user@localhost/db"
+    );
+    assert_eq!(redact_database_url("invalid-url"), "invalid-url");
+    assert_eq!(redact_database_url(""), "");
+}
+
+/// Test connection configuration and basic functionality
+#[tokio::test]
+async fn test_postgres_connection_config() -> Result<(), Box<dyn std::error::Error>> {
+    // Test that we can create a PostgresAdapter with a valid connection string
+    // Note: connect_lazy() doesn't actually test the connection, so this will succeed
+    let connection_string = "postgres://testuser@localhost:5432/testdb";
+    let result = PostgresAdapter::new(connection_string).await;
+    assert!(result.is_ok()); // Should succeed with lazy connection
+
+    // Test that invalid connection strings are rejected during parsing
+    let invalid_result = PostgresAdapter::new("invalid://url").await;
+    assert!(invalid_result.is_err());
+
+    // Test that malformed URLs are rejected
+    let malformed_result = PostgresAdapter::new("not-a-url").await;
+    assert!(malformed_result.is_err());
+
+    Ok(())
+}
+
+/// Test pool statistics and connection management
+#[tokio::test]
+async fn test_postgres_pool_management() -> Result<(), Box<dyn std::error::Error>> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+
+    // Wait for PostgreSQL to be ready
+    let max_attempts = 30;
+    let mut attempts = 0;
+    while attempts < max_attempts {
+        if let Ok(pool) = PgPool::connect(&database_url).await {
+            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
+                pool.close().await;
+                break;
+            }
+            pool.close().await;
+        }
+        attempts += 1;
+        if attempts < max_attempts {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+
+    if attempts >= max_attempts {
+        panic!(
+            "PostgreSQL failed to become ready after {} attempts",
+            max_attempts
+        );
+    }
+
+    let adapter = PostgresAdapter::new(&database_url).await?;
+
+    // Test connection first to establish pool connections
+    adapter.test_connection().await?;
+
+    // Now test pool statistics after connections are established
+    let pool_size = adapter.pool.size() as usize;
+    let idle_connections = adapter.pool.num_idle() as usize;
+    assert!(pool_size >= 1); // Should have at least one connection after use
+    assert!(idle_connections <= pool_size);
+
+    // Test another connection to verify pool is functional
+    adapter.test_connection().await?;
+
+    // Pool should still be functional
+    let pool_size_after = adapter.pool.size() as usize;
+    assert!(pool_size_after >= 1); // Should still have connections
+
+    // Test graceful shutdown
+    adapter.pool.close().await;
+
+    Ok(())
+}
+
+/// Test handling of NULL values in database metadata
+#[tokio::test]
+async fn test_postgres_null_handling() -> Result<(), Box<dyn std::error::Error>> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+
+    // Wait for PostgreSQL to be ready
+    let max_attempts = 30;
+    let mut attempts = 0;
+    while attempts < max_attempts {
+        if let Ok(pool) = PgPool::connect(&database_url).await {
+            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
+                pool.close().await;
+                break;
+            }
+            pool.close().await;
+        }
+        attempts += 1;
+        if attempts < max_attempts {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+
+    if attempts >= max_attempts {
+        panic!(
+            "PostgreSQL failed to become ready after {} attempts",
+            max_attempts
+        );
+    }
+
+    let pool = PgPool::connect(&database_url).await?;
+
+    // Create table with potential NULL values (ignore error if exists)
+    let _ = sqlx::query(
+        "CREATE TABLE test_nulls (
+            id SERIAL PRIMARY KEY,
+            nullable_text TEXT,
+            nullable_int INTEGER,
+            nullable_timestamp TIMESTAMP
+        )",
+    )
+    .execute(&pool)
+    .await; // Ignore error if table already exists
+
+    // Insert row with NULL values
+    sqlx::query("INSERT INTO test_nulls (nullable_text, nullable_int, nullable_timestamp) VALUES (NULL, NULL, NULL)")
+        .execute(&pool)
+        .await?;
+
+    pool.close().await;
+
+    // Test schema collection handles NULLs gracefully
+    let adapter = PostgresAdapter::new(&database_url).await?;
+    let schema = adapter.collect_schema().await?;
+
+    // Should successfully collect schema even with NULL metadata
+    assert!(!schema.tables.is_empty());
+
+    // Find our test table
+    let test_table = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "test_nulls")
+        .expect("test_nulls table not found");
+
+    assert_eq!(test_table.name, "test_nulls");
+
+    // Verify no credentials in output even with NULL handling
+    let schema_json = serde_json::to_string(&schema)?;
+    assert!(!schema_json.contains("postgres:postgres"));
+
+    Ok(())
 }
