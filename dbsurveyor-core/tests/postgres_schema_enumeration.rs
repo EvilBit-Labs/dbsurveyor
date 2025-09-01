@@ -327,6 +327,19 @@ async fn test_postgres_schema_enumeration() -> Result<(), Box<dyn std::error::Er
         .expect("Foreign key constraint not found");
     assert_eq!(fk_constraint.columns, vec!["test_table_id"]);
 
+    // Verify foreign key relationships are collected (Task 2.5)
+    assert_eq!(custom_table.foreign_keys.len(), 1);
+    let fk_relationship = &custom_table.foreign_keys[0];
+    assert_eq!(fk_relationship.columns, vec!["test_table_id"]);
+    assert_eq!(fk_relationship.referenced_table, "test_table");
+    assert_eq!(fk_relationship.referenced_schema, None); // public schema normalized to None
+    assert_eq!(fk_relationship.referenced_columns, vec!["id"]);
+    assert_eq!(
+        fk_relationship.on_delete,
+        Some(dbsurveyor_core::models::ReferentialAction::Cascade)
+    );
+    assert!(fk_relationship.name.is_some()); // Should have a constraint name
+
     // Find composite index
     let composite_index = custom_table
         .indexes
@@ -948,6 +961,318 @@ async fn test_postgres_data_type_mapping() -> Result<(), Box<dyn std::error::Err
     // Verify no credentials in output
     let schema_json = serde_json::to_string(&schema)?;
     assert!(!schema_json.contains("postgres:postgres"));
+
+    Ok(())
+}
+
+/// Test foreign key relationship mapping with comprehensive scenarios
+#[tokio::test]
+async fn test_postgres_foreign_key_relationships() -> Result<(), Box<dyn std::error::Error>> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+
+    // Wait for PostgreSQL to be ready
+    let max_attempts = 30;
+    let mut attempts = 0;
+    while attempts < max_attempts {
+        if let Ok(pool) = PgPool::connect(&database_url).await {
+            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
+                pool.close().await;
+                break;
+            }
+            pool.close().await;
+        }
+        attempts += 1;
+        if attempts < max_attempts {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+
+    if attempts >= max_attempts {
+        panic!(
+            "PostgreSQL failed to become ready after {} attempts",
+            max_attempts
+        );
+    }
+
+    let pool = PgPool::connect(&database_url).await?;
+
+    // Clean up any existing test tables
+    let _ = sqlx::query("DROP TABLE IF EXISTS fk_child_table CASCADE")
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DROP TABLE IF EXISTS fk_parent_table CASCADE")
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DROP TABLE IF EXISTS fk_self_ref_table CASCADE")
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DROP TABLE IF EXISTS fk_multi_col_child CASCADE")
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DROP TABLE IF EXISTS fk_multi_col_parent CASCADE")
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DROP SCHEMA IF EXISTS fk_test_schema CASCADE")
+        .execute(&pool)
+        .await;
+
+    // Create test schema
+    sqlx::query("CREATE SCHEMA fk_test_schema")
+        .execute(&pool)
+        .await?;
+
+    // Create parent table
+    sqlx::query(
+        "CREATE TABLE fk_parent_table (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            code VARCHAR(10) UNIQUE NOT NULL
+        )",
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create child table with various foreign key scenarios
+    sqlx::query(
+        "CREATE TABLE fk_child_table (
+            id SERIAL PRIMARY KEY,
+            parent_id INTEGER NOT NULL REFERENCES fk_parent_table(id) ON DELETE CASCADE ON UPDATE RESTRICT,
+            parent_code VARCHAR(10) REFERENCES fk_parent_table(code) ON DELETE SET NULL ON UPDATE CASCADE,
+            data TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )",
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create self-referencing table
+    sqlx::query(
+        "CREATE TABLE fk_self_ref_table (
+            id SERIAL PRIMARY KEY,
+            parent_id INTEGER REFERENCES fk_self_ref_table(id) ON DELETE SET NULL,
+            name VARCHAR(100) NOT NULL
+        )",
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create multi-column foreign key scenario
+    sqlx::query(
+        "CREATE TABLE fk_multi_col_parent (
+            tenant_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            username VARCHAR(50) NOT NULL,
+            PRIMARY KEY (tenant_id, user_id)
+        )",
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE fk_multi_col_child (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            message TEXT,
+            FOREIGN KEY (tenant_id, user_id) REFERENCES fk_multi_col_parent(tenant_id, user_id) ON DELETE CASCADE ON UPDATE NO ACTION
+        )",
+    )
+    .execute(&pool)
+    .await?;
+
+    // Create cross-schema foreign key
+    sqlx::query(
+        "CREATE TABLE fk_test_schema.cross_schema_table (
+            id SERIAL PRIMARY KEY,
+            parent_ref INTEGER REFERENCES public.fk_parent_table(id) ON DELETE RESTRICT ON UPDATE SET DEFAULT,
+            description TEXT
+        )",
+    )
+    .execute(&pool)
+    .await?;
+
+    pool.close().await;
+
+    // Test schema collection
+    let adapter = PostgresAdapter::new(&database_url).await?;
+    let schema = adapter.collect_schema().await?;
+
+    // Find our test tables
+    let parent_table = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "fk_parent_table")
+        .expect("fk_parent_table not found");
+
+    let child_table = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "fk_child_table")
+        .expect("fk_child_table not found");
+
+    let self_ref_table = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "fk_self_ref_table")
+        .expect("fk_self_ref_table not found");
+
+    let multi_col_parent = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "fk_multi_col_parent")
+        .expect("fk_multi_col_parent not found");
+
+    let multi_col_child = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "fk_multi_col_child")
+        .expect("fk_multi_col_child not found");
+
+    let cross_schema_table = schema
+        .tables
+        .iter()
+        .find(|t| t.name == "cross_schema_table" && t.schema.as_deref() == Some("fk_test_schema"))
+        .expect("cross_schema_table not found in fk_test_schema");
+
+    // Test 1: Parent table should have no foreign keys
+    assert!(parent_table.foreign_keys.is_empty());
+
+    // Test 2: Child table should have two foreign keys
+    assert_eq!(child_table.foreign_keys.len(), 2);
+
+    // Find the foreign key to parent_id
+    let parent_id_fk = child_table
+        .foreign_keys
+        .iter()
+        .find(|fk| fk.columns == vec!["parent_id"])
+        .expect("Foreign key on parent_id not found");
+
+    assert_eq!(parent_id_fk.referenced_table, "fk_parent_table");
+    assert_eq!(parent_id_fk.referenced_schema, None); // Should be None for public schema
+    assert_eq!(parent_id_fk.referenced_columns, vec!["id"]);
+    assert_eq!(
+        parent_id_fk.on_delete,
+        Some(dbsurveyor_core::models::ReferentialAction::Cascade)
+    );
+    assert_eq!(
+        parent_id_fk.on_update,
+        Some(dbsurveyor_core::models::ReferentialAction::Restrict)
+    );
+
+    // Find the foreign key to parent_code
+    let parent_code_fk = child_table
+        .foreign_keys
+        .iter()
+        .find(|fk| fk.columns == vec!["parent_code"])
+        .expect("Foreign key on parent_code not found");
+
+    assert_eq!(parent_code_fk.referenced_table, "fk_parent_table");
+    assert_eq!(parent_code_fk.referenced_schema, None);
+    assert_eq!(parent_code_fk.referenced_columns, vec!["code"]);
+    assert_eq!(
+        parent_code_fk.on_delete,
+        Some(dbsurveyor_core::models::ReferentialAction::SetNull)
+    );
+    assert_eq!(
+        parent_code_fk.on_update,
+        Some(dbsurveyor_core::models::ReferentialAction::Cascade)
+    );
+
+    // Test 3: Self-referencing table
+    assert_eq!(self_ref_table.foreign_keys.len(), 1);
+    let self_ref_fk = &self_ref_table.foreign_keys[0];
+    assert_eq!(self_ref_fk.columns, vec!["parent_id"]);
+    assert_eq!(self_ref_fk.referenced_table, "fk_self_ref_table"); // Self-reference
+    assert_eq!(self_ref_fk.referenced_schema, None);
+    assert_eq!(self_ref_fk.referenced_columns, vec!["id"]);
+    assert_eq!(
+        self_ref_fk.on_delete,
+        Some(dbsurveyor_core::models::ReferentialAction::SetNull)
+    );
+
+    // Test 4: Multi-column foreign key
+    assert!(multi_col_parent.foreign_keys.is_empty()); // Parent has no FKs
+    assert_eq!(multi_col_child.foreign_keys.len(), 1);
+
+    let multi_col_fk = &multi_col_child.foreign_keys[0];
+    assert_eq!(multi_col_fk.columns, vec!["tenant_id", "user_id"]);
+    assert_eq!(multi_col_fk.referenced_table, "fk_multi_col_parent");
+    assert_eq!(multi_col_fk.referenced_schema, None);
+    assert_eq!(
+        multi_col_fk.referenced_columns,
+        vec!["tenant_id", "user_id"]
+    );
+    assert_eq!(
+        multi_col_fk.on_delete,
+        Some(dbsurveyor_core::models::ReferentialAction::Cascade)
+    );
+    assert_eq!(
+        multi_col_fk.on_update,
+        Some(dbsurveyor_core::models::ReferentialAction::NoAction)
+    );
+
+    // Test 5: Cross-schema foreign key
+    assert_eq!(cross_schema_table.foreign_keys.len(), 1);
+    let cross_schema_fk = &cross_schema_table.foreign_keys[0];
+    assert_eq!(cross_schema_fk.columns, vec!["parent_ref"]);
+    assert_eq!(cross_schema_fk.referenced_table, "fk_parent_table");
+    assert_eq!(cross_schema_fk.referenced_schema, None); // Should be None for public schema
+    assert_eq!(cross_schema_fk.referenced_columns, vec!["id"]);
+    assert_eq!(
+        cross_schema_fk.on_delete,
+        Some(dbsurveyor_core::models::ReferentialAction::Restrict)
+    );
+    assert_eq!(
+        cross_schema_fk.on_update,
+        Some(dbsurveyor_core::models::ReferentialAction::SetDefault)
+    );
+
+    // Test 6: Verify foreign key constraint names are captured
+    for table in [
+        child_table,
+        self_ref_table,
+        multi_col_child,
+        cross_schema_table,
+    ] {
+        for fk in &table.foreign_keys {
+            assert!(fk.name.is_some(), "Foreign key should have a name");
+            assert!(
+                !fk.name.as_ref().unwrap().is_empty(),
+                "Foreign key name should not be empty"
+            );
+        }
+    }
+
+    // Test 7: Verify no credentials in schema output
+    let schema_json = serde_json::to_string(&schema)?;
+    assert!(!schema_json.contains("postgres:postgres"));
+    assert!(!schema_json.contains("password"));
+
+    // Test 8: Verify referential action mapping
+    use dbsurveyor_core::adapters::postgres::PostgresAdapter;
+    assert_eq!(
+        PostgresAdapter::map_referential_action("CASCADE"),
+        Some(dbsurveyor_core::models::ReferentialAction::Cascade)
+    );
+    assert_eq!(
+        PostgresAdapter::map_referential_action("SET NULL"),
+        Some(dbsurveyor_core::models::ReferentialAction::SetNull)
+    );
+    assert_eq!(
+        PostgresAdapter::map_referential_action("SET DEFAULT"),
+        Some(dbsurveyor_core::models::ReferentialAction::SetDefault)
+    );
+    assert_eq!(
+        PostgresAdapter::map_referential_action("RESTRICT"),
+        Some(dbsurveyor_core::models::ReferentialAction::Restrict)
+    );
+    assert_eq!(
+        PostgresAdapter::map_referential_action("NO ACTION"),
+        Some(dbsurveyor_core::models::ReferentialAction::NoAction)
+    );
+    assert_eq!(PostgresAdapter::map_referential_action("UNKNOWN"), None);
 
     Ok(())
 }

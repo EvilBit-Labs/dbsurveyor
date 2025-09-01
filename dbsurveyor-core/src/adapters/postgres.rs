@@ -1691,6 +1691,9 @@ impl PostgresAdapter {
             let primary_key = self
                 .collect_table_primary_key(&table_name, &schema_name)
                 .await?;
+            let foreign_keys = self
+                .collect_table_foreign_keys(&table_name, &schema_name)
+                .await?;
 
             // Create table structure with collected metadata
             let table = Table {
@@ -1698,7 +1701,7 @@ impl PostgresAdapter {
                 schema: schema_name,
                 columns,
                 primary_key,
-                foreign_keys: Vec::new(), // Will be implemented in task 2.5
+                foreign_keys,
                 indexes,
                 constraints,
                 comment,
@@ -2078,26 +2081,293 @@ impl PostgresAdapter {
         Ok(unified_type)
     }
 
+    /// Collects foreign key relationships for a specific table
+    ///
+    /// # Security
+    /// - Uses read-only queries with proper timeout handling
+    /// - Sanitizes all error messages to prevent credential exposure
+    /// - Logs query execution with credential sanitization
+    ///
+    /// # Arguments
+    /// * `table_name` - Name of the table to collect foreign keys for
+    /// * `schema_name` - Schema containing the table (None for public schema)
+    ///
+    /// # Returns
+    /// Vector of foreign key relationships with comprehensive metadata including:
+    /// - Column mappings between source and target tables
+    /// - Referenced table and schema information
+    /// - Cascade actions for ON DELETE and ON UPDATE
+    /// - Support for self-referencing and circular references
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Insufficient privileges to access information_schema.referential_constraints
+    /// - Query timeout or connection failure
+    /// - Invalid foreign key metadata
+    async fn collect_table_foreign_keys(
+        &self,
+        table_name: &str,
+        schema_name: &Option<String>,
+    ) -> Result<Vec<ForeignKey>> {
+        // Input validation
+        if table_name.is_empty() {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "Table name cannot be empty for foreign key collection",
+            ));
+        }
+
+        let schema = schema_name.as_deref().unwrap_or("public");
+
+        tracing::debug!(
+            "Collecting foreign key relationships for table '{}.{}'",
+            schema,
+            table_name
+        );
+
+        // Query to collect foreign key relationships with column mappings and referential actions
+        // This query uses PostgreSQL system catalogs for more reliable foreign key information
+        let foreign_keys_query = r#"
+            SELECT
+                con.conname::text as constraint_name,
+                con.contype::text as constraint_type,
+                rc.update_rule::text,
+                rc.delete_rule::text,
+                ns.nspname::text as table_schema,
+                cl.relname::text as table_name,
+                a.attname::text as column_name,
+                a.attnum::integer as ordinal_position,
+                fns.nspname::text as referenced_table_schema,
+                fcl.relname::text as referenced_table_name,
+                fa.attname::text as referenced_column_name
+            FROM pg_constraint con
+            JOIN pg_class cl ON con.conrelid = cl.oid
+            JOIN pg_namespace ns ON cl.relnamespace = ns.oid
+            JOIN information_schema.referential_constraints rc
+                ON con.conname = rc.constraint_name
+                AND ns.nspname = rc.constraint_schema
+            JOIN pg_class fcl ON con.confrelid = fcl.oid
+            JOIN pg_namespace fns ON fcl.relnamespace = fns.oid
+            JOIN pg_attribute a ON a.attrelid = con.conrelid
+            JOIN pg_attribute fa ON fa.attrelid = con.confrelid
+            WHERE con.contype = 'f'
+            AND cl.relname = $1
+            AND ns.nspname = $2
+            AND a.attnum = ANY(con.conkey)
+            AND fa.attnum = ANY(con.confkey)
+            AND array_position(con.conkey, a.attnum) = array_position(con.confkey, fa.attnum)
+            ORDER BY con.conname, array_position(con.conkey, a.attnum)
+        "#;
+
+        let fk_rows = sqlx::query(foreign_keys_query)
+            .bind(table_name)
+            .bind(schema)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to collect foreign keys for table '{}.{}': {}",
+                    schema,
+                    table_name,
+                    e
+                );
+                match &e {
+                    sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("42501") => {
+                        crate::error::DbSurveyorError::insufficient_privileges(
+                            "Cannot access information_schema.referential_constraints - insufficient privileges",
+                        )
+                    }
+                    _ => crate::error::DbSurveyorError::collection_failed(
+                        format!(
+                            "Failed to collect foreign keys for table '{}.{}'",
+                            schema, table_name
+                        ),
+                        e,
+                    ),
+                }
+            })?;
+
+        // Group foreign key rows by constraint name to handle multi-column foreign keys
+        let mut fk_groups: std::collections::HashMap<String, Vec<sqlx::postgres::PgRow>> =
+            std::collections::HashMap::new();
+
+        for row in fk_rows {
+            let constraint_name: String = row.try_get("constraint_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse constraint name from foreign key result for table '{}.{}'",
+                        schema, table_name
+                    ),
+                    e,
+                )
+            })?;
+
+            fk_groups.entry(constraint_name).or_default().push(row);
+        }
+
+        let mut foreign_keys = Vec::new();
+
+        // Process each foreign key constraint
+        for (constraint_name, rows) in fk_groups {
+            if rows.is_empty() {
+                continue;
+            }
+
+            // Get common information from the first row
+            let first_row = &rows[0];
+
+            let update_rule: String = first_row.try_get("update_rule").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse update rule from foreign key result for constraint '{}'",
+                        constraint_name
+                    ),
+                    e,
+                )
+            })?;
+
+            let delete_rule: String = first_row.try_get("delete_rule").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse delete rule from foreign key result for constraint '{}'",
+                        constraint_name
+                    ),
+                    e,
+                )
+            })?;
+
+            let referenced_table_name: String = first_row.try_get("referenced_table_name").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse referenced table name from foreign key result for constraint '{}'",
+                        constraint_name
+                    ),
+                    e,
+                )
+            })?;
+
+            let referenced_table_schema: String = first_row.try_get("referenced_table_schema").map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to parse referenced table schema from foreign key result for constraint '{}'",
+                        constraint_name
+                    ),
+                    e,
+                )
+            })?;
+
+            // Collect column mappings, sorted by ordinal position
+            let mut columns = Vec::new();
+            let mut referenced_columns = Vec::new();
+
+            for row in &rows {
+                let column_name: String = row.try_get("column_name").map_err(|e| {
+                    crate::error::DbSurveyorError::collection_failed(
+                        format!(
+                            "Failed to parse column name from foreign key result for constraint '{}'",
+                            constraint_name
+                        ),
+                        e,
+                    )
+                })?;
+
+                let referenced_column_name: String = row.try_get("referenced_column_name").map_err(|e| {
+                    crate::error::DbSurveyorError::collection_failed(
+                        format!(
+                            "Failed to parse referenced column name from foreign key result for constraint '{}'",
+                            constraint_name
+                        ),
+                        e,
+                    )
+                })?;
+
+                columns.push(column_name);
+                referenced_columns.push(referenced_column_name);
+            }
+
+            // Map referential actions
+            let on_update = Self::map_referential_action(&update_rule);
+            let on_delete = Self::map_referential_action(&delete_rule);
+
+            // Check for self-referencing foreign key
+            let is_self_referencing =
+                referenced_table_name == table_name && referenced_table_schema == schema;
+
+            if is_self_referencing {
+                tracing::debug!(
+                    "Found self-referencing foreign key '{}' in table '{}.{}'",
+                    constraint_name,
+                    schema,
+                    table_name
+                );
+            }
+
+            // Create foreign key relationship
+            let referenced_schema_normalized = if referenced_table_schema == "public" {
+                None // Normalize public schema to None for consistency
+            } else {
+                Some(referenced_table_schema.clone())
+            };
+
+            let foreign_key = ForeignKey {
+                name: Some(constraint_name.clone()),
+                columns,
+                referenced_table: referenced_table_name.clone(),
+                referenced_schema: referenced_schema_normalized.clone(),
+                referenced_columns,
+                on_delete,
+                on_update,
+            };
+
+            tracing::debug!(
+                "Collected foreign key '{}' for table '{}.{}' -> '{}.{}' (self-ref: {})",
+                constraint_name,
+                schema,
+                table_name,
+                referenced_schema_normalized.as_deref().unwrap_or("public"),
+                referenced_table_name,
+                is_self_referencing
+            );
+
+            foreign_keys.push(foreign_key);
+        }
+
+        tracing::debug!(
+            "Successfully collected {} foreign key relationships for table '{}.{}'",
+            foreign_keys.len(),
+            schema,
+            table_name
+        );
+
+        Ok(foreign_keys)
+    }
+
     /// Maps PostgreSQL referential action codes to unified referential actions.
     ///
     /// # Arguments
-    /// * `action_code` - PostgreSQL referential action code (c, n, d, r, a)
+    /// * `action_rule` - PostgreSQL referential action rule (CASCADE, SET NULL, SET DEFAULT, RESTRICT, NO ACTION)
     ///
     /// # Returns
     /// Returns the corresponding ReferentialAction or None if unknown
     ///
-    /// # Note
-    /// This is a placeholder implementation for Task 2.5 - foreign key relationship mapping
-    pub fn map_referential_action(action_code: &str) -> Option<crate::models::ReferentialAction> {
+    /// # PostgreSQL Referential Actions
+    /// - CASCADE: Automatically delete/update dependent rows
+    /// - SET NULL: Set foreign key columns to NULL
+    /// - SET DEFAULT: Set foreign key columns to their default values
+    /// - RESTRICT: Prevent delete/update if dependent rows exist
+    /// - NO ACTION: Same as RESTRICT but check can be deferred
+    pub fn map_referential_action(action_rule: &str) -> Option<crate::models::ReferentialAction> {
         use crate::models::ReferentialAction;
 
-        match action_code {
-            "c" => Some(ReferentialAction::Cascade),
-            "n" => Some(ReferentialAction::SetNull),
-            "d" => Some(ReferentialAction::SetDefault),
-            "r" => Some(ReferentialAction::Restrict),
-            "a" => Some(ReferentialAction::NoAction),
-            _ => None,
+        match action_rule.to_uppercase().as_str() {
+            "CASCADE" => Some(ReferentialAction::Cascade),
+            "SET NULL" => Some(ReferentialAction::SetNull),
+            "SET DEFAULT" => Some(ReferentialAction::SetDefault),
+            "RESTRICT" => Some(ReferentialAction::Restrict),
+            "NO ACTION" => Some(ReferentialAction::NoAction),
+            _ => {
+                tracing::warn!("Unknown referential action rule: '{}'", action_rule);
+                None
+            }
         }
     }
 }
@@ -2278,26 +2548,40 @@ mod tests {
     fn test_map_referential_action() {
         use crate::models::ReferentialAction;
 
+        // Test full action names (as returned by information_schema.referential_constraints)
         assert_eq!(
-            PostgresAdapter::map_referential_action("c"),
+            PostgresAdapter::map_referential_action("CASCADE"),
             Some(ReferentialAction::Cascade)
         );
         assert_eq!(
-            PostgresAdapter::map_referential_action("n"),
+            PostgresAdapter::map_referential_action("SET NULL"),
             Some(ReferentialAction::SetNull)
         );
         assert_eq!(
-            PostgresAdapter::map_referential_action("d"),
+            PostgresAdapter::map_referential_action("SET DEFAULT"),
             Some(ReferentialAction::SetDefault)
         );
         assert_eq!(
-            PostgresAdapter::map_referential_action("r"),
+            PostgresAdapter::map_referential_action("RESTRICT"),
             Some(ReferentialAction::Restrict)
         );
         assert_eq!(
-            PostgresAdapter::map_referential_action("a"),
+            PostgresAdapter::map_referential_action("NO ACTION"),
             Some(ReferentialAction::NoAction)
         );
+
+        // Test case insensitivity
+        assert_eq!(
+            PostgresAdapter::map_referential_action("cascade"),
+            Some(ReferentialAction::Cascade)
+        );
+        assert_eq!(
+            PostgresAdapter::map_referential_action("set null"),
+            Some(ReferentialAction::SetNull)
+        );
+
+        // Test unknown action
+        assert_eq!(PostgresAdapter::map_referential_action("UNKNOWN"), None);
         assert_eq!(PostgresAdapter::map_referential_action("x"), None);
     }
 
