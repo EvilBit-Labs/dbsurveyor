@@ -24,7 +24,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Add connection string validation and sanitization
   - _Requirements: 1.1, 1.2, 1.7_
 
-- [ ] 2.2 Implement basic schema enumeration queries
+- [x] 2.2 Implement basic schema enumeration queries
   - Add schema enumeration queries using information_schema.schemata
   - Query information_schema.tables for table metadata
   - Extract basic table information (name, type, schema)

@@ -268,7 +268,7 @@ impl PostgresAdapter {
     ///
     /// # Errors
     /// Returns error if connection string is invalid or unsafe
-    fn validate_connection_string(connection_string: &str) -> Result<()> {
+    pub fn validate_connection_string(connection_string: &str) -> Result<()> {
         // Parse URL to validate format
         let url = Url::parse(connection_string).map_err(|e| {
             crate::error::DbSurveyorError::configuration(format!(
@@ -461,41 +461,159 @@ impl PostgresAdapter {
         })
     }
 
-    /// Collects all tables from the database
+    /// Collects all schemas from the database
+    ///
+    /// # Security
+    /// - Uses read-only queries with proper timeout handling
+    /// - Sanitizes all error messages to prevent credential exposure
+    /// - Logs query execution with credential sanitization
+    ///
+    /// # Returns
+    /// Vector of schema names accessible to the current user
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Insufficient privileges to access information_schema
+    /// - Query timeout or connection failure
+    async fn collect_schemas(&self) -> Result<Vec<String>> {
+        tracing::debug!("Starting schema enumeration for PostgreSQL database");
+
+        let schema_query = r#"
+            SELECT schema_name
+            FROM information_schema.schemata
+            WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+            AND has_schema_privilege(schema_name, 'USAGE')
+            ORDER BY schema_name
+        "#;
+
+        tracing::debug!("Executing schema enumeration query");
+
+        let schema_rows = sqlx::query(schema_query)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to enumerate schemas: {}", e);
+                match &e {
+                    sqlx::Error::Database(db_err) => {
+                        if db_err.code().as_deref() == Some("42501") {
+                            // Insufficient privilege error code
+                            crate::error::DbSurveyorError::insufficient_privileges(
+                                "Cannot access information_schema.schemata - insufficient privileges"
+                            )
+                        } else {
+                            crate::error::DbSurveyorError::collection_failed(
+                                "Failed to enumerate database schemas",
+                                e,
+                            )
+                        }
+                    }
+                    _ => crate::error::DbSurveyorError::collection_failed(
+                        "Failed to enumerate database schemas",
+                        e,
+                    ),
+                }
+            })?;
+
+        let mut schemas = Vec::new();
+        for row in schema_rows {
+            let schema_name: String = row.get("schema_name");
+            schemas.push(schema_name);
+        }
+
+        tracing::info!("Successfully enumerated {} schemas", schemas.len());
+        tracing::debug!("Found schemas: {:?}", schemas);
+
+        Ok(schemas)
+    }
+
+    /// Collects all tables from the database with comprehensive metadata
+    ///
+    /// # Security
+    /// - Uses read-only queries with proper timeout handling
+    /// - Sanitizes all error messages to prevent credential exposure
+    /// - Logs query execution with credential sanitization
+    /// - Filters tables based on user privileges
+    ///
+    /// # Returns
+    /// Vector of tables with basic metadata (detailed column info in task 2.3)
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Insufficient privileges to access information_schema
+    /// - Query timeout or connection failure
     async fn collect_tables(&self) -> Result<Vec<Table>> {
+        tracing::debug!("Starting table enumeration for PostgreSQL database");
+
         let tables_query = r#"
             SELECT
                 t.table_name,
                 t.table_schema,
+                t.table_type,
                 obj_description(c.oid) as table_comment,
-                c.reltuples::bigint as estimated_rows
+                c.reltuples::bigint as estimated_rows,
+                pg_size_pretty(pg_total_relation_size(c.oid)) as table_size,
+                pg_total_relation_size(c.oid) as table_size_bytes
             FROM information_schema.tables t
             LEFT JOIN pg_class c ON c.relname = t.table_name
             LEFT JOIN pg_namespace n ON n.nspname = t.table_schema AND c.relnamespace = n.oid
-            WHERE t.table_type = 'BASE TABLE'
+            WHERE t.table_type IN ('BASE TABLE', 'VIEW')
             AND t.table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+            AND has_table_privilege(t.table_schema || '.' || t.table_name, 'SELECT')
             ORDER BY t.table_schema, t.table_name
         "#;
+
+        tracing::debug!("Executing table enumeration query");
 
         let table_rows = sqlx::query(tables_query)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {
-                crate::error::DbSurveyorError::collection_failed("Failed to collect tables", e)
+                tracing::error!("Failed to enumerate tables: {}", e);
+                match &e {
+                    sqlx::Error::Database(db_err) => {
+                        if db_err.code().as_deref() == Some("42501") {
+                            // Insufficient privilege error code
+                            crate::error::DbSurveyorError::insufficient_privileges(
+                                "Cannot access information_schema.tables - insufficient privileges"
+                            )
+                        } else {
+                            crate::error::DbSurveyorError::collection_failed(
+                                "Failed to enumerate database tables",
+                                e,
+                            )
+                        }
+                    }
+                    _ => crate::error::DbSurveyorError::collection_failed(
+                        "Failed to enumerate database tables",
+                        e,
+                    ),
+                }
             })?;
 
         let mut tables = Vec::new();
+        let mut table_count = 0;
+        let mut view_count = 0;
 
-        for row in table_rows {
+        for row in &table_rows {
             let table_name: String = row.get("table_name");
             let schema_name: Option<String> = row.get("table_schema");
+            let table_type: String = row.get("table_type");
             let comment: Option<String> = row.get("table_comment");
             let estimated_rows: Option<i64> = row.get("estimated_rows");
+            let _table_size: Option<String> = row.get("table_size"); // Human readable size
+            let _table_size_bytes: Option<i64> = row.get("table_size_bytes");
+
+            // Count table types for logging
+            match table_type.as_str() {
+                "BASE TABLE" => table_count += 1,
+                "VIEW" => view_count += 1,
+                _ => {}
+            }
 
             // Create basic table structure - detailed collection will be implemented in subsequent tasks
             let table = Table {
-                name: table_name,
-                schema: schema_name,
+                name: table_name.clone(),
+                schema: schema_name.clone(),
                 columns: Vec::new(),      // Will be implemented in task 2.3
                 primary_key: None,        // Will be implemented in task 2.4
                 foreign_keys: Vec::new(), // Will be implemented in task 2.5
@@ -505,10 +623,110 @@ impl PostgresAdapter {
                 row_count: estimated_rows.map(|r| r as u64),
             };
 
+            tracing::debug!(
+                "Found {} '{}' in schema '{}' with {} estimated rows",
+                table_type.to_lowercase(),
+                table_name,
+                schema_name.as_deref().unwrap_or("public"),
+                estimated_rows.unwrap_or(0)
+            );
+
             tables.push(table);
         }
 
+        tracing::info!(
+            "Successfully enumerated {} tables ({} base tables, {} views)",
+            tables.len(),
+            table_count,
+            view_count
+        );
+
+        // Log size information if available
+        let total_size_bytes: i64 = table_rows
+            .iter()
+            .filter_map(|row| row.get::<Option<i64>, _>("table_size_bytes"))
+            .sum();
+
+        if total_size_bytes > 0 {
+            tracing::info!(
+                "Total database size: {} bytes ({:.2} MB)",
+                total_size_bytes,
+                total_size_bytes as f64 / 1024.0 / 1024.0
+            );
+        }
+
         Ok(tables)
+    }
+
+    /// Validates that the current user has sufficient privileges for schema collection
+    ///
+    /// # Security
+    /// - Tests access to required information_schema tables
+    /// - Logs privilege validation results with sanitized messages
+    /// - Does not expose database structure in error messages
+    ///
+    /// # Returns
+    /// Ok(()) if user has sufficient privileges
+    ///
+    /// # Errors
+    /// Returns error if user lacks required privileges for schema collection
+    async fn validate_schema_privileges(&self) -> Result<()> {
+        tracing::debug!("Validating schema collection privileges");
+
+        // Test access to information_schema.schemata
+        let schema_access_test = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'public'"
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Cannot access information_schema.schemata: {}", e);
+            crate::error::DbSurveyorError::insufficient_privileges(
+                "Cannot access information_schema.schemata - insufficient privileges for schema enumeration"
+            )
+        })?;
+
+        if schema_access_test == 0 {
+            tracing::warn!("No schemas accessible - user may have very limited privileges");
+        }
+
+        // Test access to information_schema.tables
+        let table_access_test = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'information_schema' LIMIT 1"
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Cannot access information_schema.tables: {}", e);
+            crate::error::DbSurveyorError::insufficient_privileges(
+                "Cannot access information_schema.tables - insufficient privileges for table enumeration"
+            )
+        })?;
+
+        if table_access_test == 0 {
+            return Err(crate::error::DbSurveyorError::insufficient_privileges(
+                "No access to information_schema tables - cannot perform schema collection"
+            ));
+        }
+
+        // Test access to pg_class for additional metadata (optional)
+        let pg_class_access = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM pg_class WHERE relname = 'pg_class' LIMIT 1"
+        )
+        .fetch_optional(&self.pool)
+        .await;
+
+        match pg_class_access {
+            Ok(Some(_)) => {
+                tracing::debug!("User has access to pg_catalog for enhanced metadata collection");
+            }
+            Ok(None) | Err(_) => {
+                tracing::info!("Limited access to pg_catalog - will use information_schema only");
+            }
+        }
+
+        tracing::info!("Schema collection privileges validated successfully");
+        Ok(())
     }
 }
 
@@ -553,17 +771,75 @@ impl DatabaseAdapter for PostgresAdapter {
 
     async fn collect_schema(&self) -> Result<DatabaseSchema> {
         let start_time = std::time::Instant::now();
+        let mut warnings = Vec::new();
+
+        tracing::info!(
+            "Starting PostgreSQL schema collection for database: {}",
+            super::redact_database_url(&format!("{}:{}", self.config.host, self.config.port.unwrap_or(5432)))
+        );
 
         // Set up session security settings
         self.setup_session().await?;
 
+        // Validate that user has sufficient privileges for schema collection
+        if let Err(e) = self.validate_schema_privileges().await {
+            tracing::error!("Schema collection privilege validation failed: {}", e);
+            return Err(e);
+        }
+
         // Collect database information
+        tracing::debug!("Collecting database information");
         let database_info = self.collect_database_info().await?;
 
-        // Collect tables (basic structure for now)
-        let tables = self.collect_tables().await?;
+        // Collect schemas first to understand database structure
+        tracing::debug!("Enumerating database schemas");
+        let schemas = match self.collect_schemas().await {
+            Ok(schemas) => {
+                tracing::info!("Found {} accessible schemas", schemas.len());
+                schemas
+            }
+            Err(e) => {
+                let warning = format!("Failed to enumerate schemas: {}", e);
+                tracing::warn!("{}", warning);
+                warnings.push(warning);
+                Vec::new()
+            }
+        };
+
+        // Collect tables with comprehensive metadata
+        tracing::debug!("Enumerating database tables and views");
+        let tables = match self.collect_tables().await {
+            Ok(tables) => {
+                tracing::info!("Successfully collected {} tables and views", tables.len());
+                tables
+            }
+            Err(e) => {
+                tracing::error!("Failed to collect tables: {}", e);
+                return Err(e);
+            }
+        };
+
+        // Log schema distribution for debugging
+        if !schemas.is_empty() && !tables.is_empty() {
+            let mut schema_table_counts = std::collections::HashMap::new();
+            for table in &tables {
+                let schema_name = table.schema.as_deref().unwrap_or("public");
+                *schema_table_counts.entry(schema_name).or_insert(0) += 1;
+            }
+
+            for (schema, count) in schema_table_counts {
+                tracing::debug!("Schema '{}': {} tables/views", schema, count);
+            }
+        }
 
         let collection_duration = start_time.elapsed();
+
+        tracing::info!(
+            "PostgreSQL schema collection completed in {:.2}s - found {} tables/views across {} schemas",
+            collection_duration.as_secs_f64(),
+            tables.len(),
+            schemas.len()
+        );
 
         Ok(DatabaseSchema {
             format_version: "1.0".to_string(),
@@ -581,7 +857,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 collected_at: chrono::Utc::now(),
                 collection_duration_ms: collection_duration.as_millis() as u64,
                 collector_version: env!("CARGO_PKG_VERSION").to_string(),
-                warnings: Vec::new(),
+                warnings,
             },
         })
     }
@@ -789,6 +1065,110 @@ mod tests {
         let connection_string = "invalid-url";
         let result = PostgresAdapter::parse_connection_config(connection_string);
         assert!(result.is_err());
+    }
+
+
+
+    #[test]
+    fn test_map_postgresql_type_basic_types() {
+        use crate::models::UnifiedDataType;
+
+        // Test string types
+        let varchar_type = PostgresAdapter::map_postgresql_type("character varying", Some(255), None, None).unwrap();
+        assert!(matches!(varchar_type, UnifiedDataType::String { max_length: Some(255) }));
+
+        let text_type = PostgresAdapter::map_postgresql_type("text", None, None, None).unwrap();
+        assert!(matches!(text_type, UnifiedDataType::String { max_length: None }));
+
+        // Test integer types
+        let int_type = PostgresAdapter::map_postgresql_type("integer", None, None, None).unwrap();
+        assert!(matches!(int_type, UnifiedDataType::Integer { bits: 32, signed: true }));
+
+        let bigint_type = PostgresAdapter::map_postgresql_type("bigint", None, None, None).unwrap();
+        assert!(matches!(bigint_type, UnifiedDataType::Integer { bits: 64, signed: true }));
+
+        // Test boolean type
+        let bool_type = PostgresAdapter::map_postgresql_type("boolean", None, None, None).unwrap();
+        assert!(matches!(bool_type, UnifiedDataType::Boolean));
+
+        // Test timestamp types
+        let timestamp_type = PostgresAdapter::map_postgresql_type("timestamp without time zone", None, None, None).unwrap();
+        assert!(matches!(timestamp_type, UnifiedDataType::DateTime { with_timezone: false }));
+
+        let timestamptz_type = PostgresAdapter::map_postgresql_type("timestamp with time zone", None, None, None).unwrap();
+        assert!(matches!(timestamptz_type, UnifiedDataType::DateTime { with_timezone: true }));
+
+        // Test JSON types
+        let json_type = PostgresAdapter::map_postgresql_type("json", None, None, None).unwrap();
+        assert!(matches!(json_type, UnifiedDataType::Json));
+
+        let jsonb_type = PostgresAdapter::map_postgresql_type("jsonb", None, None, None).unwrap();
+        assert!(matches!(jsonb_type, UnifiedDataType::Json));
+
+        // Test UUID type
+        let uuid_type = PostgresAdapter::map_postgresql_type("uuid", None, None, None).unwrap();
+        assert!(matches!(uuid_type, UnifiedDataType::Uuid));
+
+        // Test array type
+        let array_type = PostgresAdapter::map_postgresql_type("integer[]", None, None, None).unwrap();
+        if let UnifiedDataType::Array { element_type } = array_type {
+            assert!(matches!(*element_type, UnifiedDataType::Integer { bits: 32, signed: true }));
+        } else {
+            panic!("Expected array type");
+        }
+
+        // Test custom type
+        let custom_type = PostgresAdapter::map_postgresql_type("custom_enum", None, None, None).unwrap();
+        assert!(matches!(custom_type, UnifiedDataType::Custom { type_name } if type_name == "custom_enum"));
+    }
+
+    #[test]
+    fn test_map_referential_action() {
+        use crate::models::ReferentialAction;
+
+        assert_eq!(PostgresAdapter::map_referential_action("c"), Some(ReferentialAction::Cascade));
+        assert_eq!(PostgresAdapter::map_referential_action("n"), Some(ReferentialAction::SetNull));
+        assert_eq!(PostgresAdapter::map_referential_action("d"), Some(ReferentialAction::SetDefault));
+        assert_eq!(PostgresAdapter::map_referential_action("r"), Some(ReferentialAction::Restrict));
+        assert_eq!(PostgresAdapter::map_referential_action("a"), Some(ReferentialAction::NoAction));
+        assert_eq!(PostgresAdapter::map_referential_action("x"), None);
+    }
+
+    #[test]
+    fn test_connection_config_builder_pattern() {
+        let config = ConnectionConfig::new("localhost".to_string())
+            .with_port(5432)
+            .with_database("testdb".to_string())
+            .with_username("testuser".to_string());
+
+        assert_eq!(config.host, "localhost");
+        assert_eq!(config.port, Some(5432));
+        assert_eq!(config.database, Some("testdb".to_string()));
+        assert_eq!(config.username, Some("testuser".to_string()));
+        assert!(config.read_only); // Default should be read-only for security
+    }
+
+    #[test]
+    fn test_connection_config_validation_limits() {
+        // Test max connections limit
+        let mut config = ConnectionConfig::default();
+        config.max_connections = 101; // Over limit
+        assert!(config.validate().is_err());
+
+        config.max_connections = 50; // Within limit
+        assert!(config.validate().is_ok());
+
+        // Test zero values
+        config.max_connections = 0;
+        assert!(config.validate().is_err());
+
+        config.max_connections = 10;
+        config.connect_timeout = Duration::from_secs(0);
+        assert!(config.validate().is_err());
+
+        config.connect_timeout = Duration::from_secs(30);
+        config.query_timeout = Duration::from_secs(0);
+        assert!(config.validate().is_err());
     }
 
     #[test]
