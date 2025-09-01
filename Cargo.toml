@@ -41,7 +41,7 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5.45", features = ["derive", "env"] }
 
 # Database dependencies (feature-gated)
-sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid"] }
+sqlx = { version = "0.8.1", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid", "migrate"] }
 tiberius = { version = "0.12", features = ["tds73", "sql-browser-tokio", "bigdecimal", "time", "chrono"] }
 mongodb = "3.2.5"
 

@@ -353,7 +353,7 @@ ci-check-fast: format-check lint test-no-bench
     @echo "✅ Fast CI checks passed!"
 
 # Full comprehensive checks - runs all non-interactive verifications
-full-checks: format-check lint test coverage audit build-release
+full-checks: format-check lint test coverage audit-ci build-release
     @echo "✅ All full checks passed!"
 
 # CI-friendly QA check (respects TERM=dumb)

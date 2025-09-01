@@ -14,9 +14,9 @@ description = "Core data structures and utilities for DBSurveyor"
 [features]
 default = ["postgresql", "sqlite"]
 # Database driver features
-postgresql = ["sqlx/postgres"]
-mysql = ["sqlx/mysql"]
-sqlite = ["sqlx/sqlite"]
+postgresql = ["sqlx", "sqlx/postgres"]
+mysql = ["sqlx", "sqlx/mysql"]
+sqlite = ["sqlx", "sqlx/sqlite"]
 mongodb = ["dep:mongodb"]
 mssql = ["dep:tiberius"]
 # Optional features
@@ -35,7 +35,7 @@ chrono = { workspace = true }
 zeroize = { workspace = true }
 
 # Database dependencies (feature-gated)
-sqlx = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true, default-features = false }
 tiberius = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
 

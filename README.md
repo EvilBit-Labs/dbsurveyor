@@ -45,6 +45,16 @@ Toolchain for surveying database servers, extracting schema and sample data, and
 
 WARNING: Sample data may contain sensitive information. Use `--redact-samples` flag and review outputs before sharing.
 
+### Known Security Advisories
+
+The following security advisories are acknowledged and accepted:
+
+- **RUSTSEC-2023-0071** (RSA crate - Marvin Attack): Medium severity timing side-channel vulnerability in RSA implementation
+  - **Impact**: Only affects MySQL connections (not enabled by default) and in very specific conditions
+  - **Mitigation**: MySQL support is disabled by default; PostgreSQL and SQLite are recommended
+  - **Status**: No fix available upstream; tracked for future SQLx updates
+  - **Review Date**: 2025-09-01
+
 ## Exceptions
 
 ### FOSSA License Scanning Integration
