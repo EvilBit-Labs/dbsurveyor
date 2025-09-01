@@ -124,7 +124,7 @@ pub enum DbSurveyorError {
 
 - **NEVER** store credentials in structs or configuration
 - **ALWAYS** separate connection config from credentials
-- **ALWAYS** use well-known crates for memory zeroing: prefer `Zeroizing<T>` wrappers or derive/implement the `Zeroize` trait from the [zeroize](https://crates.io/crates/zeroize) crate to ensure reliable memory zeroing
+- **ALWAYS** use well-known crates for memory zeroing: prefer `Zeroizing<T>` wrappers or derive/implement the `Zeroize` trait from the zeroize crate to ensure reliable memory zeroing
 - **ALWAYS** parse credentials separately from connection config
 
 ```rust
