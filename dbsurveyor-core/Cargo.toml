@@ -33,6 +33,7 @@ url = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 zeroize = { workspace = true }
+tracing = { workspace = true }
 
 # Database dependencies (feature-gated)
 sqlx = { workspace = true, optional = true, default-features = false }
