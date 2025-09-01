@@ -49,15 +49,54 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Handle complex constraints and partial indexes
   - _Requirements: 1.1, 1.2, 1.7_
 
-- [ ] 2.5 Implement foreign key relationship mapping
-  - Query information_schema.referential_constraints for FK relationships
-  - Extract foreign key column mappings and reference tables
-  - Build relationship graph between tables
-  - Handle self-referencing tables and circular references
-  - Add cascade action information (ON DELETE, ON UPDATE)
+- [x] 2.5 Implement foreign key relationship mapping ✅ **COMPLETED**
+  - ✅ Query information_schema.referential_constraints for FK relationships
+  - ✅ Extract foreign key column mappings and reference tables
+  - ✅ Build relationship graph between tables
+  - ✅ Handle self-referencing tables and circular references
+  - ✅ Add cascade action information (ON DELETE, ON UPDATE)
+  - ✅ **ENHANCEMENTS**: Added comprehensive multi-column FK support, proper ordinal position handling, and detailed logging for debugging
   - _Requirements: 1.1, 1.2, 1.7_
 
-- [ ] 2.6 Add comprehensive PostgreSQL adapter testing
+- [ ] 2.6 Create comprehensive JSON Schema specification for .dbsurveyor.json output format
+  - Design comprehensive JSON Schema based on Frictionless Data Table Schema specification as foundation
+  - Define complete schema for all implemented data structures:
+    - DatabaseSchema root object with format_version, database_info, collection_metadata
+    - DatabaseInfo with name, version, size_bytes, encoding, collation, access_level, collection_status
+    - Table with columns, primary_key, foreign_keys, indexes, constraints, row_count, comment
+    - Column with UnifiedDataType mapping, nullability, auto_increment, ordinal_position, default_value
+    - PrimaryKey and ForeignKey with multi-column support and referential actions (CASCADE, SET NULL, etc.)
+    - Index with IndexColumn, sort_order, uniqueness, and PostgreSQL-specific index types
+    - Constraint with ConstraintType enum (PrimaryKey, ForeignKey, Unique, Check, NotNull)
+    - View, Procedure, Function, Trigger, and CustomType structures for advanced database objects
+    - CollectionMetadata with timestamps, duration, version, warnings array
+    - ServerInfo and DatabaseServerSchema for multi-database collection support
+    - TableSample with SamplingStrategy and OrderingStrategy for data sampling features
+  - Add comprehensive validation rules:
+    - UnifiedDataType validation for all database-specific type mappings (PostgreSQL arrays, JSON, custom types)
+    - Foreign key relationship validation (referenced_table, referenced_columns consistency)
+    - Index column validation and sort order constraints
+    - Format version validation and backward compatibility rules
+    - Required field validation and optional field handling
+    - Enum value validation for all enumerated types (DatabaseType, ReferentialAction, etc.)
+  - Include security and credential protection validation:
+    - Ensure no credential fields are present in any structure
+    - Validate that connection strings are never serialized
+    - Add patterns to detect and reject potentially sensitive data in output
+  - Create comprehensive schema documentation:
+    - Usage examples for each major structure type
+    - Database-specific type mapping examples (PostgreSQL → UnifiedDataType)
+    - Multi-database collection format examples
+    - Data sampling format examples with different strategies
+    - Error handling and validation failure examples
+  - Implement schema validation integration:
+    - Add JSON Schema validation to collector output generation
+    - Add schema validation to postprocessor input parsing
+    - Create validation error reporting with detailed field-level errors
+    - Add schema version compatibility checking for future format evolution
+  - _Requirements: 1.3, 2.1, 9.1, 11.1-11.6, 12.1-12.6_
+
+- [ ] 2.8 Add comprehensive PostgreSQL adapter testing
   - Set up testcontainers for PostgreSQL integration testing, this is a HARD requirement and must be accomplished. Mocks and unit tests are not sufficient alternatives.
   - Test connection pooling with various configurations
   - Test schema collection with different PostgreSQL versions
