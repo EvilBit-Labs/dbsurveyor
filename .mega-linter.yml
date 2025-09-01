@@ -13,6 +13,7 @@ DISABLE_LINTERS:
     - EDITORCONFIG_EDITORCONFIG_CHECKER # We'll come back to this later
     - REPOSITORY_SECRETLINT # Just an endless stream of false positives. Every test and every example has a fake secret in it that it will complain about.
     - REPOSITORY_TRIVY # Doesn't work in CI, just crashes.
+    - REPOSITORY_CHECKOV # Works locally, doesn't work in CI.
 
 ACTION_ACTIONLINT_FILTER_REGEX_EXCLUDE: ".*release\\.yml$"
 
