@@ -3,6 +3,8 @@
 //! This module exposes the core functionality for testing purposes.
 //! The main binary functionality is in main.rs.
 
+pub mod adapters;
+
 use clap::{Parser, Subcommand};
 use std::env;
 use std::fs;
