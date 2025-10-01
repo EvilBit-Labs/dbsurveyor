@@ -197,6 +197,8 @@ impl SchemaCollector for SqliteAdapter {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::uninlined_format_args)]
 mod tests {
     use super::*;
 
@@ -226,6 +228,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::expect_used)]
     async fn test_sqlite_memory_connection() {
         let adapter = SqliteAdapter::new("sqlite::memory:", ConnectionConfig::default())
             .await
@@ -239,6 +242,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::expect_used)]
     async fn test_sqlite_collect_metadata() {
         let adapter = SqliteAdapter::new("sqlite::memory:", ConnectionConfig::default())
             .await
