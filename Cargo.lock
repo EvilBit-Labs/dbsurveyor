@@ -915,15 +915,18 @@ name = "dbsurveyor-collect"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "criterion",
  "dbsurveyor-core",
+ "futures",
  "mongodb",
  "proptest",
  "sqlx",
  "temp-env",
  "tempfile",
  "testcontainers-modules",
+ "thiserror 2.0.16",
  "tiberius",
  "tokio",
  "tracing",
