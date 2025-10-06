@@ -186,8 +186,17 @@ pub trait SchemaCollector: Send + Sync {
 #[cfg(feature = "postgresql")]
 pub mod postgresql;
 
+#[cfg(feature = "mysql")]
+pub mod mysql;
+
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
+
+#[cfg(feature = "mssql")]
+pub mod sqlserver;
+
+#[cfg(feature = "oracle")]
+pub mod oracle;
 
 #[cfg(feature = "mongodb")]
 pub mod mongodb;

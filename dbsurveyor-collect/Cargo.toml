@@ -38,7 +38,6 @@ async-trait = "0.1.89"
 url = "2.5.7"
 
 # Database drivers (feature-gated)
-# Note: MySQL support completely disabled to prevent RSA vulnerability (RUSTSEC-2023-0071)
 # SQLx with minimal features - specific database support added via feature flags only
 # Using rustls for better security and cross-platform compatibility
 sqlx = { version = "0.8.6", features = [
@@ -46,6 +45,7 @@ sqlx = { version = "0.8.6", features = [
 ], optional = true }
 mongodb = { version = "3.2.5", optional = true }
 tiberius = { version = "0.12.3", optional = true }
+tokio-util = { version = "0.7.16", features = ["compat"], optional = true }
 futures = "0.3"
 
 
@@ -57,14 +57,13 @@ criterion = "0.7.0"
 proptest = "1.7.0"
 
 [features]
-# Note: mysql feature completely disabled to prevent RSA vulnerability (RUSTSEC-2023-0071)
-# Default features only include secure database drivers
+# Default features include the most commonly used secure database drivers
 default = ["postgresql", "sqlite", "mongodb"]
 postgresql = ["dep:sqlx", "sqlx/postgres"]
+mysql = ["dep:sqlx", "sqlx/mysql"]
 sqlite = ["dep:sqlx", "sqlx/sqlite"]
-# mysql feature intentionally commented out to prevent accidental inclusion
-# mysql = ["dep:sqlx", "sqlx/mysql"]
-mssql = ["tiberius"]
+mssql = ["dep:tiberius", "tokio-util"]
+oracle = []  # Oracle adapter is a stub - requires Oracle Instant Client
 mongodb = ["dep:mongodb"]
 
 [lints]
