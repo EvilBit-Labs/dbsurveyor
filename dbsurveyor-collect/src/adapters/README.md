@@ -170,6 +170,99 @@ let config = ConnectionConfig {
 };
 ```
 
+### MySQL Adapter
+
+```rust
+use dbsurveyor_collect::adapters::{
+    mysql::MySqlAdapter,
+    ConnectionConfig,
+    SchemaCollector,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = ConnectionConfig::default();
+
+    let adapter = MySqlAdapter::new(
+        "******localhost:3306/mydb",
+        config
+    ).await?;
+
+    let metadata = adapter.collect_metadata().await?;
+
+    for schema in metadata.schemas {
+        println!("Schema: {}", schema.name);
+        for table in schema.tables {
+            println!("  Table: {} ({} columns)", table.name, table.columns.len());
+        }
+    }
+
+    Ok(())
+}
+```
+
+### SQL Server Adapter
+
+```rust
+use dbsurveyor_collect::adapters::{
+    sqlserver::SqlServerAdapter,
+    ConnectionConfig,
+    SchemaCollector,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = ConnectionConfig::default();
+
+    let adapter = SqlServerAdapter::new(
+        "sqlserver://user:pass@localhost:1433/mydb",
+        config
+    ).await?;
+
+    let metadata = adapter.collect_metadata().await?;
+
+    for schema in metadata.schemas {
+        println!("Schema: {}", schema.name);
+        for table in schema.tables {
+            println!("  Table: {}", table.name);
+        }
+    }
+
+    Ok(())
+}
+```
+
+### Oracle Adapter (Stub Implementation)
+
+**Note:** The Oracle adapter is currently a stub implementation that requires Oracle Instant Client to be installed. It provides the interface but all operations return an `UnsupportedFeature` error until Oracle Instant Client support is added.
+
+```rust
+use dbsurveyor_collect::adapters::{
+    oracle::OracleAdapter,
+    ConnectionConfig,
+    SchemaCollector,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = ConnectionConfig::default();
+
+    // This will create the adapter but operations will fail
+    let adapter = OracleAdapter::new(
+        "oracle://user:pass@localhost:1521/ORCL",
+        config
+    ).await?;
+
+    // This will return UnsupportedFeature error
+    match adapter.test_connection().await {
+        Err(e) => println!("Expected: {}", e),
+        _ => unreachable!(),
+    }
+
+    Ok(())
+}
+```
+
 ### Feature Flags
 
 Build with specific database support:
@@ -178,8 +271,8 @@ Build with specific database support:
 # PostgreSQL and SQLite only (default)
 cargo build --features postgresql,sqlite
 
-# All databases
-cargo build --features postgresql,sqlite,mongodb
+# All databases (includes stub Oracle adapter)
+cargo build --features postgresql,mysql,sqlite,mssql,oracle,mongodb
 
 # Minimal build (no databases)
 cargo build --no-default-features
