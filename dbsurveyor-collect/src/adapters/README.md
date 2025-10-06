@@ -8,11 +8,11 @@ The adapter system provides a trait-based interface (`SchemaCollector`) that ena
 
 ## Supported Databases
 
-| Database | Feature Flag | Status | Connection String Example |
-|----------|--------------|--------|---------------------------|
+| Database   | Feature Flag | Status         | Connection String Example             |
+|------------|--------------|----------------|---------------------------------------|
 | PostgreSQL | `postgresql` | ✅ Full Support | `postgresql://user:pass@host:5432/db` |
-| SQLite | `sqlite` | ✅ Full Support | `sqlite:///path/to/database.db` |
-| MongoDB | `mongodb` | ✅ Full Support | `mongodb://user:pass@host:27017/db` |
+| SQLite     | `sqlite`     | ✅ Full Support | `sqlite:///path/to/database.db`       |
+| MongoDB    | `mongodb`    | ✅ Full Support | `mongodb://user:pass@host:27017/db`   |
 
 ## Architecture
 
