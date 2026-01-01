@@ -123,6 +123,35 @@ impl DbSurveyorError {
         }
     }
 
+    /// Creates a parsing error for database column extraction
+    ///
+    /// This is a convenience method for the common pattern of parsing
+    /// values from database result rows.
+    ///
+    /// # Arguments
+    /// * `field_name` - Name of the field being parsed
+    /// * `table_context` - Optional table context for better error messages
+    /// * `error` - The underlying parsing error
+    pub fn parse_field<E>(field_name: &str, table_context: Option<&str>, error: E) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        let context = match table_context {
+            Some(table) => format!(
+                "Failed to parse field '{}' from result for table '{}'",
+                field_name, table
+            ),
+            None => format!(
+                "Failed to parse field '{}' from database result",
+                field_name
+            ),
+        };
+        Self::Collection {
+            context,
+            source: Box::new(error),
+        }
+    }
+
     /// Creates a collection error with context
     pub fn collection_failed<E>(context: impl Into<String>, error: E) -> Self
     where

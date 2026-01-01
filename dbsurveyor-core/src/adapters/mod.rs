@@ -485,18 +485,13 @@ pub async fn create_adapter(connection_string: &str) -> Result<Box<dyn DatabaseA
 /// assert_eq!(sanitized, "postgres://user:****@localhost/db");
 /// assert!(!sanitized.contains("secret"));
 /// ```
+///
+/// # Note
+/// This function delegates to `crate::error::redact_database_url` for consistency.
+/// Invalid URLs are fully redacted as "<redacted>" for security.
+#[inline]
 pub fn redact_database_url(url: &str) -> String {
-    // Try to parse as URL first
-    if let Ok(mut parsed_url) = url::Url::parse(url) {
-        if parsed_url.password().is_some() {
-            let _ = parsed_url.set_password(Some("****"));
-        }
-        parsed_url.to_string()
-    } else {
-        // For non-URL formats (like file paths), just return as-is
-        // since they shouldn't contain credentials
-        url.to_string()
-    }
+    crate::error::redact_database_url(url)
 }
 
 /// Detects database type from connection string
@@ -540,6 +535,9 @@ fn detect_database_type(connection_string: &str) -> Result<crate::models::Databa
         ))
     }
 }
+
+// Shared helper utilities
+pub mod helpers;
 
 // Database-specific adapter modules
 #[cfg(feature = "postgresql")]
@@ -617,10 +615,10 @@ mod tests {
         let redacted = redact_database_url(url);
         assert_eq!(redacted, url); // Should be unchanged
 
-        // Test SQLite file path (no credentials)
+        // Test SQLite file path (not a valid URL, gets fully redacted for security)
         let url = "/path/to/database.db";
         let redacted = redact_database_url(url);
-        assert_eq!(redacted, url); // Should be unchanged
+        assert_eq!(redacted, "<redacted>"); // Invalid URLs are fully redacted
     }
 
     #[test]

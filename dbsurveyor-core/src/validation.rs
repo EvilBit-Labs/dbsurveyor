@@ -11,19 +11,21 @@
 //! - Validates format version compatibility
 //!
 //! # Example
-//! ```rust
-//! use dbsurveyor_core::validation::validate_schema_output;
-//! use dbsurveyor_core::models::DatabaseSchema;
+//! ```rust,no_run
+//! use dbsurveyor_core::validation::{validate_schema_output, initialize_schema_validator};
+//! use dbsurveyor_core::models::{DatabaseSchema, DatabaseInfo};
 //! use serde_json::Value;
 //!
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let schema = DatabaseSchema::new(/* ... */);
-//! let json_value = serde_json::to_value(&schema)?;
+//! // Initialize the schema validator once at startup
+//! initialize_schema_validator().expect("Failed to initialize validator");
 //!
-//! validate_schema_output(&json_value)?;
+//! // Create and validate a database schema
+//! let db_info = DatabaseInfo::new("test_db".to_string());
+//! let schema = DatabaseSchema::new(db_info);
+//! let json_value = serde_json::to_value(&schema).expect("Failed to serialize");
+//!
+//! validate_schema_output(&json_value).expect("Validation failed");
 //! println!("Schema validation passed!");
-//! # Ok(())
-//! # }
 //! ```
 
 use jsonschema::Validator;
@@ -68,7 +70,7 @@ pub enum ValidationError {
 const SUPPORTED_VERSIONS: &[&str] = &["1.0"];
 
 /// Embedded JSON Schema for v1.0 format validation
-const SCHEMA_V1_0: &str = r#"{
+const SCHEMA_V1_0: &str = r##"{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "DBSurveyor Database Schema Collection Format v1.0",
   "type": "object",
@@ -83,11 +85,11 @@ const SCHEMA_V1_0: &str = r#"{
       "required": ["name", "access_level", "collection_status"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "version": { "type": "string" },
-        "size_bytes": { "type": "integer", "minimum": 0 },
-        "encoding": { "type": "string" },
-        "collation": { "type": "string" },
-        "owner": { "type": "string" },
+        "version": { "type": ["string", "null"] },
+        "size_bytes": { "type": ["integer", "null"], "minimum": 0 },
+        "encoding": { "type": ["string", "null"] },
+        "collation": { "type": ["string", "null"] },
+        "owner": { "type": ["string", "null"] },
         "is_system_database": { "type": "boolean", "default": false },
         "access_level": { "enum": ["Full", "Limited", "None"] },
         "collection_status": {
@@ -96,6 +98,7 @@ const SCHEMA_V1_0: &str = r#"{
             {
               "type": "object",
               "required": ["Failed"],
+              "additionalProperties": false,
               "properties": {
                 "Failed": {
                   "type": "object",
@@ -107,6 +110,7 @@ const SCHEMA_V1_0: &str = r#"{
             {
               "type": "object",
               "required": ["Skipped"],
+              "additionalProperties": false,
               "properties": {
                 "Skipped": {
                   "type": "object",
@@ -119,7 +123,7 @@ const SCHEMA_V1_0: &str = r#"{
         }
       }
     },
-    "tables": { "type": "array", "default": [] },
+    "tables": { "type": "array", "items": { "$ref": "#/$defs/Table" }, "default": [] },
     "views": { "type": "array", "default": [] },
     "indexes": { "type": "array", "default": [] },
     "constraints": { "type": "array", "default": [] },
@@ -127,7 +131,7 @@ const SCHEMA_V1_0: &str = r#"{
     "functions": { "type": "array", "default": [] },
     "triggers": { "type": "array", "default": [] },
     "custom_types": { "type": "array", "default": [] },
-    "samples": { "type": "array" },
+    "samples": { "type": ["array", "null"] },
     "collection_metadata": {
       "type": "object",
       "required": ["collected_at", "collection_duration_ms", "collector_version"],
@@ -138,8 +142,185 @@ const SCHEMA_V1_0: &str = r#"{
         "warnings": { "type": "array", "items": { "type": "string" }, "default": [] }
       }
     }
+  },
+  "$defs": {
+    "Table": {
+      "type": "object",
+      "required": ["name", "columns"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "schema": { "type": ["string", "null"] },
+        "columns": { "type": "array", "items": { "$ref": "#/$defs/Column" }, "minItems": 1 },
+        "primary_key": { "$ref": "#/$defs/PrimaryKey" },
+        "foreign_keys": { "type": "array", "items": { "$ref": "#/$defs/ForeignKey" } },
+        "indexes": { "type": "array" },
+        "constraints": { "type": "array" },
+        "comment": { "type": ["string", "null"] },
+        "row_count": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "Column": {
+      "type": "object",
+      "required": ["name", "data_type", "is_nullable", "ordinal_position"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "data_type": { "$ref": "#/$defs/UnifiedDataType" },
+        "is_nullable": { "type": "boolean" },
+        "is_primary_key": { "type": "boolean" },
+        "is_auto_increment": { "type": "boolean" },
+        "default_value": { "type": ["string", "null"] },
+        "comment": { "type": ["string", "null"] },
+        "ordinal_position": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "UnifiedDataType": {
+      "oneOf": [
+        { "const": "Boolean" },
+        { "const": "Date" },
+        { "const": "Json" },
+        { "const": "Uuid" },
+        {
+          "type": "object",
+          "required": ["String"],
+          "additionalProperties": false,
+          "properties": {
+            "String": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "max_length": { "type": ["integer", "null"], "minimum": 1 }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["Integer"],
+          "additionalProperties": false,
+          "properties": {
+            "Integer": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["bits", "signed"],
+              "properties": {
+                "bits": { "type": "integer", "enum": [8, 16, 32, 64, 128] },
+                "signed": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["Float"],
+          "additionalProperties": false,
+          "properties": {
+            "Float": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "precision": { "type": ["integer", "null"], "minimum": 1, "maximum": 255 }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["DateTime"],
+          "additionalProperties": false,
+          "properties": {
+            "DateTime": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["with_timezone"],
+              "properties": {
+                "with_timezone": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["Time"],
+          "additionalProperties": false,
+          "properties": {
+            "Time": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["with_timezone"],
+              "properties": {
+                "with_timezone": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["Binary"],
+          "additionalProperties": false,
+          "properties": {
+            "Binary": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "max_length": { "type": ["integer", "null"], "minimum": 1 }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["Array"],
+          "additionalProperties": false,
+          "properties": {
+            "Array": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["element_type"],
+              "properties": {
+                "element_type": { "$ref": "#/$defs/UnifiedDataType" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["Custom"],
+          "additionalProperties": false,
+          "properties": {
+            "Custom": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type_name"],
+              "properties": {
+                "type_name": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "PrimaryKey": {
+      "type": ["object", "null"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "columns": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "ForeignKey": {
+      "type": "object",
+      "required": ["referenced_table", "referenced_columns", "columns"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "columns": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "referenced_table": { "type": "string", "minLength": 1 },
+        "referenced_schema": { "type": ["string", "null"] },
+        "referenced_columns": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "on_delete": { "enum": ["Cascade", "SetNull", "SetDefault", "Restrict", "NoAction", null] },
+        "on_update": { "enum": ["Cascade", "SetNull", "SetDefault", "Restrict", "NoAction", null] }
+      }
+    }
   }
-}"#;
+}"##;
 
 /// Compiled JSON Schema instance (initialized once)
 static COMPILED_SCHEMA: OnceLock<Validator> = OnceLock::new();
@@ -373,28 +554,15 @@ fn validate_no_connection_strings_recursive(
     path: &str,
 ) -> Result<(), ValidationError> {
     if let Value::String(s) = value {
-        // Check for database connection string patterns
-        let connection_patterns = [
-            r"postgres://.*:.*@",
-            r"postgresql://.*:.*@",
-            r"mysql://.*:.*@",
-            r"mongodb://.*:.*@",
-            r"sqlite://.*:.*@",
-            r"sqlserver://.*:.*@",
-        ];
-
-        for pattern in &connection_patterns {
-            if regex::Regex::new(pattern)
-                .unwrap()
-                .is_match(&s.to_lowercase())
-            {
-                return Err(ValidationError::SecurityViolation {
-                    reason: format!(
-                        "Connection string pattern found at path '{}': matches pattern '{}'",
-                        path, pattern
-                    ),
-                });
-            }
+        // Use pre-compiled patterns for performance
+        let patterns = crate::adapters::helpers::ValidationPatterns::instance();
+        if patterns.contains_credentials(s) {
+            return Err(ValidationError::SecurityViolation {
+                reason: format!(
+                    "Connection string pattern with credentials found at path '{}'",
+                    path
+                ),
+            });
         }
     } else if let Value::Object(obj) = value {
         for (key, val) in obj {

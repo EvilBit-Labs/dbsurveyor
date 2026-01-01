@@ -3,7 +3,10 @@
 //! These tests verify that the PostgreSQL adapter correctly enumerates schemas
 //! and tables with proper error handling and security guarantees.
 
-use dbsurveyor_core::adapters::{DatabaseAdapter, postgres::PostgresAdapter};
+use dbsurveyor_core::adapters::{
+    DatabaseAdapter,
+    postgres::{PostgresAdapter, map_referential_action},
+};
 use dbsurveyor_core::models::DatabaseType;
 use sqlx::PgPool;
 use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
@@ -486,8 +489,9 @@ async fn test_postgres_credential_redaction() {
         redact_database_url("postgres://user@localhost/db"),
         "postgres://user@localhost/db"
     );
-    assert_eq!(redact_database_url("invalid-url"), "invalid-url");
-    assert_eq!(redact_database_url(""), "");
+    // Invalid URLs are fully redacted for security
+    assert_eq!(redact_database_url("invalid-url"), "<redacted>");
+    assert_eq!(redact_database_url(""), "<redacted>");
 }
 
 /// Test connection configuration and basic functionality
@@ -1251,28 +1255,27 @@ async fn test_postgres_foreign_key_relationships() -> Result<(), Box<dyn std::er
     assert!(!schema_json.contains("password"));
 
     // Test 8: Verify referential action mapping
-    use dbsurveyor_core::adapters::postgres::PostgresAdapter;
     assert_eq!(
-        PostgresAdapter::map_referential_action("CASCADE"),
+        map_referential_action("CASCADE"),
         Some(dbsurveyor_core::models::ReferentialAction::Cascade)
     );
     assert_eq!(
-        PostgresAdapter::map_referential_action("SET NULL"),
+        map_referential_action("SET NULL"),
         Some(dbsurveyor_core::models::ReferentialAction::SetNull)
     );
     assert_eq!(
-        PostgresAdapter::map_referential_action("SET DEFAULT"),
+        map_referential_action("SET DEFAULT"),
         Some(dbsurveyor_core::models::ReferentialAction::SetDefault)
     );
     assert_eq!(
-        PostgresAdapter::map_referential_action("RESTRICT"),
+        map_referential_action("RESTRICT"),
         Some(dbsurveyor_core::models::ReferentialAction::Restrict)
     );
     assert_eq!(
-        PostgresAdapter::map_referential_action("NO ACTION"),
+        map_referential_action("NO ACTION"),
         Some(dbsurveyor_core::models::ReferentialAction::NoAction)
     );
-    assert_eq!(PostgresAdapter::map_referential_action("UNKNOWN"), None);
+    assert_eq!(map_referential_action("UNKNOWN"), None);
 
     Ok(())
 }

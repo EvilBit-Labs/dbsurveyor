@@ -163,14 +163,85 @@ pub mod encryption {
     use serde::{Deserialize, Serialize};
     use zeroize::Zeroizing;
 
-    /// Cryptographic constants for AES-GCM encryption
-    const AES_GCM_NONCE_SIZE: usize = 12; // 96 bits
-    const AES_GCM_TAG_SIZE: usize = 16; // 128 bits
-    const AES_KEY_SIZE: usize = 32; // 256 bits
-    const ARGON2_SALT_SIZE: usize = 16; // 128 bits minimum
-    const ARGON2_MEMORY_COST: u32 = 65536; // 64 MiB in KiB
-    const ARGON2_TIME_COST: u32 = 3; // 3 iterations
-    const ARGON2_PARALLELISM: u32 = 4; // 4 threads
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CRYPTOGRAPHIC CONSTANTS - Security Rationale
+    //
+    // These values are chosen based on OWASP, NIST SP 800-38D, and RFC 5116/9106
+    // recommendations for cryptographic security. Do not modify without thorough
+    // security review.
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// AES-GCM nonce size: 96 bits (12 bytes)
+    ///
+    /// **Rationale:** NIST SP 800-38D specifies 96 bits as the optimal nonce size
+    /// for AES-GCM. This provides efficient GCM counter mode operation while
+    /// maintaining IND-CPA security. With 96-bit nonces, the birthday bound
+    /// allows ~2^48 encryptions before nonce collision becomes probable.
+    ///
+    /// **Standard:** NIST SP 800-38D §8.2.1
+    const AES_GCM_NONCE_SIZE: usize = 12;
+
+    /// AES-GCM authentication tag size: 128 bits (16 bytes)
+    ///
+    /// **Rationale:** 128-bit tags provide the maximum authentication strength
+    /// for AES-GCM, offering 2^-128 forgery probability. While shorter tags
+    /// (96, 104, 112 bits) are permitted, 128 bits is recommended for new
+    /// applications per NIST guidelines.
+    ///
+    /// **Standard:** NIST SP 800-38D §5.2.1, Table 2
+    #[allow(dead_code)] // Used for validation
+    const AES_GCM_TAG_SIZE: usize = 16;
+
+    /// AES key size: 256 bits (32 bytes)
+    ///
+    /// **Rationale:** AES-256 provides 256-bit security level, suitable for
+    /// protecting TOP SECRET information per NSA CNSSP-15. While AES-128
+    /// remains secure, AES-256 provides defense-in-depth against quantum
+    /// attacks (Grover's algorithm reduces security to ~128 bits equivalent).
+    ///
+    /// **Standard:** NIST FIPS 197, NSA CNSSP-15
+    const AES_KEY_SIZE: usize = 32;
+
+    /// Argon2id salt size: 128 bits (16 bytes)
+    ///
+    /// **Rationale:** RFC 9106 §4 recommends a minimum salt length of 128 bits
+    /// to ensure unique salts across all password hashing operations. This
+    /// prevents rainbow table attacks and ensures independent derivations
+    /// even for identical passwords.
+    ///
+    /// **Standard:** RFC 9106 §4 (Argon2 specification)
+    const ARGON2_SALT_SIZE: usize = 16;
+
+    /// Argon2id memory cost: 64 MiB (65536 KiB)
+    ///
+    /// **Rationale:** OWASP 2024 guidelines recommend 19 MiB minimum for
+    /// interactive logins, with 64 MiB+ for high-security applications.
+    /// Higher memory cost increases resistance to GPU/ASIC attacks by
+    /// requiring expensive memory access patterns. 64 MiB provides strong
+    /// security while remaining practical on modern systems.
+    ///
+    /// **Standard:** OWASP Password Storage Cheat Sheet (2024), RFC 9106 §4
+    const ARGON2_MEMORY_COST: u32 = 65536;
+
+    /// Argon2id time cost: 3 iterations
+    ///
+    /// **Rationale:** RFC 9106 recommends t=3 for most applications when
+    /// combined with adequate memory. Each iteration performs the full memory
+    /// traversal, increasing computational cost. With 64 MiB memory, 3
+    /// iterations typically require 0.5-1.0 seconds on commodity hardware.
+    ///
+    /// **Standard:** RFC 9106 §4, OWASP recommendations
+    const ARGON2_TIME_COST: u32 = 3;
+
+    /// Argon2id parallelism: 4 threads
+    ///
+    /// **Rationale:** Parallelism of 4 allows efficient use of modern multi-core
+    /// CPUs while avoiding excessive resource consumption. The memory is divided
+    /// into 4 lanes, each processed in parallel. Higher values increase
+    /// resistance to TMTO attacks but provide diminishing returns above 4-8.
+    ///
+    /// **Standard:** RFC 9106 §4, recommended for multi-core systems
+    const ARGON2_PARALLELISM: u32 = 4;
 
     /// Key derivation parameters for Argon2id
     ///

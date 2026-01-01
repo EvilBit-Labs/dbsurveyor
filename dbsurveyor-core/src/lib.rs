@@ -18,6 +18,7 @@
 
 pub mod adapters;
 pub mod error;
+pub mod logging;
 pub mod models;
 pub mod security;
 pub mod validation;
@@ -40,3 +41,5 @@ pub use security::encryption;
 pub use validation::{
     ValidationError, initialize_schema_validator, validate_and_parse_schema, validate_schema_output,
 };
+
+pub use logging::init_logging;

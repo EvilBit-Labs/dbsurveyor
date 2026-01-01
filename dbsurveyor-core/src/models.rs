@@ -262,6 +262,7 @@ pub struct DatabaseInfo {
     pub encoding: Option<String>,
     pub collation: Option<String>,
     pub owner: Option<String>,
+    #[serde(default)]
     pub is_system_database: bool,
     pub access_level: AccessLevel,
     pub collection_status: CollectionStatus,

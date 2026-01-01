@@ -902,6 +902,7 @@ dependencies = [
  "tiberius",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "url",
  "uuid",
  "zeroize",

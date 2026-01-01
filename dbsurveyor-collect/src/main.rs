@@ -11,7 +11,7 @@
 //! - Optional AES-GCM encryption for outputs
 
 use clap::{Args, Parser, Subcommand};
-use dbsurveyor_core::{Result, adapters::create_adapter, error::redact_database_url};
+use dbsurveyor_core::{Result, adapters::create_adapter, error::redact_database_url, init_logging};
 use std::path::PathBuf;
 use tracing::{error, info};
 
@@ -197,26 +197,6 @@ async fn main() -> Result<()> {
             }
         }
     }
-}
-
-/// Initializes structured logging based on verbosity level
-fn init_logging(verbose: u8, quiet: bool) -> Result<()> {
-    let level = match (quiet, verbose) {
-        (true, _) => tracing::Level::ERROR,
-        (false, 0) => tracing::Level::INFO,
-        (false, 1) => tracing::Level::DEBUG,
-        (false, _) => tracing::Level::TRACE,
-    };
-
-    tracing_subscriber::fmt()
-        .with_max_level(level)
-        .with_target(false)
-        .with_thread_ids(false)
-        .with_file(false)
-        .with_line_number(false)
-        .init();
-
-    Ok(())
 }
 
 /// Tests database connection without collecting schema

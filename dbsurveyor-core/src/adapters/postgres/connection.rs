@@ -1,0 +1,506 @@
+//! PostgreSQL connection pool management and validation.
+//!
+//! # Security Features
+//! - Validates connection string format and parameters
+//! - Enforces connection limits to prevent resource exhaustion
+//! - Sets appropriate timeouts for all operations
+//! - Configures SSL/TLS settings for secure connections
+
+use super::{ConnectionConfig, PostgresAdapter};
+use crate::Result;
+use sqlx::PgPool;
+use std::time::Duration;
+use url::Url;
+
+impl PostgresAdapter {
+    /// Creates a new PostgreSQL adapter with connection pooling
+    ///
+    /// # Arguments
+    /// * `connection_string` - PostgreSQL connection URL (credentials sanitized in errors)
+    ///
+    /// # Security
+    /// - Enforces read-only mode by default
+    /// - Sets statement_timeout for query safety
+    /// - Sanitizes connection string in all error messages
+    /// - Validates connection parameters for security
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Connection string format is invalid
+    /// - Database connection fails
+    /// - Pool configuration is invalid
+    /// - Security validation fails
+    pub async fn new(connection_string: &str) -> Result<Self> {
+        // Parse and validate connection configuration
+        let config = Self::parse_connection_config(connection_string)?;
+
+        // Create connection pool with security settings
+        let pool = Self::create_connection_pool(connection_string, &config).await?;
+
+        let adapter = Self { pool, config };
+        Ok(adapter)
+    }
+
+    /// Creates a new PostgreSQL adapter with custom configuration
+    ///
+    /// # Arguments
+    /// * `connection_string` - PostgreSQL connection URL
+    /// * `config` - Custom connection configuration
+    ///
+    /// # Security
+    /// Same security guarantees as `new()` but allows custom configuration
+    pub async fn with_config(connection_string: &str, config: ConnectionConfig) -> Result<Self> {
+        // Validate the provided configuration
+        config.validate()?;
+
+        // Validate connection string
+        Self::validate_connection_string(connection_string)?;
+
+        // Create connection pool
+        let pool = Self::create_connection_pool(connection_string, &config).await?;
+
+        let adapter = Self { pool, config };
+        Ok(adapter)
+    }
+
+    /// Gets connection pool statistics for monitoring
+    ///
+    /// # Returns
+    /// Tuple of (active_connections, idle_connections, total_connections)
+    pub fn pool_stats(&self) -> (u32, u32, u32) {
+        let size = self.pool.size();
+        let idle = self.pool.num_idle();
+        // Convert to u32 safely, using saturating conversion to prevent overflow
+        let idle_u32 = idle.min(u32::MAX as usize) as u32;
+        let size_u32 = size;
+        (size_u32.saturating_sub(idle_u32), idle_u32, size_u32)
+    }
+
+    /// Closes the connection pool gracefully
+    ///
+    /// # Security
+    /// Ensures all connections are properly closed and cleaned up
+    pub async fn close(&self) {
+        self.pool.close().await;
+    }
+
+    /// Checks the health of the connection pool
+    ///
+    /// # Returns
+    /// True if the pool is healthy and can acquire connections
+    pub async fn is_pool_healthy(&self) -> bool {
+        // Try to acquire a connection and execute a simple query
+        match sqlx::query_scalar::<_, i32>("SELECT 1")
+            .fetch_one(&self.pool)
+            .await
+        {
+            Ok(result) => result == 1,
+            Err(_) => false,
+        }
+    }
+
+    /// Parses connection string to extract configuration parameters
+    ///
+    /// # Security Features
+    /// - Validates connection string format before parsing
+    /// - Sanitizes all extracted parameters
+    /// - Applies security-focused defaults
+    /// - Never logs or stores credentials
+    ///
+    /// # Arguments
+    /// * `connection_string` - PostgreSQL connection URL (credentials sanitized in errors)
+    ///
+    /// # Returns
+    /// Validated connection configuration with security defaults
+    ///
+    /// # Errors
+    /// Returns error if connection string is malformed or contains unsafe parameters
+    pub fn parse_connection_config(connection_string: &str) -> Result<ConnectionConfig> {
+        // Validate connection string first
+        Self::validate_connection_string(connection_string)?;
+
+        let url = Url::parse(connection_string).map_err(|e| {
+            crate::error::DbSurveyorError::configuration(format!(
+                "Invalid PostgreSQL connection string format: {}",
+                e
+            ))
+        })?;
+
+        // Start with security-focused defaults
+        let mut config = ConnectionConfig::new(url.host_str().unwrap_or("localhost").to_string());
+
+        // Set port with validation
+        if let Some(port) = url.port() {
+            if port == 0 {
+                return Err(crate::error::DbSurveyorError::configuration(
+                    "Invalid port number: must be greater than 0",
+                ));
+            }
+            config = config.with_port(port);
+        } else {
+            config = config.with_port(5432); // PostgreSQL default port
+        }
+
+        // Extract database name with validation
+        if !url.path().is_empty() && url.path() != "/" {
+            let database = url.path().trim_start_matches('/');
+            if !database.is_empty() {
+                // Validate database name format (PostgreSQL identifier rules)
+                if database.len() > 63 {
+                    return Err(crate::error::DbSurveyorError::configuration(
+                        "Database name too long: maximum 63 characters",
+                    ));
+                }
+                // PostgreSQL identifiers can contain letters, digits, underscores, and dollar signs
+                // Must start with a letter or underscore
+                if database.is_empty() {
+                    return Err(crate::error::DbSurveyorError::configuration(
+                        "Database name cannot be empty",
+                    ));
+                }
+                let first_char = database.chars().next().unwrap();
+                if !first_char.is_ascii_alphabetic() && first_char != '_' {
+                    return Err(crate::error::DbSurveyorError::configuration(
+                        "Database name must start with a letter or underscore",
+                    ));
+                }
+                if !database
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+                {
+                    return Err(crate::error::DbSurveyorError::configuration(
+                        "Database name contains invalid characters (only letters, digits, underscores, and dollar signs allowed)",
+                    ));
+                }
+                config = config.with_database(database.to_string());
+            }
+        }
+
+        // Extract username with validation
+        let username = url.username();
+        if !username.is_empty() {
+            // Validate username format (PostgreSQL role name rules)
+            if username.len() > 63 {
+                return Err(crate::error::DbSurveyorError::configuration(
+                    "Username too long: maximum 63 characters",
+                ));
+            }
+            // PostgreSQL role names follow similar rules to identifiers
+            let first_char = username.chars().next().unwrap();
+            if !first_char.is_ascii_alphabetic() && first_char != '_' {
+                return Err(crate::error::DbSurveyorError::configuration(
+                    "Username must start with a letter or underscore",
+                ));
+            }
+            if !username
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+            {
+                return Err(crate::error::DbSurveyorError::configuration(
+                    "Username contains invalid characters (only letters, digits, underscores, and dollar signs allowed)",
+                ));
+            }
+            config = config.with_username(username.to_string());
+        }
+
+        // Parse query parameters for additional configuration
+        for (key, value) in url.query_pairs() {
+            match key.as_ref() {
+                "connect_timeout" => {
+                    if let Ok(timeout_secs) = value.parse::<u64>() {
+                        if timeout_secs > 0 && timeout_secs <= 300 {
+                            // Max 5 minutes
+                            config.connect_timeout = Duration::from_secs(timeout_secs);
+                        }
+                    }
+                }
+                "statement_timeout" => {
+                    if let Ok(timeout_ms) = value.parse::<u64>() {
+                        if timeout_ms > 0 && timeout_ms <= 300_000 {
+                            // Max 5 minutes
+                            config.query_timeout = Duration::from_millis(timeout_ms);
+                        }
+                    }
+                }
+                "pool_max_conns" => {
+                    if let Ok(max_conns) = value.parse::<u32>() {
+                        if max_conns > 0 && max_conns <= 100 {
+                            // Safety limit
+                            config.max_connections = max_conns;
+                        }
+                    }
+                }
+                _ => {} // Ignore other parameters
+            }
+        }
+
+        // Final validation of the complete configuration
+        config.validate()?;
+
+        Ok(config)
+    }
+
+    /// Creates a connection pool with proper configuration and security settings
+    ///
+    /// # Security Features
+    /// - Enforces connection limits to prevent resource exhaustion
+    /// - Sets appropriate timeouts for all operations
+    /// - Uses lazy connection initialization for better security
+    /// - Validates connections before use to prevent stale connections
+    /// - Configures SSL/TLS settings for secure connections
+    ///
+    /// # Connection Pool Configuration
+    /// - Max connections: Configurable (default: 10, max: 100)
+    /// - Min connections: 2 (for efficiency)
+    /// - Acquire timeout: Configurable (default: 30s)
+    /// - Idle timeout: 10 minutes
+    /// - Max lifetime: 1 hour
+    /// - Connection validation: Enabled
+    pub(crate) async fn create_connection_pool(
+        connection_string: &str,
+        config: &ConnectionConfig,
+    ) -> Result<PgPool> {
+        // Validate connection string format before creating pool
+        Self::validate_connection_string(connection_string)?;
+
+        let pool_options = sqlx::postgres::PgPoolOptions::new()
+            // Connection limits with security constraints
+            .max_connections(config.max_connections.min(100)) // Cap at 100 for safety
+            .min_connections(2) // Keep minimum connections for efficiency
+            // Timeout configuration for security
+            .acquire_timeout(config.connect_timeout)
+            .idle_timeout(Some(Duration::from_secs(600))) // 10 minutes idle timeout
+            .max_lifetime(Some(Duration::from_secs(3600))) // 1 hour max lifetime
+            // Connection validation and health checks
+            .test_before_acquire(true) // Validate connections before use
+            // Use lazy connection for better error handling
+            .connect_lazy(connection_string)
+            .map_err(|e| {
+                crate::error::DbSurveyorError::collection_failed(
+                    format!(
+                        "Failed to create PostgreSQL connection pool to {}",
+                        crate::adapters::redact_database_url(connection_string)
+                    ),
+                    e,
+                )
+            })?;
+
+        Ok(pool_options)
+    }
+
+    /// Validates connection string format and security requirements
+    ///
+    /// # Security Checks
+    /// - Ensures connection string is properly formatted
+    /// - Validates that required components are present
+    /// - Checks for potentially unsafe connection parameters
+    ///
+    /// # Arguments
+    /// * `connection_string` - PostgreSQL connection URL to validate
+    ///
+    /// # Errors
+    /// Returns error if connection string is invalid or unsafe
+    pub fn validate_connection_string(connection_string: &str) -> Result<()> {
+        // Parse URL to validate format
+        let url = Url::parse(connection_string).map_err(|e| {
+            crate::error::DbSurveyorError::configuration(format!(
+                "Invalid PostgreSQL connection string format: {}",
+                e
+            ))
+        })?;
+
+        // Validate scheme
+        if !matches!(url.scheme(), "postgres" | "postgresql") {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "Connection string must use postgres:// or postgresql:// scheme",
+            ));
+        }
+
+        // Validate host is present
+        if url.host_str().is_none() {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "Connection string must specify a host",
+            ));
+        }
+
+        // Check for potentially unsafe query parameters
+        for (key, value) in url.query_pairs() {
+            match key.as_ref() {
+                // Note: SSL disabled - we don't log this to avoid information disclosure
+                "sslmode" if value == "disable" => {
+                    // SSL disabled - consider enabling for security
+                }
+                // Validate statement timeout if specified
+                "statement_timeout" => {
+                    if let Ok(timeout_ms) = value.parse::<u64>() {
+                        if timeout_ms > 300_000 {
+                            // 5 minutes max
+                            return Err(crate::error::DbSurveyorError::configuration(
+                                "statement_timeout should not exceed 300 seconds for security",
+                            ));
+                        }
+                    }
+                }
+                _ => {} // Other parameters are acceptable
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Sets up session-level security settings on first connection
+    ///
+    /// # Security Settings Applied
+    /// - Query timeout to prevent long-running queries
+    /// - Read-only mode to prevent accidental writes
+    /// - Lock timeout to prevent blocking operations
+    /// - Idle timeout for session cleanup
+    /// - Application name for connection tracking
+    ///
+    /// # Errors
+    /// Returns error if any security setting fails to apply
+    pub(crate) async fn setup_session(&self) -> Result<()> {
+        // Set query timeout to prevent resource exhaustion
+        let timeout_seconds = self.config.query_timeout.as_secs();
+        sqlx::query(&format!("SET statement_timeout = '{}s'", timeout_seconds))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                crate::error::DbSurveyorError::configuration(format!(
+                    "Failed to set query timeout to {}s: {}",
+                    timeout_seconds, e
+                ))
+            })?;
+
+        // Set lock timeout to prevent blocking operations
+        sqlx::query("SET lock_timeout = '30s'")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                crate::error::DbSurveyorError::configuration(format!(
+                    "Failed to set lock timeout: {}",
+                    e
+                ))
+            })?;
+
+        // Set idle timeout for session cleanup
+        sqlx::query("SET idle_in_transaction_session_timeout = '60s'")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                crate::error::DbSurveyorError::configuration(format!(
+                    "Failed to set idle timeout: {}",
+                    e
+                ))
+            })?;
+
+        // Set application name for connection tracking
+        let app_name = format!("dbsurveyor-collect-{}", env!("CARGO_PKG_VERSION"));
+        // Note: SET commands don't support parameterized queries, so we use format!
+        // The app_name is safe since it's constructed from known values
+        sqlx::query(&format!("SET application_name = '{}'", app_name))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                crate::error::DbSurveyorError::configuration(format!(
+                    "Failed to set application name: {}",
+                    e
+                ))
+            })?;
+
+        // Set read-only mode if requested (enforced by default for security)
+        if self.config.read_only {
+            sqlx::query("SET default_transaction_read_only = on")
+                .execute(&self.pool)
+                .await
+                .map_err(|e| {
+                    crate::error::DbSurveyorError::configuration(format!(
+                        "Failed to set read-only mode: {}",
+                        e
+                    ))
+                })?;
+
+            // PostgreSQL session configured in read-only mode
+        }
+
+        // Set timezone to UTC for consistent timestamps
+        sqlx::query("SET timezone = 'UTC'")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| {
+                crate::error::DbSurveyorError::configuration(format!(
+                    "Failed to set timezone: {}",
+                    e
+                ))
+            })?;
+
+        Ok(())
+    }
+
+    /// Validates that user has sufficient privileges for schema collection
+    ///
+    /// # Security
+    /// - Checks access to required system tables
+    /// - Verifies information_schema permissions
+    /// - Reports specific privilege issues
+    pub(crate) async fn validate_schema_privileges(&self) -> Result<()> {
+        // Check access to information_schema.tables
+        let tables_access: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'information_schema'"
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            crate::error::DbSurveyorError::insufficient_privileges(
+                format!("Cannot access information_schema.tables: {}", e)
+            )
+        })?;
+
+        if tables_access == 0 {
+            return Err(crate::error::DbSurveyorError::insufficient_privileges(
+                "No access to information_schema.tables",
+            ));
+        }
+
+        // Check access to information_schema.columns
+        let columns_access: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM information_schema.columns LIMIT 1")
+                .fetch_one(&self.pool)
+                .await
+                .map_err(|e| {
+                    crate::error::DbSurveyorError::insufficient_privileges(format!(
+                        "Cannot access information_schema.columns: {}",
+                        e
+                    ))
+                })?;
+
+        if columns_access == 0 {
+            tracing::warn!(
+                "information_schema.columns returned 0 rows - this may indicate limited privileges"
+            );
+        }
+
+        // Check access to pg_catalog (required for comments and additional metadata)
+        let pg_catalog_access: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM pg_catalog.pg_class LIMIT 1")
+                .fetch_one(&self.pool)
+                .await
+                .map_err(|e| {
+                    tracing::warn!("Limited pg_catalog access: {}", e);
+                    // Don't fail on pg_catalog access issues - it just limits metadata collection
+                    crate::error::DbSurveyorError::insufficient_privileges(format!(
+                        "Cannot access pg_catalog.pg_class: {}",
+                        e
+                    ))
+                })?;
+
+        if pg_catalog_access == 0 {
+            tracing::warn!(
+                "pg_catalog.pg_class returned 0 rows - metadata collection may be limited"
+            );
+        }
+
+        tracing::info!("Schema collection privileges validated successfully");
+        Ok(())
+    }
+}
