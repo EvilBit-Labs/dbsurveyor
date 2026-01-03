@@ -1,57 +1,21 @@
 //! SQL Server database adapter (placeholder implementation).
 //!
-//! This module will be implemented in subsequent tasks.
+//! This module will be fully implemented in subsequent tasks.
+//! Currently provides a placeholder that returns appropriate errors.
 
-use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter};
-use crate::{Result, models::*};
-use async_trait::async_trait;
+use crate::define_placeholder_adapter;
+use crate::models::DatabaseType;
 
-/// SQL Server database adapter (placeholder)
-pub struct SqlServerAdapter {
-    config: ConnectionConfig,
-}
-
-impl SqlServerAdapter {
-    /// Creates a new SQL Server adapter (placeholder)
-    pub async fn new(_connection_string: &str) -> Result<Self> {
-        Ok(Self {
-            config: ConnectionConfig::default(),
-        })
-    }
-}
-
-#[async_trait]
-impl DatabaseAdapter for SqlServerAdapter {
-    async fn test_connection(&self) -> Result<()> {
-        // Placeholder implementation
-        Err(crate::error::DbSurveyorError::configuration(
-            "SQL Server adapter not yet implemented",
-        ))
-    }
-
-    async fn collect_schema(&self) -> Result<DatabaseSchema> {
-        // Placeholder implementation
-        let db_info = DatabaseInfo::new("placeholder".to_string());
-        Ok(DatabaseSchema::new(db_info))
-    }
-
-    fn database_type(&self) -> DatabaseType {
-        DatabaseType::SqlServer
-    }
-
-    fn supports_feature(&self, feature: AdapterFeature) -> bool {
-        matches!(
-            feature,
-            AdapterFeature::SchemaCollection
-                | AdapterFeature::DataSampling
-                | AdapterFeature::MultiDatabase
-                | AdapterFeature::ConnectionPooling
-                | AdapterFeature::QueryTimeout
-                | AdapterFeature::ReadOnlyMode
-        )
-    }
-
-    fn connection_config(&self) -> ConnectionConfig {
-        self.config.clone()
-    }
-}
+define_placeholder_adapter!(
+    SqlServerAdapter,
+    "SQL Server",
+    DatabaseType::SqlServer,
+    [
+        SchemaCollection,
+        DataSampling,
+        MultiDatabase,
+        ConnectionPooling,
+        QueryTimeout,
+        ReadOnlyMode
+    ]
+);

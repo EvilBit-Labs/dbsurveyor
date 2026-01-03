@@ -3,13 +3,25 @@
 //! This module defines the core traits that all database adapters must implement
 //! to provide a unified interface for schema collection across different database
 //! engines. The design emphasizes object safety and security.
+//!
+//! # Module Structure
+//! - `config`: Configuration types (ConnectionConfig, SamplingConfig, CollectionConfig)
+//! - `helpers`: Shared helper utilities
+//! - `placeholder`: Placeholder adapter macro for unimplemented databases
+//! - Database-specific modules (postgres, mysql, sqlite, mongodb, mssql)
 
 use crate::{Result, models::DatabaseSchema};
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
-/// Features that database adapters may support
+// Configuration module
+pub mod config;
+
+// Re-export configuration types for convenience
+pub use config::{
+    CollectionConfig, ConnectionConfig, OutputFormat, SamplingConfig, SensitivePattern,
+};
+
+/// Features that database adapters may support.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdapterFeature {
     /// Schema introspection and metadata collection
@@ -26,309 +38,7 @@ pub enum AdapterFeature {
     ReadOnlyMode,
 }
 
-/// Configuration for database connections
-///
-/// # Security
-/// This struct intentionally does NOT store passwords or credentials.
-/// Credentials must be handled separately and never logged or serialized.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConnectionConfig {
-    pub host: String,
-    pub port: Option<u16>,
-    pub database: Option<String>,
-    pub username: Option<String>,
-    pub connect_timeout: Duration,
-    pub query_timeout: Duration,
-    pub max_connections: u32,
-    pub read_only: bool,
-}
-
-impl Default for ConnectionConfig {
-    fn default() -> Self {
-        Self {
-            host: "localhost".to_string(),
-            port: None,
-            database: None,
-            username: None,
-            connect_timeout: Duration::from_secs(30),
-            query_timeout: Duration::from_secs(30),
-            max_connections: 10,
-            read_only: true,
-        }
-    }
-}
-
-impl std::fmt::Display for ConnectionConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ConnectionConfig({}{}{})",
-            self.host,
-            self.port.map_or_else(String::new, |p| format!(":{}", p)),
-            self.database
-                .as_ref()
-                .map_or_else(String::new, |db| format!("/{}", db))
-        )
-        // Intentionally omit username and never include credentials
-    }
-}
-
-impl ConnectionConfig {
-    /// Validates connection configuration parameters
-    ///
-    /// # Errors
-    /// Returns error if configuration values are invalid or unsafe
-    pub fn validate(&self) -> Result<()> {
-        if self.host.is_empty() {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "host cannot be empty",
-            ));
-        }
-
-        if let Some(port) = self.port {
-            if port == 0 {
-                return Err(crate::error::DbSurveyorError::configuration(
-                    "port must be greater than 0",
-                ));
-            }
-        }
-
-        if self.max_connections == 0 {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "max_connections must be greater than 0",
-            ));
-        }
-
-        if self.max_connections > 100 {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "max_connections should not exceed 100 for safety",
-            ));
-        }
-
-        if self.connect_timeout.as_secs() == 0 {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "connect_timeout must be greater than 0",
-            ));
-        }
-
-        if self.query_timeout.as_secs() == 0 {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "query_timeout must be greater than 0",
-            ));
-        }
-
-        Ok(())
-    }
-
-    /// Creates a new connection config with safe defaults
-    pub fn new(host: String) -> Self {
-        Self {
-            host,
-            ..Default::default()
-        }
-    }
-
-    /// Builder method to set port
-    pub fn with_port(mut self, port: u16) -> Self {
-        self.port = Some(port);
-        self
-    }
-
-    /// Builder method to set database
-    pub fn with_database(mut self, database: String) -> Self {
-        self.database = Some(database);
-        self
-    }
-
-    /// Builder method to set username
-    pub fn with_username(mut self, username: String) -> Self {
-        self.username = Some(username);
-        self
-    }
-}
-
-/// Configuration for data sampling
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SamplingConfig {
-    pub sample_size: u32,
-    pub throttle_ms: Option<u64>,
-    pub query_timeout_secs: u64,
-    pub warn_sensitive: bool,
-    pub timestamp_columns: Vec<String>,
-    pub sensitive_detection_patterns: Vec<SensitivePattern>,
-}
-
-impl Default for SamplingConfig {
-    fn default() -> Self {
-        Self {
-            sample_size: 100,
-            throttle_ms: None,
-            query_timeout_secs: 30,
-            warn_sensitive: true,
-            timestamp_columns: vec![
-                "created_at".to_string(),
-                "updated_at".to_string(),
-                "modified_at".to_string(),
-                "timestamp".to_string(),
-            ],
-            sensitive_detection_patterns: vec![
-                SensitivePattern {
-                    pattern: r"(?i)(password|passwd|pwd)".to_string(),
-                    description: "Password field detected".to_string(),
-                },
-                SensitivePattern {
-                    pattern: r"(?i)(email|mail)".to_string(),
-                    description: "Email field detected".to_string(),
-                },
-                SensitivePattern {
-                    pattern: r"(?i)(ssn|social_security)".to_string(),
-                    description: "Social Security Number field detected".to_string(),
-                },
-            ],
-        }
-    }
-}
-
-/// Pattern for detecting sensitive data fields
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SensitivePattern {
-    pub pattern: String,
-    pub description: String,
-}
-
-/// Configuration for database schema collection
-///
-/// This struct controls all aspects of database schema collection including
-/// connection settings, what database objects to include, and output options.
-///
-/// # Security
-/// - Connection credentials are handled separately and never stored here
-/// - All database operations are read-only by default
-/// - Query timeouts prevent resource exhaustion
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CollectionConfig {
-    /// Database connection configuration (credentials handled separately)
-    pub connection: ConnectionConfig,
-    /// Data sampling configuration
-    pub sampling: SamplingConfig,
-    /// Whether to include system/internal databases
-    pub include_system_databases: bool,
-    /// List of database names to exclude from collection
-    pub exclude_databases: Vec<String>,
-    /// Whether to collect database views
-    pub include_views: bool,
-    /// Whether to collect stored procedures
-    pub include_procedures: bool,
-    /// Whether to collect functions
-    pub include_functions: bool,
-    /// Whether to collect triggers
-    pub include_triggers: bool,
-    /// Whether to collect indexes
-    pub include_indexes: bool,
-    /// Whether to collect constraints
-    pub include_constraints: bool,
-    /// Whether to collect custom/user-defined types
-    pub include_custom_types: bool,
-    /// Maximum number of concurrent database queries (1-50)
-    pub max_concurrent_queries: u32,
-    /// Whether to enable data sampling from tables
-    pub enable_data_sampling: bool,
-    /// Output format for collected schema
-    pub output_format: OutputFormat,
-    /// Whether to enable compression of output
-    pub compression_enabled: bool,
-    /// Whether to enable encryption of output
-    pub encryption_enabled: bool,
-}
-
-impl Default for CollectionConfig {
-    fn default() -> Self {
-        Self {
-            connection: ConnectionConfig::default(),
-            sampling: SamplingConfig::default(),
-            include_system_databases: false,
-            exclude_databases: Vec::new(),
-            include_views: true,
-            include_procedures: true,
-            include_functions: true,
-            include_triggers: true,
-            include_indexes: true,
-            include_constraints: true,
-            include_custom_types: true,
-            max_concurrent_queries: 5,
-            enable_data_sampling: false,
-            output_format: OutputFormat::Json,
-            compression_enabled: false,
-            encryption_enabled: false,
-        }
-    }
-}
-
-impl CollectionConfig {
-    /// Validates the collection configuration
-    ///
-    /// # Errors
-    /// Returns error if configuration values are invalid or unsafe
-    pub fn validate(&self) -> Result<()> {
-        if self.max_concurrent_queries == 0 {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "max_concurrent_queries must be greater than 0",
-            ));
-        }
-
-        if self.max_concurrent_queries > 50 {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "max_concurrent_queries should not exceed 50 for safety",
-            ));
-        }
-
-        self.connection.validate()?;
-
-        Ok(())
-    }
-
-    /// Creates a new collection config with safe defaults
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Builder method to set connection config
-    pub fn with_connection(mut self, connection: ConnectionConfig) -> Self {
-        self.connection = connection;
-        self
-    }
-
-    /// Builder method to set sampling config
-    pub fn with_sampling(mut self, sampling: SamplingConfig) -> Self {
-        self.sampling = sampling;
-        self
-    }
-
-    /// Builder method to set max concurrent queries with validation
-    pub fn with_max_concurrent_queries(mut self, max: u32) -> Result<Self> {
-        if max == 0 || max > 50 {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "max_concurrent_queries must be between 1 and 50",
-            ));
-        }
-        self.max_concurrent_queries = max;
-        Ok(self)
-    }
-}
-
-/// Output format options for collected schema data
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub enum OutputFormat {
-    /// Standard JSON format (.dbsurveyor.json)
-    #[default]
-    Json,
-    /// Compressed JSON format (.dbsurveyor.json.zst)
-    CompressedJson,
-    /// Encrypted format (.dbsurveyor.enc)
-    Encrypted,
-}
-
-/// Main trait for database adapters with object-safe design
+/// Main trait for database adapters with object-safe design.
 ///
 /// # Security Guarantees
 /// - All operations are read-only
@@ -341,7 +51,7 @@ pub enum OutputFormat {
 /// `Box<dyn DatabaseAdapter>` or `Arc<dyn DatabaseAdapter>`.
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
-    /// Tests the database connection without collecting schema
+    /// Tests the database connection without collecting schema.
     ///
     /// # Security
     /// - Uses read-only connection if supported
@@ -352,7 +62,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// Returns error if connection fails or times out
     async fn test_connection(&self) -> Result<()>;
 
-    /// Collects comprehensive database schema metadata
+    /// Collects comprehensive database schema metadata.
     ///
     /// # Security
     /// - All operations are read-only (SELECT/DESCRIBE only)
@@ -369,17 +79,17 @@ pub trait DatabaseAdapter: Send + Sync {
     /// - Database-specific errors occur
     async fn collect_schema(&self) -> Result<DatabaseSchema>;
 
-    /// Returns the database type this adapter handles
+    /// Returns the database type this adapter handles.
     fn database_type(&self) -> crate::models::DatabaseType;
 
-    /// Checks if the adapter supports a specific feature
+    /// Checks if the adapter supports a specific feature.
     fn supports_feature(&self, feature: AdapterFeature) -> bool;
 
-    /// Gets the connection configuration (credentials sanitized)
+    /// Gets the connection configuration (credentials sanitized).
     fn connection_config(&self) -> ConnectionConfig;
 }
 
-/// Factory function to create database adapters based on connection string
+/// Factory function to create database adapters based on connection string.
 ///
 /// # Arguments
 /// * `connection_string` - Database connection URL (will be sanitized in errors)
@@ -466,7 +176,7 @@ pub async fn create_adapter(connection_string: &str) -> Result<Box<dyn DatabaseA
     }
 }
 
-/// Safely redacts credentials from database connection URLs
+/// Safely redacts credentials from database connection URLs.
 ///
 /// This function ensures that passwords in connection strings are never
 /// exposed in logs, error messages, or any output.
@@ -494,7 +204,7 @@ pub fn redact_database_url(url: &str) -> String {
     crate::error::redact_database_url(url)
 }
 
-/// Detects database type from connection string
+/// Detects database type from connection string.
 ///
 /// # Arguments
 /// * `connection_string` - Database connection URL
@@ -538,6 +248,9 @@ fn detect_database_type(connection_string: &str) -> Result<crate::models::Databa
 
 // Shared helper utilities
 pub mod helpers;
+
+// Placeholder adapter macro
+pub mod placeholder;
 
 // Database-specific adapter modules
 #[cfg(feature = "postgresql")]
