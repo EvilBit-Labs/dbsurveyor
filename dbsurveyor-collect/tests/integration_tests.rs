@@ -29,10 +29,8 @@ mod postgresql_integration {
             .expect("Failed to get port");
 
         // Build connection string
-        let connection_string = format!(
-            "postgresql://postgres:postgres@localhost:{}/postgres",
-            port
-        );
+        let connection_string =
+            format!("postgresql://postgres:postgres@localhost:{}/postgres", port);
 
         // Create adapter
         let config = ConnectionConfig::default();
@@ -55,7 +53,7 @@ mod postgresql_integration {
 
         assert_eq!(metadata.database_type, "postgresql");
         assert!(metadata.version.is_some());
-        
+
         // PostgreSQL should have at least one schema (public)
         assert!(!metadata.schemas.is_empty());
     }
@@ -76,10 +74,8 @@ mod postgresql_integration {
             .await
             .expect("Failed to get port");
 
-        let connection_string = format!(
-            "postgresql://postgres:postgres@localhost:{}/postgres",
-            port
-        );
+        let connection_string =
+            format!("postgresql://postgres:postgres@localhost:{}/postgres", port);
 
         // Create a test table using sqlx
         let pool = PgPool::connect(&connection_string)

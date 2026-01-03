@@ -68,10 +68,8 @@ mod credential_security {
             .expect("Failed to get port");
 
         // Use the correct default credentials for the container
-        let connection_string = format!(
-            "postgresql://postgres:postgres@localhost:{}/postgres",
-            port
-        );
+        let connection_string =
+            format!("postgresql://postgres:postgres@localhost:{}/postgres", port);
 
         let config = ConnectionConfig::default();
         let adapter = PostgresAdapter::new(&connection_string, config)
@@ -133,10 +131,10 @@ mod credential_security {
         // MongoDB client creation doesn't fail, but connection test should
         if let Ok(adapter) = MongoAdapter::new(&connection_string, config).await {
             let result = adapter.test_connection().await;
-            
+
             // Connection should fail
             assert!(result.is_err());
-            
+
             // Error message should NOT contain credentials
             if let Err(error) = result {
                 let error_msg = format!("{:?}", error);

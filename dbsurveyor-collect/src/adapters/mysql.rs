@@ -241,8 +241,7 @@ mod tests {
         rt.block_on(async {
             // Use a connection string that won't actually connect but will parse correctly
             if let Ok(adapter) =
-                MySqlAdapter::new("mysql://localhost/test", ConnectionConfig::default())
-                    .await
+                MySqlAdapter::new("mysql://localhost/test", ConnectionConfig::default()).await
             {
                 let description = adapter.safe_description();
                 assert!(description.contains("MySQL"));
