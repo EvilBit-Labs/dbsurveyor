@@ -14,6 +14,8 @@ DISABLE_LINTERS:
     - REPOSITORY_SECRETLINT # Just an endless stream of false positives. Every test and every example has a fake secret in it that it will complain about.
     - REPOSITORY_TRIVY # Doesn't work in CI, just crashes.
     - REPOSITORY_CHECKOV # Works locally, doesn't work in CI.
+    - REPOSITORY_GITLEAKS # Doesn't handle test credentials in tests correctly
+    - REPOSITORY_GRYPE # Vulnerability scanner finding dependency issues not related to code changes
 
 ACTION_ACTIONLINT_FILTER_REGEX_EXCLUDE: ".*release\\.yml$"
 

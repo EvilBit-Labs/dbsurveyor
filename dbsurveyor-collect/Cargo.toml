@@ -22,13 +22,37 @@ name = "dbsurveyor-collect"
 path = "src/main.rs"
 
 [features]
-default = ["postgresql", "sqlite"]
-# Database driver features
-postgresql = ["dbsurveyor-core/postgresql", "sqlx/postgres"]
-mysql = ["dbsurveyor-core/mysql", "sqlx/mysql"]
-sqlite = ["dbsurveyor-core/sqlite", "sqlx/sqlite"]
-mongodb = ["dbsurveyor-core/mongodb"]
-mssql = ["dbsurveyor-core/mssql"]
+# Default features include the most commonly used secure database drivers
+default = ["postgresql", "sqlite", "mongodb"]
+
+# Database driver features (propagate to core and enable local drivers)
+postgresql = [
+    "dbsurveyor-core/postgresql",
+    "dep:sqlx",
+    "sqlx/postgres",
+]
+mysql = [
+    "dbsurveyor-core/mysql",
+    "dep:sqlx",
+    "sqlx/mysql",
+]
+sqlite = [
+    "dbsurveyor-core/sqlite",
+    "dep:sqlx",
+    "sqlx/sqlite",
+]
+mongodb = [
+    "dbsurveyor-core/mongodb",
+    "dep:mongodb",
+]
+mssql = [
+    "dbsurveyor-core/mssql",
+    "dep:tiberius",
+    "tokio-util",
+]
+# Oracle adapter is currently a stub - requires Oracle Instant Client
+oracle = []
+
 # Optional features
 compression = ["dbsurveyor-core/compression", "dep:zstd"]
 encryption = ["dbsurveyor-core/encryption"]
@@ -43,9 +67,16 @@ tracing-subscriber = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+url = { workspace = true }
 
 # Database dependencies (feature-gated)
 sqlx = { workspace = true, optional = true }
+mongodb = { workspace = true, optional = true }
+tiberius = { workspace = true, optional = true }
+tokio-util = { version = "0.7.16", features = ["compat"], optional = true }
+futures = "0.3"
 
 # Security dependencies (for password input)
 rpassword = { workspace = true }
@@ -54,7 +85,11 @@ rpassword = { workspace = true }
 zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
-testcontainers-modules = { workspace = true }
+tempfile = "3.21.0"
+temp-env = "0.3.6"
+testcontainers-modules = { workspace = true, features = ["mongo"] }
+criterion = { workspace = true }
+proptest = "1.7.0"
 
 # Nextest configuration for collector crate
 [package.metadata.nextest]
