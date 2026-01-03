@@ -13,9 +13,9 @@ use super::{
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use mongodb::{
-    bson::{doc, Document},
-    options::ClientOptions,
     Client,
+    bson::{Document, doc},
+    options::ClientOptions,
 };
 
 /// `MongoDB` adapter for document database access

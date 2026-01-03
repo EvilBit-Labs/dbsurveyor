@@ -10,7 +10,7 @@
 #[cfg(all(test, feature = "postgresql"))]
 mod postgresql_integration {
     use dbsurveyor_collect::adapters::{
-        postgresql::PostgresAdapter, ConnectionConfig, SchemaCollector,
+        ConnectionConfig, SchemaCollector, postgresql::PostgresAdapter,
     };
 
     #[tokio::test]
@@ -158,9 +158,7 @@ mod postgresql_integration {
 
 #[cfg(all(test, feature = "sqlite"))]
 mod sqlite_integration {
-    use dbsurveyor_collect::adapters::{
-        sqlite::SqliteAdapter, ConnectionConfig, SchemaCollector,
-    };
+    use dbsurveyor_collect::adapters::{ConnectionConfig, SchemaCollector, sqlite::SqliteAdapter};
 
     #[tokio::test]
     async fn test_sqlite_memory_database() {
@@ -263,9 +261,7 @@ mod sqlite_integration {
 
 #[cfg(all(test, feature = "mongodb"))]
 mod mongodb_integration {
-    use dbsurveyor_collect::adapters::{
-        mongodb::MongoAdapter, ConnectionConfig, SchemaCollector,
-    };
+    use dbsurveyor_collect::adapters::{ConnectionConfig, SchemaCollector, mongodb::MongoAdapter};
 
     #[tokio::test]
     #[ignore = "MongoDB requires running container, run with --ignored flag"]

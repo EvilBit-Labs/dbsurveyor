@@ -12,7 +12,7 @@ use super::{
 };
 use async_trait::async_trait;
 use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions};
-use sqlx::{ConnectOptions, Pool, MySql, Row};
+use sqlx::{ConnectOptions, MySql, Pool, Row};
 use std::str::FromStr;
 
 /// `MySQL` adapter with connection pooling
