@@ -38,10 +38,7 @@ impl SqliteAdapter {
     /// # Errors
     ///
     /// Returns an error if the connection cannot be established
-    pub async fn new(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> AdapterResult<Self> {
+    pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
         // Parse connection options without logging
         let mut connect_options = SqliteConnectOptions::from_str(connection_string)
             .map_err(|_| AdapterError::InvalidParameters)?;

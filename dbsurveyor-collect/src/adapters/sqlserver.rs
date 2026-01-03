@@ -39,13 +39,10 @@ impl SqlServerAdapter {
     ///
     /// Returns an error if the connection cannot be established
     #[allow(clippy::unused_async)]
-    pub async fn new(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> AdapterResult<Self> {
+    pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
         // Parse connection string (format: sqlserver://user:pass@host:port/database)
-        let url = url::Url::parse(connection_string)
-            .map_err(|_| AdapterError::InvalidParameters)?;
+        let url =
+            url::Url::parse(connection_string).map_err(|_| AdapterError::InvalidParameters)?;
 
         let host = url.host_str().ok_or(AdapterError::InvalidParameters)?;
         let port = url.port().unwrap_or(1433);

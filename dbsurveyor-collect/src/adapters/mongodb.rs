@@ -42,10 +42,7 @@ impl MongoAdapter {
     /// # Errors
     ///
     /// Returns an error if the connection cannot be established
-    pub async fn new(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> AdapterResult<Self> {
+    pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
         // Parse connection options
         let mut client_options = ClientOptions::parse(connection_string)
             .await
