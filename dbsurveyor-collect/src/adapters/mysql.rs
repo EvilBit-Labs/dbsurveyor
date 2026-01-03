@@ -67,9 +67,7 @@ impl MySqlAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let version: String = row
-            .try_get(0)
-            .map_err(|_| AdapterError::QueryFailed)?;
+        let version: String = row.try_get(0).map_err(|_| AdapterError::QueryFailed)?;
 
         Ok(version)
     }

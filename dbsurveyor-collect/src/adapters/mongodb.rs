@@ -61,8 +61,8 @@ impl MongoAdapter {
             .unwrap_or_else(|| "test".to_string());
 
         // Create client
-        let client = Client::with_options(client_options)
-            .map_err(|_| AdapterError::ConnectionFailed)?;
+        let client =
+            Client::with_options(client_options).map_err(|_| AdapterError::ConnectionFailed)?;
 
         Ok(Self {
             client,
@@ -79,10 +79,7 @@ impl MongoAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let version = result
-            .get_str("version")
-            .unwrap_or("unknown")
-            .to_string();
+        let version = result.get_str("version").unwrap_or("unknown").to_string();
 
         Ok(version)
     }
@@ -134,9 +131,7 @@ impl MongoAdapter {
                     _ => "unknown",
                 };
 
-                fields
-                    .entry(key)
-                    .or_insert_with(|| field_type.to_string());
+                fields.entry(key).or_insert_with(|| field_type.to_string());
             }
         }
 
