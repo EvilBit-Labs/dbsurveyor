@@ -145,7 +145,8 @@ impl SchemaCollector for OracleAdapter {
     async fn test_connection(&self) -> AdapterResult<()> {
         Err(AdapterError::UnsupportedFeature(
             "Oracle adapter requires Oracle Instant Client to be installed. \
-             Please install Oracle Instant Client and rebuild with the oracle feature.".to_string(),
+             Please install Oracle Instant Client and rebuild with the oracle feature."
+                .to_string(),
         ))
     }
 
@@ -153,7 +154,8 @@ impl SchemaCollector for OracleAdapter {
     async fn collect_metadata(&self) -> AdapterResult<DatabaseMetadata> {
         Err(AdapterError::UnsupportedFeature(
             "Oracle adapter requires Oracle Instant Client to be installed. \
-             Please install Oracle Instant Client and rebuild with the oracle feature.".to_string(),
+             Please install Oracle Instant Client and rebuild with the oracle feature."
+                .to_string(),
         ))
     }
 

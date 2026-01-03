@@ -55,7 +55,7 @@ impl SqlServerAdapter {
         tiberius_config.host(host);
         tiberius_config.port(port);
         tiberius_config.authentication(AuthMethod::sql_server(username, password));
-        
+
         if !database.is_empty() {
             tiberius_config.database(database);
         }
