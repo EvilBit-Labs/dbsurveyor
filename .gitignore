@@ -101,5 +101,4 @@ env/
 node_modules/
 
 # Ephemeral files
-megalinter-reports/
 public/

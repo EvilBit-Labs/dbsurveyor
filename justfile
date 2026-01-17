@@ -92,19 +92,6 @@ check: format-check lint
 fix: format
     cargo clippy --fix --allow-dirty
 
-# Run MegaLinter for comprehensive linting
-megalinter:
-    @echo "🔍 Running MegaLinter for comprehensive code analysis..."
-    npx mega-linter-runner --flavor rust
-    @echo "✅ MegaLinter analysis complete"
-
-megalinter-fix:
-    @echo "🔍 Running MegaLinter for comprehensive code analysis..."
-    npx mega-linter-runner --flavor rust --fix
-    @echo "✅ MegaLinter analysis complete"
-
-
-
 # -----------------------------
 # 🦀 Standardized Rust Tasks
 # -----------------------------

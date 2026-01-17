@@ -42,35 +42,6 @@ jobs:
             doesn't match the configured pattern. Please ensure that the subject
             doesn't start with an uppercase character.
 
-  # MegaLinter job - replaces lint, test-and-coverage, security-scan, and build jobs
-  megalinter:
-    name: MegaLinter
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Run MegaLinter (Rust flavor)
-        uses: oxsecurity/megalinter/flavors/rust@v6.22.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MEGALINTER_CONFIG: .mega-linter.yml
-          CARGO_TERM_COLOR: never
-          TERM: dumb
-          RUST_BACKTRACE: 1
-
-      - name: Upload MegaLinter artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: megalinter-results
-          path: |
-            megalinter-reports/
-            .mega-linter.log
-          retention-days: 30
-
   tests:
     name: Tests
     runs-on: ubuntu-latest

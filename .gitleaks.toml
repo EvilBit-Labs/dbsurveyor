@@ -10,7 +10,6 @@ useDefault = true
 description = "Allowlisted files and patterns"
 paths = [
     '''.automation/test''',
-    '''megalinter-reports''',
     '''.github/linters''',
     '''node_modules''',
     '''.mypy_cache''',
