@@ -245,7 +245,7 @@ impl PostgresAdapter {
     /// # Security Features
     /// - Enforces connection limits to prevent resource exhaustion
     /// - Sets appropriate timeouts for all operations
-    /// - Uses lazy connection initialization for better security
+    /// - Applies session security settings to ALL pooled connections via after_connect
     /// - Validates connections before use to prevent stale connections
     /// - Configures SSL/TLS settings for secure connections
     ///
@@ -256,14 +256,21 @@ impl PostgresAdapter {
     /// - Idle timeout: 10 minutes
     /// - Max lifetime: 1 hour
     /// - Connection validation: Enabled
+    /// - Session settings: Applied to every new connection
     pub(crate) async fn create_connection_pool(
         connection_string: &str,
         config: &ConnectionConfig,
     ) -> Result<PgPool> {
+        use sqlx::Executor;
+
         // Validate connection string format before creating pool
         Self::validate_connection_string(connection_string)?;
 
-        let pool_options = sqlx::postgres::PgPoolOptions::new()
+        // Clone config values needed for the after_connect closure
+        let query_timeout_secs = config.query_timeout.as_secs();
+        let read_only = config.read_only;
+
+        let pool = sqlx::postgres::PgPoolOptions::new()
             // Connection limits with security constraints
             .max_connections(config.max_connections.min(100)) // Cap at 100 for safety
             .min_connections(2) // Keep minimum connections for efficiency
@@ -273,6 +280,39 @@ impl PostgresAdapter {
             .max_lifetime(Some(Duration::from_secs(3600))) // 1 hour max lifetime
             // Connection validation and health checks
             .test_before_acquire(true) // Validate connections before use
+            // Apply session security settings to EVERY new connection
+            .after_connect(move |conn, _meta| {
+                Box::pin(async move {
+                    // Set query timeout to prevent resource exhaustion
+                    conn.execute(
+                        format!("SET statement_timeout = '{}s'", query_timeout_secs).as_str(),
+                    )
+                    .await?;
+
+                    // Set lock timeout to prevent blocking operations
+                    conn.execute("SET lock_timeout = '30s'").await?;
+
+                    // Set idle timeout for session cleanup
+                    conn.execute("SET idle_in_transaction_session_timeout = '60s'")
+                        .await?;
+
+                    // Set application name for connection tracking
+                    let app_name = format!("dbsurveyor-collect-{}", env!("CARGO_PKG_VERSION"));
+                    conn.execute(format!("SET application_name = '{}'", app_name).as_str())
+                        .await?;
+
+                    // Set read-only mode if requested (enforced by default for security)
+                    if read_only {
+                        conn.execute("SET default_transaction_read_only = on")
+                            .await?;
+                    }
+
+                    // Set timezone to UTC for consistent timestamps
+                    conn.execute("SET timezone = 'UTC'").await?;
+
+                    Ok(())
+                })
+            })
             // Use lazy connection for better error handling
             .connect_lazy(connection_string)
             .map_err(|e| {
@@ -285,7 +325,7 @@ impl PostgresAdapter {
                 )
             })?;
 
-        Ok(pool_options)
+        Ok(pool)
     }
 
     /// Validates connection string format and security requirements
@@ -348,92 +388,25 @@ impl PostgresAdapter {
         Ok(())
     }
 
-    /// Sets up session-level security settings on first connection
+    /// Sets up session-level security settings
     ///
-    /// # Security Settings Applied
+    /// # Note
+    /// Session security settings are now automatically applied to ALL pooled
+    /// connections via the `after_connect` callback in `create_connection_pool()`.
+    /// This method is retained for backward compatibility but is now a no-op.
+    ///
+    /// # Security Settings Applied (via after_connect)
     /// - Query timeout to prevent long-running queries
     /// - Read-only mode to prevent accidental writes
     /// - Lock timeout to prevent blocking operations
     /// - Idle timeout for session cleanup
     /// - Application name for connection tracking
-    ///
-    /// # Errors
-    /// Returns error if any security setting fails to apply
+    /// - UTC timezone for consistent timestamps
+    #[allow(clippy::unused_async)]
     pub(crate) async fn setup_session(&self) -> Result<()> {
-        // Set query timeout to prevent resource exhaustion
-        let timeout_seconds = self.config.query_timeout.as_secs();
-        sqlx::query(&format!("SET statement_timeout = '{}s'", timeout_seconds))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                crate::error::DbSurveyorError::configuration(format!(
-                    "Failed to set query timeout to {}s: {}",
-                    timeout_seconds, e
-                ))
-            })?;
-
-        // Set lock timeout to prevent blocking operations
-        sqlx::query("SET lock_timeout = '30s'")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                crate::error::DbSurveyorError::configuration(format!(
-                    "Failed to set lock timeout: {}",
-                    e
-                ))
-            })?;
-
-        // Set idle timeout for session cleanup
-        sqlx::query("SET idle_in_transaction_session_timeout = '60s'")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                crate::error::DbSurveyorError::configuration(format!(
-                    "Failed to set idle timeout: {}",
-                    e
-                ))
-            })?;
-
-        // Set application name for connection tracking
-        let app_name = format!("dbsurveyor-collect-{}", env!("CARGO_PKG_VERSION"));
-        // Note: SET commands don't support parameterized queries, so we use format!
-        // The app_name is safe since it's constructed from known values
-        sqlx::query(&format!("SET application_name = '{}'", app_name))
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                crate::error::DbSurveyorError::configuration(format!(
-                    "Failed to set application name: {}",
-                    e
-                ))
-            })?;
-
-        // Set read-only mode if requested (enforced by default for security)
-        if self.config.read_only {
-            sqlx::query("SET default_transaction_read_only = on")
-                .execute(&self.pool)
-                .await
-                .map_err(|e| {
-                    crate::error::DbSurveyorError::configuration(format!(
-                        "Failed to set read-only mode: {}",
-                        e
-                    ))
-                })?;
-
-            // PostgreSQL session configured in read-only mode
-        }
-
-        // Set timezone to UTC for consistent timestamps
-        sqlx::query("SET timezone = 'UTC'")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                crate::error::DbSurveyorError::configuration(format!(
-                    "Failed to set timezone: {}",
-                    e
-                ))
-            })?;
-
+        // Session settings are now applied via after_connect callback in create_connection_pool()
+        // This ensures ALL pooled connections have security settings applied, not just one.
+        // This method is retained for backward compatibility.
         Ok(())
     }
 

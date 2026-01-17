@@ -223,9 +223,11 @@ fn test_missing_format_version_fails() {
 }
 
 #[test]
-fn test_credential_field_names_fail() {
+fn test_credential_column_names_allowed() {
     setup();
 
+    // Column names like "password_hash" are legitimate schema metadata
+    // and should NOT be blocked. We only block actual credential VALUES.
     let schema_with_credential_field = json!({
         "format_version": "1.0",
         "database_info": {
@@ -236,10 +238,20 @@ fn test_credential_field_names_fail() {
         "tables": [{
             "name": "users",
             "columns": [{
-                "name": "password_hash", // This should trigger security validation
+                "name": "password_hash", // Legitimate column name - should PASS
                 "data_type": {"String": {"max_length": 255}},
                 "is_nullable": false,
                 "ordinal_position": 1
+            }, {
+                "name": "auth_provider", // Legitimate column name - should PASS
+                "data_type": {"String": {"max_length": 50}},
+                "is_nullable": true,
+                "ordinal_position": 2
+            }, {
+                "name": "access_token_expires", // Legitimate column name - should PASS
+                "data_type": {"DateTime": {"with_timezone": true}},
+                "is_nullable": true,
+                "ordinal_position": 3
             }]
         }],
         "collection_metadata": {
@@ -250,16 +262,19 @@ fn test_credential_field_names_fail() {
     });
 
     let result = validate_schema_output(&schema_with_credential_field);
-    assert!(matches!(
-        result,
-        Err(ValidationError::SecurityViolation { .. })
-    ));
+    assert!(
+        result.is_ok(),
+        "Legitimate column names like 'password_hash' should be allowed: {:?}",
+        result
+    );
 }
 
 #[test]
-fn test_secret_field_names_fail() {
+fn test_secret_column_names_allowed() {
     setup();
 
+    // Column names like "api_secret" are legitimate schema metadata
+    // and should NOT be blocked. We only block actual credential VALUES.
     let schema_with_secret_field = json!({
         "format_version": "1.0",
         "database_info": {
@@ -270,10 +285,20 @@ fn test_secret_field_names_fail() {
         "tables": [{
             "name": "config",
             "columns": [{
-                "name": "api_secret", // This should trigger security validation
+                "name": "api_secret", // Legitimate column name - should PASS
                 "data_type": {"String": {"max_length": 500}},
                 "is_nullable": true,
                 "ordinal_position": 1
+            }, {
+                "name": "secret_question", // Legitimate column name - should PASS
+                "data_type": {"String": {"max_length": 255}},
+                "is_nullable": true,
+                "ordinal_position": 2
+            }, {
+                "name": "credential_type", // Legitimate column name - should PASS
+                "data_type": {"String": {"max_length": 50}},
+                "is_nullable": true,
+                "ordinal_position": 3
             }]
         }],
         "collection_metadata": {
@@ -284,10 +309,11 @@ fn test_secret_field_names_fail() {
     });
 
     let result = validate_schema_output(&schema_with_secret_field);
-    assert!(matches!(
-        result,
-        Err(ValidationError::SecurityViolation { .. })
-    ));
+    assert!(
+        result.is_ok(),
+        "Legitimate column names like 'api_secret' should be allowed: {:?}",
+        result
+    );
 }
 
 #[test]
@@ -483,10 +509,12 @@ fn test_validate_and_parse_invalid_json_fails() {
 }
 
 #[test]
-fn test_validate_and_parse_security_violation_fails() {
+fn test_validate_and_parse_with_credential_column_names_succeeds() {
     setup();
 
-    let json_with_credentials = r#"{
+    // Column names like "password_field" are legitimate schema metadata and should pass.
+    // The validation should only fail for actual credential VALUES, not metadata names.
+    let json_with_credential_column_names = r#"{
         "format_version": "1.0",
         "database_info": {
             "name": "test_db",
@@ -499,21 +527,79 @@ fn test_validate_and_parse_security_violation_fails() {
                 "name": "password_field",
                 "data_type": {"String": {"max_length": 255}},
                 "is_nullable": false,
+                "is_primary_key": false,
+                "is_auto_increment": false,
                 "ordinal_position": 1
-            }]
+            }],
+            "foreign_keys": [],
+            "indexes": [],
+            "constraints": []
+        }],
+        "views": [],
+        "indexes": [],
+        "constraints": [],
+        "procedures": [],
+        "functions": [],
+        "triggers": [],
+        "custom_types": [],
+        "collection_metadata": {
+            "collected_at": "2024-01-15T10:30:00Z",
+            "collection_duration_ms": 1500,
+            "collector_version": "1.0.0",
+            "warnings": []
+        }
+    }"#;
+
+    let result = validate_and_parse_schema(json_with_credential_column_names);
+    assert!(
+        result.is_ok(),
+        "Column names like 'password_field' should be allowed: {:?}",
+        result
+    );
+}
+
+#[test]
+fn test_validate_and_parse_actual_credentials_fails() {
+    setup();
+
+    // Actual credential VALUES (not column names) should be blocked
+    // Note: This test uses validate_schema_output (not validate_and_parse_schema) because
+    // the security check happens during JSON schema validation, not during deserialization.
+    let json_with_actual_credentials = json!({
+        "format_version": "1.0",
+        "database_info": {
+            "name": "test_db",
+            "access_level": "Full",
+            "collection_status": "Success"
+        },
+        "tables": [{
+            "name": "users",
+            "columns": [{
+                "name": "config",
+                "data_type": {"String": {"max_length": 255}},
+                "is_nullable": false,
+                "is_primary_key": false,
+                "is_auto_increment": false,
+                "ordinal_position": 1,
+                "comment": "password=secret123"
+            }],
+            "foreign_keys": [],
+            "indexes": [],
+            "constraints": []
         }],
         "collection_metadata": {
             "collected_at": "2024-01-15T10:30:00Z",
             "collection_duration_ms": 1500,
-            "collector_version": "1.0.0"
+            "collector_version": "1.0.0",
+            "warnings": []
         }
-    }"#;
+    });
 
-    let result = validate_and_parse_schema(json_with_credentials);
-    assert!(matches!(
-        result,
-        Err(ValidationError::SecurityViolation { .. })
-    ));
+    let result = validate_schema_output(&json_with_actual_credentials);
+    assert!(
+        matches!(result, Err(ValidationError::SecurityViolation { .. })),
+        "Actual credential patterns like 'password=xxx' should be blocked"
+    );
 }
 
 #[test]

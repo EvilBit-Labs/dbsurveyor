@@ -456,13 +456,18 @@ fn validate_security_constraints(json_value: &Value) -> Result<(), ValidationErr
 }
 
 /// Recursively check for credential patterns in JSON values
+///
+/// This function checks for actual credential VALUES (like "password=secret123")
+/// but NOT for metadata like column names (like "password_hash" or "auth_provider").
+/// Schema metadata about columns is safe to include - it doesn't expose actual credentials.
 fn validate_no_credentials_recursive(value: &Value, path: &str) -> Result<(), ValidationError> {
     match value {
         Value::String(s) => {
-            // Check for credential-like patterns
+            // Check for credential-like patterns in VALUES
+            // These patterns indicate actual credentials being leaked, not just metadata
             let lower_s = s.to_lowercase();
 
-            // Check for password patterns
+            // Check for password patterns (actual password values like "password=secret")
             if lower_s.contains("password=") || lower_s.contains("pwd=") {
                 return Err(ValidationError::SecurityViolation {
                     reason: format!(
@@ -472,7 +477,7 @@ fn validate_no_credentials_recursive(value: &Value, path: &str) -> Result<(), Va
                 });
             }
 
-            // Check for secret/token patterns
+            // Check for secret/token patterns (actual secret values)
             if lower_s.contains("secret=") || lower_s.contains("token=") || lower_s.contains("key=")
             {
                 return Err(ValidationError::SecurityViolation {
@@ -483,7 +488,7 @@ fn validate_no_credentials_recursive(value: &Value, path: &str) -> Result<(), Va
                 });
             }
 
-            // Check for API key patterns
+            // Check for API key patterns (actual API key values)
             if lower_s.contains("api_key=") || lower_s.contains("apikey=") {
                 return Err(ValidationError::SecurityViolation {
                     reason: format!(
@@ -494,40 +499,12 @@ fn validate_no_credentials_recursive(value: &Value, path: &str) -> Result<(), Va
             }
         }
         Value::Object(obj) => {
-            // Check field names for credential-related terms
+            // Recurse into object values
+            // Note: We intentionally do NOT block field names or column names containing
+            // words like "password", "secret", "auth", etc. These are legitimate schema
+            // metadata (e.g., column named "password_hash" or "auth_provider").
+            // We only check for actual credential VALUES in strings above.
             for (key, val) in obj {
-                let lower_key = key.to_lowercase();
-                if lower_key.contains("password")
-                    || lower_key.contains("secret")
-                    || lower_key.contains("token")
-                    || lower_key.contains("credential")
-                    || lower_key.contains("auth")
-                {
-                    return Err(ValidationError::SecurityViolation {
-                        reason: format!("Credential-related field name found: '{}'", key),
-                    });
-                }
-
-                // Special check for "name" fields that might contain credential-related values
-                if key == "name" {
-                    if let Value::String(name_value) = val {
-                        let lower_name = name_value.to_lowercase();
-                        if lower_name.contains("password")
-                            || lower_name.contains("secret")
-                            || lower_name.contains("token")
-                            || lower_name.contains("credential")
-                            || lower_name.contains("auth")
-                        {
-                            return Err(ValidationError::SecurityViolation {
-                                reason: format!(
-                                    "Credential-related name value found at path '{}': '{}'",
-                                    path, name_value
-                                ),
-                            });
-                        }
-                    }
-                }
-
                 let new_path = if path.is_empty() {
                     key.clone()
                 } else {
