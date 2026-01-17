@@ -52,7 +52,6 @@ const AES_GCM_NONCE_SIZE: usize = 12;
 /// applications per NIST guidelines.
 ///
 /// **Standard:** NIST SP 800-38D §5.2.1, Table 2
-#[allow(dead_code)] // Used for validation
 const AES_GCM_TAG_SIZE: usize = 16;
 
 /// AES key size: 256 bits (32 bytes)
