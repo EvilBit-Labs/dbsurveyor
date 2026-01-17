@@ -552,7 +552,7 @@ async fn test_postgres_pool_management() -> Result<(), Box<dyn std::error::Error
 
     // Now test pool statistics after connections are established
     let pool_size = adapter.pool.size() as usize;
-    let idle_connections = adapter.pool.num_idle() as usize;
+    let idle_connections = adapter.pool.num_idle();
     assert!(pool_size >= 1); // Should have at least one connection after use
     assert!(idle_connections <= pool_size);
 

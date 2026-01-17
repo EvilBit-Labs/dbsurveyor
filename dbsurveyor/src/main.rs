@@ -366,7 +366,12 @@ async fn load_encrypted_schema(data: &[u8]) -> Result<DatabaseSchema> {
 
     // Get password from user
     print!("Enter decryption password: ");
-    io::stdout().flush().unwrap();
+    io::stdout().flush().map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
+            "Failed to flush stdout before reading password: {}",
+            e
+        ))
+    })?;
     let password = rpassword::read_password().map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::configuration(format!(
             "Failed to read password: {}",

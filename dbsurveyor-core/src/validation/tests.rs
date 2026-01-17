@@ -611,7 +611,6 @@ fn test_get_schema_definition_success() {
     assert!(schema.get("$schema").is_some());
     assert!(schema.get("title").is_some());
     assert!(schema.get("properties").is_some());
-    assert!(schema.get("properties").is_some());
 }
 
 #[test]
