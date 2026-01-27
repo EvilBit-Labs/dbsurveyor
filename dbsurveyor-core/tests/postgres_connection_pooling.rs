@@ -9,7 +9,10 @@
 
 use dbsurveyor_core::{
     Result,
-    adapters::{ConnectionConfig, DatabaseAdapter, postgres::{PostgresAdapter, PoolStats}},
+    adapters::{
+        ConnectionConfig, DatabaseAdapter,
+        postgres::{PoolStats, PostgresAdapter},
+    },
     error::DbSurveyorError,
 };
 use sqlx::PgPool;
@@ -596,10 +599,22 @@ async fn test_pool_statistics_struct() -> Result<()> {
     let stats: PoolStats = adapter.pool_statistics();
 
     // Verify struct fields
-    assert!(stats.total_connections >= 1, "Should have at least one connection");
-    assert!(stats.idle_connections <= stats.total_connections, "Idle should not exceed total");
-    assert_eq!(stats.active_connections, stats.total_connections - stats.idle_connections);
-    assert_eq!(stats.max_connections, 5, "Max connections should match config");
+    assert!(
+        stats.total_connections >= 1,
+        "Should have at least one connection"
+    );
+    assert!(
+        stats.idle_connections <= stats.total_connections,
+        "Idle should not exceed total"
+    );
+    assert_eq!(
+        stats.active_connections,
+        stats.total_connections - stats.idle_connections
+    );
+    assert_eq!(
+        stats.max_connections, 5,
+        "Max connections should match config"
+    );
 
     // Verify consistency with tuple-based method
     let (active, idle, total) = adapter.pool_stats();
@@ -645,11 +660,7 @@ async fn test_connection_pool_idle_configuration() -> Result<()> {
     let (active, idle, total) = adapter.pool_stats();
     assert!(total >= 1, "Pool should have at least one connection");
     assert!(idle <= total, "Idle connections should not exceed total");
-    assert_eq!(
-        active,
-        total - idle,
-        "Active should equal total minus idle"
-    );
+    assert_eq!(active, total - idle, "Active should equal total minus idle");
 
     // Test that min_idle_connections is respected by examining pool config
     // Note: sqlx's min_connections is a best-effort setting, actual behavior may vary
@@ -661,6 +672,31 @@ async fn test_connection_pool_idle_configuration() -> Result<()> {
     adapter.close().await;
 
     Ok(())
+}
+
+/// Test ConnectionConfig::from_env() creates configuration from environment variables
+#[test]
+fn test_connection_config_from_env() {
+    // SAFETY: This test is run in isolation and env var manipulation is safe in single-threaded test
+    unsafe {
+        // Set environment variables
+        std::env::set_var("DBSURVEYOR_MAX_CONNECTIONS", "20");
+        std::env::set_var("DBSURVEYOR_CONNECT_TIMEOUT_SECS", "60");
+        std::env::set_var("DBSURVEYOR_IDLE_TIMEOUT_SECS", "300");
+    }
+
+    let config = ConnectionConfig::from_env().unwrap();
+
+    assert_eq!(config.max_connections, 20);
+    assert_eq!(config.connect_timeout, Duration::from_secs(60));
+    assert_eq!(config.idle_timeout, Some(Duration::from_secs(300)));
+
+    // SAFETY: Cleanup is safe in single-threaded test context
+    unsafe {
+        std::env::remove_var("DBSURVEYOR_MAX_CONNECTIONS");
+        std::env::remove_var("DBSURVEYOR_CONNECT_TIMEOUT_SECS");
+        std::env::remove_var("DBSURVEYOR_IDLE_TIMEOUT_SECS");
+    }
 }
 
 /// Test that connection pool respects max_connections limit and times out correctly
@@ -678,7 +714,7 @@ async fn test_connection_pool_max_connections_limit() -> Result<()> {
         port: Some(port),
         database: Some("postgres".to_string()),
         username: Some("postgres".to_string()),
-        max_connections: 2, // Only 2 connections allowed
+        max_connections: 2,                          // Only 2 connections allowed
         connect_timeout: Duration::from_millis(100), // Short timeout for acquire
         query_timeout: Duration::from_secs(30),
         read_only: true,
@@ -693,7 +729,10 @@ async fn test_connection_pool_max_connections_limit() -> Result<()> {
 
     // Third acquire should timeout since pool is exhausted
     let result = adapter.acquire().await;
-    assert!(result.is_err(), "Third acquire should fail due to pool exhaustion");
+    assert!(
+        result.is_err(),
+        "Third acquire should fail due to pool exhaustion"
+    );
 
     // Verify the error is a connection timeout
     let error = result.unwrap_err();

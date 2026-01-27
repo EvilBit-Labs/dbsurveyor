@@ -137,6 +137,67 @@ impl ConnectionConfig {
         }
     }
 
+    /// Create configuration from environment variables.
+    ///
+    /// Supported variables:
+    /// - `DBSURVEYOR_MAX_CONNECTIONS` (default: 10)
+    /// - `DBSURVEYOR_MIN_IDLE_CONNECTIONS` (default: 2)
+    /// - `DBSURVEYOR_CONNECT_TIMEOUT_SECS` (default: 30)
+    /// - `DBSURVEYOR_IDLE_TIMEOUT_SECS` (default: 600)
+    /// - `DBSURVEYOR_MAX_LIFETIME_SECS` (default: 3600)
+    ///
+    /// # Errors
+    /// Returns error if any environment variable contains an invalid value.
+    pub fn from_env() -> crate::Result<Self> {
+        let mut config = Self::default();
+
+        if let Ok(val) = std::env::var("DBSURVEYOR_MAX_CONNECTIONS") {
+            config.max_connections = val.parse().map_err(|_| {
+                crate::error::DbSurveyorError::configuration(
+                    "invalid DBSURVEYOR_MAX_CONNECTIONS value",
+                )
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("DBSURVEYOR_MIN_IDLE_CONNECTIONS") {
+            config.min_idle_connections = val.parse().map_err(|_| {
+                crate::error::DbSurveyorError::configuration(
+                    "invalid DBSURVEYOR_MIN_IDLE_CONNECTIONS value",
+                )
+            })?;
+        }
+
+        if let Ok(val) = std::env::var("DBSURVEYOR_CONNECT_TIMEOUT_SECS") {
+            let secs: u64 = val.parse().map_err(|_| {
+                crate::error::DbSurveyorError::configuration(
+                    "invalid DBSURVEYOR_CONNECT_TIMEOUT_SECS value",
+                )
+            })?;
+            config.connect_timeout = Duration::from_secs(secs);
+        }
+
+        if let Ok(val) = std::env::var("DBSURVEYOR_IDLE_TIMEOUT_SECS") {
+            let secs: u64 = val.parse().map_err(|_| {
+                crate::error::DbSurveyorError::configuration(
+                    "invalid DBSURVEYOR_IDLE_TIMEOUT_SECS value",
+                )
+            })?;
+            config.idle_timeout = Some(Duration::from_secs(secs));
+        }
+
+        if let Ok(val) = std::env::var("DBSURVEYOR_MAX_LIFETIME_SECS") {
+            let secs: u64 = val.parse().map_err(|_| {
+                crate::error::DbSurveyorError::configuration(
+                    "invalid DBSURVEYOR_MAX_LIFETIME_SECS value",
+                )
+            })?;
+            config.max_lifetime = Some(Duration::from_secs(secs));
+        }
+
+        config.validate()?;
+        Ok(config)
+    }
+
     /// Builder method to set port.
     pub fn with_port(mut self, port: u16) -> Self {
         self.port = Some(port);
@@ -226,5 +287,92 @@ mod tests {
 
         // Should NOT contain username (security)
         assert!(!display.contains("testuser"));
+    }
+
+    #[test]
+    fn test_from_env_uses_defaults_when_no_env_vars() {
+        // Ensure env vars are not set (clear any that might exist)
+        // SAFETY: Test runs in isolation
+        unsafe {
+            std::env::remove_var("DBSURVEYOR_MAX_CONNECTIONS");
+            std::env::remove_var("DBSURVEYOR_MIN_IDLE_CONNECTIONS");
+            std::env::remove_var("DBSURVEYOR_CONNECT_TIMEOUT_SECS");
+            std::env::remove_var("DBSURVEYOR_IDLE_TIMEOUT_SECS");
+            std::env::remove_var("DBSURVEYOR_MAX_LIFETIME_SECS");
+        }
+
+        let config = ConnectionConfig::from_env().unwrap();
+        let default = ConnectionConfig::default();
+
+        assert_eq!(config.max_connections, default.max_connections);
+        assert_eq!(config.min_idle_connections, default.min_idle_connections);
+        assert_eq!(config.connect_timeout, default.connect_timeout);
+        assert_eq!(config.idle_timeout, default.idle_timeout);
+        assert_eq!(config.max_lifetime, default.max_lifetime);
+    }
+
+    #[test]
+    fn test_from_env_invalid_max_connections() {
+        // SAFETY: Test runs in isolation
+        unsafe {
+            std::env::set_var("DBSURVEYOR_MAX_CONNECTIONS", "not_a_number");
+        }
+
+        let result = ConnectionConfig::from_env();
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("DBSURVEYOR_MAX_CONNECTIONS"));
+
+        // Cleanup
+        unsafe {
+            std::env::remove_var("DBSURVEYOR_MAX_CONNECTIONS");
+        }
+    }
+
+    #[test]
+    fn test_from_env_validates_configuration() {
+        // Set an invalid configuration (max_connections = 0)
+        // SAFETY: Test runs in isolation
+        unsafe {
+            std::env::set_var("DBSURVEYOR_MAX_CONNECTIONS", "0");
+        }
+
+        let result = ConnectionConfig::from_env();
+        assert!(result.is_err());
+
+        // Cleanup
+        unsafe {
+            std::env::remove_var("DBSURVEYOR_MAX_CONNECTIONS");
+        }
+    }
+
+    #[test]
+    fn test_from_env_all_variables() {
+        // SAFETY: Test runs in isolation
+        unsafe {
+            std::env::set_var("DBSURVEYOR_MAX_CONNECTIONS", "25");
+            std::env::set_var("DBSURVEYOR_MIN_IDLE_CONNECTIONS", "5");
+            std::env::set_var("DBSURVEYOR_CONNECT_TIMEOUT_SECS", "45");
+            std::env::set_var("DBSURVEYOR_IDLE_TIMEOUT_SECS", "120");
+            std::env::set_var("DBSURVEYOR_MAX_LIFETIME_SECS", "1800");
+        }
+
+        let config = ConnectionConfig::from_env().unwrap();
+
+        assert_eq!(config.max_connections, 25);
+        assert_eq!(config.min_idle_connections, 5);
+        assert_eq!(config.connect_timeout, Duration::from_secs(45));
+        assert_eq!(config.idle_timeout, Some(Duration::from_secs(120)));
+        assert_eq!(config.max_lifetime, Some(Duration::from_secs(1800)));
+
+        // Cleanup
+        unsafe {
+            std::env::remove_var("DBSURVEYOR_MAX_CONNECTIONS");
+            std::env::remove_var("DBSURVEYOR_MIN_IDLE_CONNECTIONS");
+            std::env::remove_var("DBSURVEYOR_CONNECT_TIMEOUT_SECS");
+            std::env::remove_var("DBSURVEYOR_IDLE_TIMEOUT_SECS");
+            std::env::remove_var("DBSURVEYOR_MAX_LIFETIME_SECS");
+        }
     }
 }
