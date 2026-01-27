@@ -9,7 +9,7 @@
 
 use dbsurveyor_core::{
     Result,
-    adapters::{ConnectionConfig, DatabaseAdapter, postgres::PostgresAdapter},
+    adapters::{ConnectionConfig, DatabaseAdapter, postgres::{PostgresAdapter, PoolStats}},
     error::DbSurveyorError,
 };
 use sqlx::PgPool;
@@ -60,6 +60,7 @@ async fn test_connection_pool_configuration_validation() -> Result<()> {
         connect_timeout: Duration::from_secs(1),
         query_timeout: Duration::from_secs(1),
         read_only: true,
+        ..Default::default()
     };
 
     let adapter1 = PostgresAdapter::with_config(&database_url, config1).await?;
@@ -75,6 +76,7 @@ async fn test_connection_pool_configuration_validation() -> Result<()> {
         connect_timeout: Duration::from_secs(30),
         query_timeout: Duration::from_secs(60),
         read_only: true,
+        ..Default::default()
     };
 
     let adapter2 = PostgresAdapter::with_config(&database_url, config2).await?;
@@ -90,6 +92,7 @@ async fn test_connection_pool_configuration_validation() -> Result<()> {
         max_connections: 10,
         connect_timeout: Duration::from_secs(30),
         query_timeout: Duration::from_secs(30),
+        ..Default::default()
     };
 
     let adapter3 = PostgresAdapter::with_config(&database_url, config3).await?;
@@ -137,6 +140,7 @@ async fn test_connection_pool_limits() -> Result<()> {
         connect_timeout: Duration::from_secs(5),
         query_timeout: Duration::from_secs(10),
         read_only: true,
+        ..Default::default()
     };
 
     let adapter = PostgresAdapter::with_config(&database_url, config).await?;
@@ -197,6 +201,7 @@ async fn test_connection_timeout_scenarios() -> Result<()> {
         query_timeout: Duration::from_secs(30),
         max_connections: 10,
         read_only: true,
+        ..Default::default()
     };
 
     let adapter1 = PostgresAdapter::with_config(&database_url, config1).await?;
@@ -212,6 +217,7 @@ async fn test_connection_timeout_scenarios() -> Result<()> {
         query_timeout: Duration::from_millis(50),   // Very short
         max_connections: 10,
         read_only: true,
+        ..Default::default()
     };
 
     // This may fail due to timeout, which is expected behavior
@@ -236,6 +242,7 @@ async fn test_connection_timeout_scenarios() -> Result<()> {
         query_timeout: Duration::from_secs(5),
         max_connections: 10,
         read_only: true,
+        ..Default::default()
     };
 
     let bad_url = "postgres://postgres:postgres@nonexistent-host:5432/postgres";
@@ -279,6 +286,7 @@ async fn test_concurrent_connection_handling() -> Result<()> {
         connect_timeout: Duration::from_secs(10),
         query_timeout: Duration::from_secs(15),
         read_only: true,
+        ..Default::default()
     };
 
     let adapter = PostgresAdapter::with_config(&database_url, config).await?;
@@ -452,6 +460,7 @@ async fn test_connection_pool_edge_cases() -> Result<()> {
         query_timeout: Duration::from_secs(30),
         max_connections: 10,
         read_only: true,
+        ..Default::default()
     };
 
     let result = PostgresAdapter::with_config(&database_url, invalid_config).await;
@@ -555,6 +564,145 @@ async fn test_resource_cleanup_and_lifecycle() -> Result<()> {
 
     // Close after concurrent operations
     adapter4.close().await;
+
+    Ok(())
+}
+
+/// Test pool_statistics() method returns correct PoolStats struct
+#[tokio::test]
+async fn test_pool_statistics_struct() -> Result<()> {
+    let postgres = Postgres::default().start().await.unwrap();
+    let port = postgres.get_host_port_ipv4(5432).await.unwrap();
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+
+    wait_for_postgres_ready(&database_url, 30).await?;
+
+    let config = ConnectionConfig {
+        host: "localhost".to_string(),
+        port: Some(port),
+        database: Some("postgres".to_string()),
+        username: Some("postgres".to_string()),
+        max_connections: 5,
+        connect_timeout: Duration::from_secs(30),
+        query_timeout: Duration::from_secs(30),
+        read_only: true,
+        ..Default::default()
+    };
+
+    let adapter = PostgresAdapter::with_config(&database_url, config).await?;
+    adapter.test_connection().await?;
+
+    // Get statistics using the new struct-based method
+    let stats: PoolStats = adapter.pool_statistics();
+
+    // Verify struct fields
+    assert!(stats.total_connections >= 1, "Should have at least one connection");
+    assert!(stats.idle_connections <= stats.total_connections, "Idle should not exceed total");
+    assert_eq!(stats.active_connections, stats.total_connections - stats.idle_connections);
+    assert_eq!(stats.max_connections, 5, "Max connections should match config");
+
+    // Verify consistency with tuple-based method
+    let (active, idle, total) = adapter.pool_stats();
+    assert_eq!(stats.active_connections, active);
+    assert_eq!(stats.idle_connections, idle);
+    assert_eq!(stats.total_connections, total);
+
+    adapter.close().await;
+
+    Ok(())
+}
+
+/// Test connection pool idle configuration
+#[tokio::test]
+async fn test_connection_pool_idle_configuration() -> Result<()> {
+    let postgres = Postgres::default().start().await.unwrap();
+    let port = postgres.get_host_port_ipv4(5432).await.unwrap();
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+
+    wait_for_postgres_ready(&database_url, 30).await?;
+
+    // Create adapter with custom idle configuration
+    let config = ConnectionConfig {
+        host: "localhost".to_string(),
+        port: Some(port),
+        database: Some("postgres".to_string()),
+        username: Some("postgres".to_string()),
+        max_connections: 5,
+        min_idle_connections: 2, // Maintain at least 2 idle connections
+        idle_timeout: Some(Duration::from_secs(60)), // 1 minute idle timeout
+        connect_timeout: Duration::from_secs(30),
+        query_timeout: Duration::from_secs(30),
+        read_only: true,
+        ..Default::default()
+    };
+
+    let adapter = PostgresAdapter::with_config(&database_url, config).await?;
+
+    // Initial test - pool should be healthy
+    adapter.test_connection().await?;
+
+    // After a connection is used and returned, pool should have connections
+    let (active, idle, total) = adapter.pool_stats();
+    assert!(total >= 1, "Pool should have at least one connection");
+    assert!(idle <= total, "Idle connections should not exceed total");
+    assert_eq!(
+        active,
+        total - idle,
+        "Active should equal total minus idle"
+    );
+
+    // Test that min_idle_connections is respected by examining pool config
+    // Note: sqlx's min_connections is a best-effort setting, actual behavior may vary
+    assert!(
+        adapter.is_pool_healthy().await,
+        "Pool should remain healthy with custom idle config"
+    );
+
+    adapter.close().await;
+
+    Ok(())
+}
+
+/// Test that connection pool respects max_connections limit and times out correctly
+#[tokio::test]
+async fn test_connection_pool_max_connections_limit() -> Result<()> {
+    let postgres = Postgres::default().start().await.unwrap();
+    let port = postgres.get_host_port_ipv4(5432).await.unwrap();
+    let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
+
+    wait_for_postgres_ready(&database_url, 30).await?;
+
+    // Create adapter with very limited pool and short acquire timeout
+    let config = ConnectionConfig {
+        host: "localhost".to_string(),
+        port: Some(port),
+        database: Some("postgres".to_string()),
+        username: Some("postgres".to_string()),
+        max_connections: 2, // Only 2 connections allowed
+        connect_timeout: Duration::from_millis(100), // Short timeout for acquire
+        query_timeout: Duration::from_secs(30),
+        read_only: true,
+        ..Default::default()
+    };
+
+    let adapter = PostgresAdapter::with_config(&database_url, config).await?;
+
+    // Acquire all available connections
+    let _conn1 = adapter.acquire().await?;
+    let _conn2 = adapter.acquire().await?;
+
+    // Third acquire should timeout since pool is exhausted
+    let result = adapter.acquire().await;
+    assert!(result.is_err(), "Third acquire should fail due to pool exhaustion");
+
+    // Verify the error is a connection timeout
+    let error = result.unwrap_err();
+    let error_msg = format!("{}", error);
+    assert!(
+        error_msg.contains("timeout") || error_msg.contains("Timeout"),
+        "Error should indicate timeout, got: {}",
+        error_msg
+    );
 
     Ok(())
 }

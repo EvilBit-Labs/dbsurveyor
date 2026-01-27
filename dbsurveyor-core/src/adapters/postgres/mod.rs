@@ -24,6 +24,7 @@ use async_trait::async_trait;
 use sqlx::PgPool;
 
 // Re-export public items from submodules
+pub use connection::PoolStats;
 pub use type_mapping::{map_postgresql_type, map_referential_action};
 
 /// PostgreSQL database adapter with connection pooling and comprehensive schema collection

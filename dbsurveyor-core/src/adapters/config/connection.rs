@@ -33,12 +33,18 @@ pub struct ConnectionConfig {
     pub database: Option<String>,
     /// Optional username (password handled separately)
     pub username: Option<String>,
-    /// Connection timeout duration
+    /// Connection timeout duration (also used as acquire timeout)
     pub connect_timeout: Duration,
     /// Query timeout duration
     pub query_timeout: Duration,
     /// Maximum number of connections in pool
     pub max_connections: u32,
+    /// Minimum number of idle connections to maintain
+    pub min_idle_connections: u32,
+    /// Idle connection timeout duration
+    pub idle_timeout: Option<Duration>,
+    /// Maximum connection lifetime
+    pub max_lifetime: Option<Duration>,
     /// Whether to enforce read-only mode
     pub read_only: bool,
 }
@@ -53,6 +59,9 @@ impl Default for ConnectionConfig {
             connect_timeout: Duration::from_secs(30),
             query_timeout: Duration::from_secs(30),
             max_connections: 10,
+            min_idle_connections: 2,
+            idle_timeout: Some(Duration::from_secs(600)), // 10 minutes
+            max_lifetime: Some(Duration::from_secs(3600)), // 1 hour
             read_only: true,
         }
     }
@@ -105,13 +114,13 @@ impl ConnectionConfig {
             ));
         }
 
-        if self.connect_timeout.as_secs() == 0 {
+        if self.connect_timeout.is_zero() {
             return Err(crate::error::DbSurveyorError::configuration(
                 "connect_timeout must be greater than 0",
             ));
         }
 
-        if self.query_timeout.as_secs() == 0 {
+        if self.query_timeout.is_zero() {
             return Err(crate::error::DbSurveyorError::configuration(
                 "query_timeout must be greater than 0",
             ));

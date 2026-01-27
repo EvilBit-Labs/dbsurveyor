@@ -57,6 +57,13 @@ pub enum DbSurveyorError {
         database_type: String,
     },
 
+    /// Connection acquisition timed out
+    #[error("Connection timeout: {context} (timeout: {timeout:?})")]
+    ConnectionTimeout {
+        context: String,
+        timeout: std::time::Duration,
+    },
+
     /// I/O operation failed
     #[error("I/O operation failed: {context}")]
     Io {
@@ -192,6 +199,14 @@ impl DbSurveyorError {
         Self::UnsupportedFeature {
             feature: feature.into(),
             database_type: database_type.into(),
+        }
+    }
+
+    /// Creates a connection timeout error
+    pub fn connection_timeout(context: impl Into<String>, timeout: std::time::Duration) -> Self {
+        Self::ConnectionTimeout {
+            context: context.into(),
+            timeout,
         }
     }
 }

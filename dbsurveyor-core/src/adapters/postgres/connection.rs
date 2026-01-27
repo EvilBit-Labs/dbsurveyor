@@ -8,9 +8,24 @@
 
 use super::{ConnectionConfig, PostgresAdapter};
 use crate::Result;
+use sqlx::pool::PoolConnection;
+use sqlx::postgres::Postgres;
 use sqlx::PgPool;
 use std::time::Duration;
 use url::Url;
+
+/// Pool statistics for monitoring connection pool health and usage
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PoolStats {
+    /// Number of idle connections ready to be used
+    pub idle_connections: u32,
+    /// Number of connections currently in use
+    pub active_connections: u32,
+    /// Total number of connections in the pool
+    pub total_connections: u32,
+    /// Maximum allowed connections (from configuration)
+    pub max_connections: u32,
+}
 
 impl PostgresAdapter {
     /// Creates a new PostgreSQL adapter with connection pooling
@@ -68,12 +83,26 @@ impl PostgresAdapter {
     /// # Returns
     /// Tuple of (active_connections, idle_connections, total_connections)
     pub fn pool_stats(&self) -> (u32, u32, u32) {
+        let stats = self.pool_statistics();
+        (stats.active_connections, stats.idle_connections, stats.total_connections)
+    }
+
+    /// Gets detailed connection pool statistics for monitoring
+    ///
+    /// # Returns
+    /// A `PoolStats` struct with detailed pool information
+    pub fn pool_statistics(&self) -> PoolStats {
         let size = self.pool.size();
         let idle = self.pool.num_idle();
         // Convert to u32 safely, using saturating conversion to prevent overflow
         let idle_u32 = idle.min(u32::MAX as usize) as u32;
         let size_u32 = size;
-        (size_u32.saturating_sub(idle_u32), idle_u32, size_u32)
+        PoolStats {
+            idle_connections: idle_u32,
+            active_connections: size_u32.saturating_sub(idle_u32),
+            total_connections: size_u32,
+            max_connections: self.config.max_connections,
+        }
     }
 
     /// Closes the connection pool gracefully
@@ -97,6 +126,32 @@ impl PostgresAdapter {
             Ok(result) => result == 1,
             Err(_) => false,
         }
+    }
+
+    /// Acquire a connection from the pool
+    ///
+    /// Returns a pooled connection that will be returned to the pool on drop.
+    /// Respects the configured acquire_timeout (connect_timeout).
+    ///
+    /// # Returns
+    /// A pooled connection that can be used for database operations.
+    /// The connection is automatically returned to the pool when dropped.
+    ///
+    /// # Errors
+    /// Returns `DbSurveyorError::ConnectionTimeout` if the acquire times out,
+    /// or `DbSurveyorError::Connection` for other connection failures.
+    pub async fn acquire(&self) -> Result<PoolConnection<Postgres>> {
+        self.pool.acquire().await.map_err(|e| {
+            let error_str = e.to_string();
+            if error_str.contains("timed out") || error_str.contains("Timed out") {
+                crate::error::DbSurveyorError::connection_timeout(
+                    "connection pool",
+                    self.config.connect_timeout,
+                )
+            } else {
+                crate::error::DbSurveyorError::connection_failed(e)
+            }
+        })
     }
 
     /// Parses connection string to extract configuration parameters
@@ -254,10 +309,10 @@ impl PostgresAdapter {
     ///
     /// # Connection Pool Configuration
     /// - Max connections: Configurable (default: 10, max: 100)
-    /// - Min connections: 2 (for efficiency)
-    /// - Acquire timeout: Configurable (default: 30s)
-    /// - Idle timeout: 10 minutes
-    /// - Max lifetime: 1 hour
+    /// - Min connections: Configurable (default: 2)
+    /// - Acquire timeout: Configurable (default: 30s, uses connect_timeout)
+    /// - Idle timeout: Configurable (default: 10 minutes)
+    /// - Max lifetime: Configurable (default: 1 hour)
     /// - Connection validation: Enabled
     /// - Session settings: Applied to every new connection
     pub(crate) async fn create_connection_pool(
@@ -276,11 +331,11 @@ impl PostgresAdapter {
         let pool = sqlx::postgres::PgPoolOptions::new()
             // Connection limits with security constraints
             .max_connections(config.max_connections.min(100)) // Cap at 100 for safety
-            .min_connections(2) // Keep minimum connections for efficiency
+            .min_connections(config.min_idle_connections) // Configurable minimum idle connections
             // Timeout configuration for security
             .acquire_timeout(config.connect_timeout)
-            .idle_timeout(Some(Duration::from_secs(600))) // 10 minutes idle timeout
-            .max_lifetime(Some(Duration::from_secs(3600))) // 1 hour max lifetime
+            .idle_timeout(config.idle_timeout) // Configurable idle timeout
+            .max_lifetime(config.max_lifetime) // Configurable max lifetime
             // Connection validation and health checks
             .test_before_acquire(true) // Validate connections before use
             // Apply session security settings to EVERY new connection

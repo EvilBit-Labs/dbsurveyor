@@ -77,6 +77,7 @@ async fn test_postgres_connection_pooling_configurations() -> Result<()> {
         query_timeout: Duration::from_secs(15),
         max_connections: 5,
         read_only: true,
+        ..Default::default()
     };
 
     let adapter2 = PostgresAdapter::with_config(&base_url, custom_config).await?;
@@ -598,6 +599,7 @@ async fn test_postgres_timeout_handling() -> Result<()> {
         query_timeout: Duration::from_millis(100), // Very short query timeout
         max_connections: 10,
         read_only: true,
+        ..Default::default()
     };
 
     // This might succeed or fail depending on timing, but should handle gracefully
@@ -619,6 +621,7 @@ async fn test_postgres_timeout_handling() -> Result<()> {
         query_timeout: Duration::from_secs(10),
         max_connections: 10,
         read_only: true,
+        ..Default::default()
     };
 
     let adapter = PostgresAdapter::with_config(&database_url, config).await?;
