@@ -17,9 +17,12 @@
 //! - Uses parameterized queries to prevent SQL injection
 //! - Respects connection pool timeout settings
 
+use crate::adapters::config::SamplingConfig;
 use crate::error::DbSurveyorError;
-use crate::models::{OrderingStrategy, SortDirection};
+use crate::models::{OrderingStrategy, SamplingStrategy, SortDirection, TableSample};
+use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
+use std::time::Duration;
 
 /// Common timestamp column names used for ordering by "most recent"
 const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
@@ -335,6 +338,156 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
             "ORDER BY RANDOM()".to_string()
         }
     }
+}
+
+/// Sample data from a table with rate limiting and intelligent ordering.
+///
+/// This function samples rows from a table using the detected ordering strategy
+/// to provide meaningful samples (e.g., most recent records). Rate limiting is
+/// applied to prevent overwhelming the database with sampling queries.
+///
+/// # Arguments
+///
+/// * `pool` - PostgreSQL connection pool
+/// * `schema` - Schema name (e.g., "public")
+/// * `table` - Table name
+/// * `config` - Sampling configuration including sample size and throttle settings
+///
+/// # Returns
+///
+/// Returns a `TableSample` containing the sampled rows as JSON, metadata about
+/// the sampling operation, and any warnings encountered.
+///
+/// # Ordering Strategy
+///
+/// The function automatically detects the best ordering strategy:
+/// 1. Primary key - Most reliable for consistent ordering (descending = most recent)
+/// 2. Timestamp columns - Good for "most recent" semantics
+/// 3. Auto-increment columns - Reliable insertion order
+/// 4. Random sampling - Fallback when no reliable ordering exists
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let config = SamplingConfig::new()
+///     .with_sample_size(10)
+///     .with_throttle_ms(100);
+///
+/// let sample = sample_table(&pool, "public", "users", &config).await?;
+/// println!("Sampled {} rows out of ~{}", sample.rows.len(), sample.total_rows.unwrap_or(0));
+/// ```
+pub async fn sample_table(
+    pool: &PgPool,
+    schema: &str,
+    table: &str,
+    config: &SamplingConfig,
+) -> Result<TableSample, DbSurveyorError> {
+    let mut warnings = Vec::new();
+
+    // Apply rate limiting delay if configured
+    if let Some(throttle_ms) = config.throttle_ms {
+        let delay = Duration::from_millis(throttle_ms);
+        tokio::time::sleep(delay).await;
+    }
+
+    // Detect ordering strategy for this table
+    let strategy = detect_ordering_strategy(pool, schema, table).await?;
+
+    // Determine sampling strategy and add warnings for unordered tables
+    let (sampling_strategy, is_random) = match &strategy {
+        OrderingStrategy::Unordered => {
+            warnings.push(
+                "No reliable ordering found - using random sampling which may not be reproducible"
+                    .to_string(),
+            );
+            (
+                SamplingStrategy::Random {
+                    limit: config.sample_size,
+                },
+                true,
+            )
+        }
+        _ => (
+            SamplingStrategy::MostRecent {
+                limit: config.sample_size,
+            },
+            false,
+        ),
+    };
+
+    // Get total row count estimate from pg_class (fast approximate count)
+    let count_query = r#"
+        SELECT reltuples::bigint AS estimated_count
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = $1 AND c.relname = $2
+    "#;
+
+    let total_rows: Option<i64> = sqlx::query_scalar(count_query)
+        .bind(schema)
+        .bind(table)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| {
+            DbSurveyorError::collection_failed(
+                format!("Failed to get row count for table '{}.{}'", schema, table),
+                e,
+            )
+        })?;
+
+    // Build sample query with ordering
+    // Use row_to_json to convert rows to JSON for easy serialization
+    let order_clause = generate_order_by_clause(&strategy, true); // DESC for most recent
+
+    // Note: We use row_to_json(t.*) to get all columns as a JSON object
+    let sample_query = format!(
+        r#"SELECT row_to_json(t.*) AS row_data FROM "{}"."{}" t {} LIMIT $1"#,
+        schema, table, order_clause
+    );
+
+    tracing::debug!(
+        "Sampling {}.{} with query: {} (limit: {})",
+        schema,
+        table,
+        sample_query,
+        config.sample_size
+    );
+
+    // Execute sample query
+    let rows: Vec<JsonValue> = sqlx::query_scalar(&sample_query)
+        .bind(config.sample_size as i64)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| {
+            DbSurveyorError::collection_failed(
+                format!("Failed to sample data from table '{}.{}'", schema, table),
+                e,
+            )
+        })?;
+
+    let actual_sample_size = rows.len() as u32;
+
+    // Add warning if we got fewer rows than requested (table has fewer rows)
+    if actual_sample_size < config.sample_size && !is_random {
+        tracing::debug!(
+            "Table {}.{} has only {} rows, less than requested sample size of {}",
+            schema,
+            table,
+            actual_sample_size,
+            config.sample_size
+        );
+    }
+
+    Ok(TableSample {
+        table_name: table.to_string(),
+        schema_name: Some(schema.to_string()),
+        rows,
+        sample_size: actual_sample_size,
+        total_rows: total_rows.map(|t| t.max(0) as u64),
+        sampling_strategy,
+        collected_at: chrono::Utc::now(),
+        warnings,
+    })
 }
 
 #[cfg(test)]

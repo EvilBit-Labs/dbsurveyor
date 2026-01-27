@@ -41,6 +41,9 @@ sqlx = { workspace = true, optional = true, default-features = false }
 tiberius = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
 
+# Async runtime (required for rate limiting in sampling)
+tokio = { workspace = true }
+
 # Security dependencies (feature-gated)
 aes-gcm = { workspace = true, optional = true }
 argon2 = { workspace = true, optional = true }

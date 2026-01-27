@@ -27,7 +27,7 @@ use sqlx::PgPool;
 
 // Re-export public items from submodules
 pub use connection::PoolStats;
-pub use sampling::{detect_ordering_strategy, generate_order_by_clause};
+pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
 pub use type_mapping::{map_postgresql_type, map_referential_action};
 
 /// PostgreSQL database adapter with connection pooling and comprehensive schema collection
@@ -159,5 +159,54 @@ impl PostgresAdapter {
     /// Returns a SQL ORDER BY clause string.
     pub fn generate_order_by(&self, strategy: &OrderingStrategy, descending: bool) -> String {
         sampling::generate_order_by_clause(strategy, descending)
+    }
+
+    /// Sample data from a table with rate limiting and intelligent ordering.
+    ///
+    /// This method samples rows from a table using automatically detected ordering
+    /// to provide meaningful samples (e.g., most recent records). Rate limiting
+    /// prevents overwhelming the database with sampling queries.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema` - Schema name (e.g., "public")
+    /// * `table` - Table name
+    /// * `config` - Sampling configuration including sample size and throttle settings
+    ///
+    /// # Returns
+    ///
+    /// Returns a `TableSample` containing:
+    /// - Sampled rows as JSON objects
+    /// - Metadata about the table and sampling operation
+    /// - Warnings (e.g., if no reliable ordering was found)
+    ///
+    /// # Ordering Strategy
+    ///
+    /// The function automatically detects the best ordering:
+    /// 1. **Primary key** - Most reliable, uses DESC for most recent
+    /// 2. **Timestamp columns** - Good for "most recent" semantics
+    /// 3. **Auto-increment** - Reliable insertion order
+    /// 4. **Random** - Fallback when no ordering exists (with warning)
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let adapter = PostgresAdapter::new(&database_url).await?;
+    /// let config = SamplingConfig::new()
+    ///     .with_sample_size(10)
+    ///     .with_throttle_ms(100);
+    ///
+    /// let sample = adapter.sample_table("public", "users", &config).await?;
+    /// for row in &sample.rows {
+    ///     println!("{}", row);
+    /// }
+    /// ```
+    pub async fn sample_table(
+        &self,
+        schema: &str,
+        table: &str,
+        config: &super::SamplingConfig,
+    ) -> Result<crate::models::TableSample> {
+        sampling::sample_table(&self.pool, schema, table, config).await
     }
 }
