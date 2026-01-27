@@ -9,7 +9,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.87"
+rust-version = "1.91"
 authors = ["UncleSp1d3r"]
 license = "Apache-2.0"
 repository = "https://github.com/EvilBit-Labs/dbsurveyor"
@@ -25,48 +25,47 @@ categories = ["command-line-utilities", "database"]
 
 [workspace.dependencies]
 # Core dependencies
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-thiserror = "2.0.16"
-anyhow = "1.0"
-async-trait = "0.1"
-url = "2.5"
-uuid = { version = "1.0", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
+thiserror = "2.0.18"
+anyhow = "1.0.100"
+async-trait = "0.1.89"
+url = "2.5.8"
+uuid = { version = "1.20.0", features = ["v4", "serde"] }
+chrono = { version = "0.4.43", features = ["serde"] }
 
 # CLI dependencies
-clap = { version = "4.5.45", features = ["derive", "env"] }
+clap = { version = "4.5.54", features = ["derive", "env"] }
 
 # Database dependencies (feature-gated)
-sqlx = { version = "0.8.1", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid", "migrate"] }
-tiberius = { version = "0.12", features = ["tds73", "sql-browser-tokio", "bigdecimal", "time", "chrono"] }
-mongodb = "3.2.5"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid", "migrate"] }
+tiberius = { version = "0.12.3", features = ["tds73", "sql-browser-tokio", "bigdecimal", "time", "chrono"] }
+mongodb = "3.5.0"
 
 # Security dependencies
-aes-gcm = "0.10"
+aes-gcm = "0.10.3"
 argon2 = "0.5.3"
-password-hash = "0.5"
-zeroize = { version = "1.7", features = ["derive"] }
+password-hash = "0.5.0"
+zeroize = { version = "1.8.2", features = ["derive"] }
 rand = "0.9.2"
-rpassword = "7.3"
-base64 = "0.22"
+rpassword = "7.4.0"
+base64 = "0.22.1"
 
 # Compression
-zstd = "0.13"
+zstd = "0.13.3"
 
 # Template engine
-askama = { version = "0.14.0", features = ["serde_json"] }
+askama = { version = "0.15.1", features = ["serde_json"] }
 
 # Testing
-testcontainers-modules = { version = "0.13.0", features = ["postgres", "blocking"] }
-criterion = "0.7.0"
+testcontainers-modules = { version = "0.14.0", features = ["postgres", "blocking"] }
+criterion = "0.8.1"
 
 # Internal workspace dependencies
 dbsurveyor-core = { path = "dbsurveyor-core" }
-
 
 
 [workspace.lints.rust]
