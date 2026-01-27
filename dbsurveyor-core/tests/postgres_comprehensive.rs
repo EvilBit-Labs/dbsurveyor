@@ -650,8 +650,8 @@ async fn test_postgres_credential_sanitization() {
             "postgres://localhost/db", // No user or password
             "postgres://localhost/db",
         ),
-        ("invalid-url", "invalid-url"), // Invalid URL
-        ("", ""),                       // Empty string
+        ("invalid-url", "<redacted>"), // Invalid URL - fully redacted for security
+        ("", "<redacted>"),            // Empty string - fully redacted for security
     ];
 
     for (input, expected) in test_cases {

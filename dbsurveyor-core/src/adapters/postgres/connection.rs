@@ -207,27 +207,30 @@ impl PostgresAdapter {
         for (key, value) in url.query_pairs() {
             match key.as_ref() {
                 "connect_timeout" => {
-                    if let Ok(timeout_secs) = value.parse::<u64>() {
-                        if timeout_secs > 0 && timeout_secs <= 300 {
-                            // Max 5 minutes
-                            config.connect_timeout = Duration::from_secs(timeout_secs);
-                        }
+                    if let Ok(timeout_secs) = value.parse::<u64>()
+                        && timeout_secs > 0
+                        && timeout_secs <= 300
+                    {
+                        // Max 5 minutes
+                        config.connect_timeout = Duration::from_secs(timeout_secs);
                     }
                 }
                 "statement_timeout" => {
-                    if let Ok(timeout_ms) = value.parse::<u64>() {
-                        if timeout_ms > 0 && timeout_ms <= 300_000 {
-                            // Max 5 minutes
-                            config.query_timeout = Duration::from_millis(timeout_ms);
-                        }
+                    if let Ok(timeout_ms) = value.parse::<u64>()
+                        && timeout_ms > 0
+                        && timeout_ms <= 300_000
+                    {
+                        // Max 5 minutes
+                        config.query_timeout = Duration::from_millis(timeout_ms);
                     }
                 }
                 "pool_max_conns" => {
-                    if let Ok(max_conns) = value.parse::<u32>() {
-                        if max_conns > 0 && max_conns <= 100 {
-                            // Safety limit
-                            config.max_connections = max_conns;
-                        }
+                    if let Ok(max_conns) = value.parse::<u32>()
+                        && max_conns > 0
+                        && max_conns <= 100
+                    {
+                        // Safety limit
+                        config.max_connections = max_conns;
                     }
                 }
                 _ => {} // Ignore other parameters
@@ -372,13 +375,13 @@ impl PostgresAdapter {
                 }
                 // Validate statement timeout if specified
                 "statement_timeout" => {
-                    if let Ok(timeout_ms) = value.parse::<u64>() {
-                        if timeout_ms > 300_000 {
-                            // 5 minutes max
-                            return Err(crate::error::DbSurveyorError::configuration(
-                                "statement_timeout should not exceed 300 seconds for security",
-                            ));
-                        }
+                    if let Ok(timeout_ms) = value.parse::<u64>()
+                        && timeout_ms > 300_000
+                    {
+                        // 5 minutes max
+                        return Err(crate::error::DbSurveyorError::configuration(
+                            "statement_timeout should not exceed 300 seconds for security",
+                        ));
                     }
                 }
                 _ => {} // Other parameters are acceptable

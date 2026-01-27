@@ -153,10 +153,10 @@ impl MySqlAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        if let Some(row) = row {
-            if let Ok(count) = row.try_get::<Option<u64>, _>(0) {
-                return Ok(count);
-            }
+        if let Some(row) = row
+            && let Ok(count) = row.try_get::<Option<u64>, _>(0)
+        {
+            return Ok(count);
         }
 
         Ok(None)

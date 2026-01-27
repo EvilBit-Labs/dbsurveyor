@@ -85,12 +85,12 @@ impl ConnectionConfig {
             ));
         }
 
-        if let Some(port) = self.port {
-            if port == 0 {
-                return Err(crate::error::DbSurveyorError::configuration(
-                    "port must be greater than 0",
-                ));
-            }
+        if let Some(port) = self.port
+            && port == 0
+        {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "port must be greater than 0",
+            ));
         }
 
         if self.max_connections == 0 {

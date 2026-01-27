@@ -90,7 +90,7 @@ async fn test_postgres_database_configurations() -> Result<()> {
     assert!(schema1.database_info.encoding.is_some());
 
     // Test 2: Connection with SSL disabled
-    let ssl_disabled_url = format!("{}?sslmode=disable", format!("{}/postgres", base_url));
+    let ssl_disabled_url = format!("{}/postgres?sslmode=disable", base_url);
     let adapter2 = PostgresAdapter::new(&ssl_disabled_url).await?;
     let schema2 = adapter2.collect_schema().await?;
 
@@ -98,10 +98,7 @@ async fn test_postgres_database_configurations() -> Result<()> {
     assert!(schema2.database_info.encoding.is_some());
 
     // Test 3: Connection with application name
-    let app_name_url = format!(
-        "{}?application_name=dbsurveyor_test",
-        format!("{}/postgres", base_url)
-    );
+    let app_name_url = format!("{}/postgres?application_name=dbsurveyor_test", base_url);
     let adapter3 = PostgresAdapter::new(&app_name_url).await?;
     let schema3 = adapter3.collect_schema().await?;
 

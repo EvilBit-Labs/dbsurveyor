@@ -153,13 +153,12 @@ impl PostgresAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        if let Some(row) = row {
-            if let Ok(count) = row.try_get::<i64, _>(0) {
-                if count >= 0 {
-                    #[allow(clippy::cast_sign_loss)]
-                    return Ok(Some(count as u64));
-                }
-            }
+        if let Some(row) = row
+            && let Ok(count) = row.try_get::<i64, _>(0)
+            && count >= 0
+        {
+            #[allow(clippy::cast_sign_loss)]
+            return Ok(Some(count as u64));
         }
 
         Ok(None)
