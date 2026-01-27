@@ -5,6 +5,7 @@
 //! - `type_mapping`: PostgreSQL to unified data type conversion
 //! - `schema_collection`: Table, column, constraint, and index collection
 //! - `sampling`: Data sampling utilities and ordering strategy detection
+//! - `enumeration`: Database enumeration for multi-database collection
 //!
 //! # Security Guarantees
 //! - All operations are read-only (SELECT/DESCRIBE only)
@@ -13,6 +14,7 @@
 //! - Connection pooling with configurable limits
 
 mod connection;
+mod enumeration;
 mod sampling;
 mod schema_collection;
 mod type_mapping;
@@ -27,6 +29,10 @@ use sqlx::PgPool;
 
 // Re-export public items from submodules
 pub use connection::PoolStats;
+pub use enumeration::{
+    EnumeratedDatabase, ListDatabasesOptions, SYSTEM_DATABASES, list_accessible_databases,
+    list_databases,
+};
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
 pub use type_mapping::{map_postgresql_type, map_referential_action};
 
@@ -208,5 +214,82 @@ impl PostgresAdapter {
         config: &super::SamplingConfig,
     ) -> Result<crate::models::TableSample> {
         sampling::sample_table(&self.pool, schema, table, config).await
+    }
+}
+
+// Database enumeration methods for multi-database collection
+impl PostgresAdapter {
+    /// List all databases on the PostgreSQL server, excluding system databases.
+    ///
+    /// This method queries `pg_database` to enumerate all databases that the
+    /// current user has access to. System databases (template0, template1) are
+    /// excluded by default.
+    ///
+    /// # Returns
+    ///
+    /// A vector of `EnumeratedDatabase` structs containing metadata about each
+    /// database including name, owner, encoding, size, and accessibility.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let adapter = PostgresAdapter::new(&database_url).await?;
+    /// let databases = adapter.list_databases().await?;
+    /// for db in databases {
+    ///     println!("Database: {} (accessible: {})", db.name, db.is_accessible);
+    /// }
+    /// ```
+    pub async fn list_databases(&self) -> Result<Vec<EnumeratedDatabase>> {
+        enumeration::list_databases(&self.pool, false).await
+    }
+
+    /// List all databases on the PostgreSQL server with configurable options.
+    ///
+    /// This method allows fine-grained control over which databases are included
+    /// in the listing.
+    ///
+    /// # Arguments
+    ///
+    /// * `include_system` - If true, includes system databases (template0, template1)
+    ///
+    /// # Returns
+    ///
+    /// A vector of `EnumeratedDatabase` structs.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let adapter = PostgresAdapter::new(&database_url).await?;
+    ///
+    /// // Include system databases
+    /// let all_dbs = adapter.list_databases_with_options(true).await?;
+    ///
+    /// // Exclude system databases (same as list_databases())
+    /// let user_dbs = adapter.list_databases_with_options(false).await?;
+    /// ```
+    pub async fn list_databases_with_options(
+        &self,
+        include_system: bool,
+    ) -> Result<Vec<EnumeratedDatabase>> {
+        enumeration::list_databases(&self.pool, include_system).await
+    }
+
+    /// List only accessible databases on the PostgreSQL server.
+    ///
+    /// This is a convenience method that filters out databases that the
+    /// current user cannot connect to.
+    ///
+    /// # Arguments
+    ///
+    /// * `include_system` - If true, includes accessible system databases
+    ///
+    /// # Returns
+    ///
+    /// A vector of `EnumeratedDatabase` structs for accessible databases only.
+    pub async fn list_accessible_databases(
+        &self,
+        include_system: bool,
+    ) -> Result<Vec<EnumeratedDatabase>> {
+        enumeration::list_accessible_databases(&self.pool, include_system).await
     }
 }
