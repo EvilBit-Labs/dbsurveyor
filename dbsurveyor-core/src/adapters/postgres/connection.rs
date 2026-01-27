@@ -52,7 +52,11 @@ impl PostgresAdapter {
         // Create connection pool with security settings
         let pool = Self::create_connection_pool(connection_string, &config).await?;
 
-        let adapter = Self { pool, config };
+        let adapter = Self {
+            pool,
+            config,
+            connection_url: connection_string.to_string(),
+        };
         Ok(adapter)
     }
 
@@ -74,7 +78,11 @@ impl PostgresAdapter {
         // Create connection pool
         let pool = Self::create_connection_pool(connection_string, &config).await?;
 
-        let adapter = Self { pool, config };
+        let adapter = Self {
+            pool,
+            config,
+            connection_url: connection_string.to_string(),
+        };
         Ok(adapter)
     }
 

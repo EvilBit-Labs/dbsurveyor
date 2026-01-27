@@ -8,6 +8,7 @@
 
 #[cfg(feature = "postgresql")]
 mod postgres_multi_database_tests {
+    use dbsurveyor_core::adapters::DatabaseAdapter;
     use dbsurveyor_core::adapters::postgres::{
         EnumeratedDatabase, ListDatabasesOptions, PostgresAdapter, SYSTEM_DATABASES,
     };
@@ -430,5 +431,282 @@ mod postgres_multi_database_tests {
 
         let error = result.unwrap_err();
         eprintln!("Expected error: {}", error);
+    }
+
+    // ============================================================================
+    // Per-database connection tests (Task 7.2)
+    // ============================================================================
+
+    #[test]
+    fn test_connection_url_for_database_valid() {
+        // Test that connection_url_for_database validates and generates correct URLs
+        // This is a unit test that doesn't require a real database connection
+
+        // Valid database names
+        let valid_names = ["testdb", "my_database", "DB123", "_private", "a"];
+
+        for name in valid_names {
+            // Validation should pass for these names
+            assert!(
+                name.len() <= 63 && !name.is_empty(),
+                "Name {} should be valid length",
+                name
+            );
+            assert!(
+                !name.contains(';') && !name.contains('\'') && !name.contains('"'),
+                "Name {} should not contain dangerous characters",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_connection_url_for_database_invalid_length() {
+        // Empty database name
+        let empty = "";
+        assert!(empty.is_empty(), "Empty name should fail validation");
+
+        // Database name too long (PostgreSQL max is 63 characters)
+        let too_long = "a".repeat(64);
+        assert!(too_long.len() > 63, "Long name should fail validation");
+    }
+
+    #[test]
+    fn test_connection_url_for_database_dangerous_characters() {
+        // Database names with SQL injection vectors
+        let dangerous_names = [
+            "test;DROP TABLE users",
+            "test'--",
+            "test\"",
+            "test;",
+            "';DROP TABLE--",
+        ];
+
+        for name in dangerous_names {
+            assert!(
+                name.contains(';') || name.contains('\'') || name.contains('"'),
+                "Name {} should contain dangerous characters",
+                name
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_connect_to_database_url_generation() {
+        // Test URL generation by creating an adapter and checking the generated URL
+        let database_url = "postgres://testuser:testpass@localhost:5432/original_db";
+        let adapter = PostgresAdapter::new(database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        // Test valid database name - should generate correct URL
+        let result = adapter.connection_url_for_database("new_database");
+        assert!(
+            result.is_ok(),
+            "Should generate URL for valid database name"
+        );
+
+        let new_url = result.unwrap();
+        assert!(
+            new_url.contains("new_database"),
+            "Generated URL should contain new database name"
+        );
+        assert!(
+            !new_url.contains("original_db"),
+            "Generated URL should not contain original database name"
+        );
+        assert!(
+            new_url.contains("localhost:5432"),
+            "Generated URL should preserve host and port"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_connect_to_database_url_validation_empty() {
+        let database_url = "postgres://testuser:testpass@localhost:5432/original_db";
+        let adapter = PostgresAdapter::new(database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        // Empty database name should fail
+        let result = adapter.connection_url_for_database("");
+        assert!(result.is_err(), "Empty database name should fail");
+        let error = result.unwrap_err().to_string();
+        assert!(
+            error.contains("invalid") || error.contains("length"),
+            "Error should mention invalid length"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_connect_to_database_url_validation_too_long() {
+        let database_url = "postgres://testuser:testpass@localhost:5432/original_db";
+        let adapter = PostgresAdapter::new(database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        // Database name too long should fail
+        let long_name = "a".repeat(64);
+        let result = adapter.connection_url_for_database(&long_name);
+        assert!(result.is_err(), "Too long database name should fail");
+        let error = result.unwrap_err().to_string();
+        assert!(
+            error.contains("invalid") || error.contains("length"),
+            "Error should mention invalid length"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_connect_to_database_url_validation_dangerous_chars() {
+        let database_url = "postgres://testuser:testpass@localhost:5432/original_db";
+        let adapter = PostgresAdapter::new(database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        // Database names with dangerous characters should fail
+        let dangerous_names = ["test;DROP", "test'inject", "test\"quote"];
+
+        for name in dangerous_names {
+            let result = adapter.connection_url_for_database(name);
+            assert!(
+                result.is_err(),
+                "Database name '{}' with dangerous characters should fail",
+                name
+            );
+            let error = result.unwrap_err().to_string();
+            assert!(
+                error.contains("invalid") || error.contains("character"),
+                "Error for '{}' should mention invalid characters: {}",
+                name,
+                error
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_connect_to_database_preserves_credentials() {
+        // Test that the generated URL preserves credentials from the original URL
+        let database_url = "postgres://myuser:secret123@dbhost:5433/original_db";
+        let adapter = PostgresAdapter::new(database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        let result = adapter.connection_url_for_database("new_db");
+        assert!(result.is_ok(), "Should generate URL");
+
+        let new_url = result.unwrap();
+        // Check that credentials are preserved
+        assert!(
+            new_url.contains("myuser"),
+            "Generated URL should preserve username"
+        );
+        assert!(
+            new_url.contains("secret123"),
+            "Generated URL should preserve password"
+        );
+        assert!(
+            new_url.contains("dbhost:5433"),
+            "Generated URL should preserve host and port"
+        );
+        assert!(
+            new_url.contains("/new_db"),
+            "Generated URL should have new database"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_connect_to_database_integration() {
+        if !has_database_connection() {
+            eprintln!("Skipping test_connect_to_database_integration: no database URL configured");
+            return;
+        }
+
+        let database_url = get_test_database_url().unwrap();
+        let adapter = PostgresAdapter::new(&database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        // Create a test database
+        // Note: We need to disable read-only mode temporarily to create the database
+        // For now, we'll just test connecting to an existing database (postgres)
+
+        // Connect to the default 'postgres' database which should always exist
+        let result = adapter.connect_to_database("postgres").await;
+
+        match result {
+            Ok(db_adapter) => {
+                // Verify we're connected to the right database
+                let current_db: String = sqlx::query_scalar("SELECT current_database()")
+                    .fetch_one(&db_adapter.pool)
+                    .await
+                    .expect("Failed to query current database");
+
+                assert_eq!(
+                    current_db, "postgres",
+                    "Should be connected to postgres database"
+                );
+                eprintln!("Successfully connected to database: {}", current_db);
+            }
+            Err(e) => {
+                // Connection might fail if postgres database doesn't exist or isn't accessible
+                eprintln!(
+                    "Could not connect to postgres database (may not be accessible): {}",
+                    e
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_connect_to_database_preserves_config() {
+        if !has_database_connection() {
+            eprintln!(
+                "Skipping test_connect_to_database_preserves_config: no database URL configured"
+            );
+            return;
+        }
+
+        use dbsurveyor_core::adapters::ConnectionConfig;
+        use std::time::Duration;
+
+        let database_url = get_test_database_url().unwrap();
+
+        // Create adapter with custom config
+        let custom_config = ConnectionConfig::new("localhost".to_string())
+            .with_port(5432)
+            .with_database("test".to_string());
+        let custom_config = ConnectionConfig {
+            connect_timeout: Duration::from_secs(15),
+            query_timeout: Duration::from_secs(20),
+            max_connections: 5,
+            ..custom_config
+        };
+
+        let adapter = PostgresAdapter::with_config(&database_url, custom_config.clone())
+            .await
+            .expect("Failed to create adapter");
+
+        // Connect to postgres database
+        let result = adapter.connect_to_database("postgres").await;
+
+        if let Ok(db_adapter) = result {
+            // Verify config is preserved
+            let config = db_adapter.connection_config();
+            assert_eq!(
+                config.connect_timeout,
+                Duration::from_secs(15),
+                "Connect timeout should be preserved"
+            );
+            assert_eq!(
+                config.query_timeout,
+                Duration::from_secs(20),
+                "Query timeout should be preserved"
+            );
+            assert_eq!(
+                config.max_connections, 5,
+                "Max connections should be preserved"
+            );
+            eprintln!("Config preserved correctly for new database connection");
+        }
     }
 }

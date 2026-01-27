@@ -38,8 +38,13 @@ pub use type_mapping::{map_postgresql_type, map_referential_action};
 
 /// PostgreSQL database adapter with connection pooling and comprehensive schema collection
 pub struct PostgresAdapter {
+    /// Connection pool for database operations
     pub pool: PgPool,
+    /// Connection configuration (pool settings, timeouts, etc.)
     pub config: ConnectionConfig,
+    /// Original connection URL (stored for creating connections to other databases)
+    /// This is kept private to prevent credential exposure
+    connection_url: String,
 }
 
 impl std::fmt::Debug for PostgresAdapter {
@@ -48,7 +53,8 @@ impl std::fmt::Debug for PostgresAdapter {
             .field("config", &self.config)
             .field("pool_size", &self.pool.size())
             .field("pool_idle", &self.pool.num_idle())
-            .finish()
+            // Note: connection_url is intentionally omitted to prevent credential exposure
+            .finish_non_exhaustive()
     }
 }
 
@@ -291,5 +297,107 @@ impl PostgresAdapter {
         include_system: bool,
     ) -> Result<Vec<EnumeratedDatabase>> {
         enumeration::list_accessible_databases(&self.pool, include_system).await
+    }
+
+    /// Create a new adapter connected to a specific database on the same server.
+    ///
+    /// Uses the same connection configuration (host, port, credentials, pool settings)
+    /// but targets a different database. This is useful for multi-database collection
+    /// after enumerating databases with `list_databases()`.
+    ///
+    /// # Arguments
+    ///
+    /// * `database` - Name of the database to connect to
+    ///
+    /// # Returns
+    ///
+    /// A new `PostgresAdapter` instance connected to the specified database.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database name is invalid (empty, too long, or contains dangerous characters)
+    /// - Connection to the new database fails
+    ///
+    /// # Security
+    ///
+    /// Database names are validated to prevent SQL injection:
+    /// - Must be 1-63 characters (PostgreSQL identifier limit)
+    /// - Cannot contain semicolons, single quotes, or double quotes
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let adapter = PostgresAdapter::new(&database_url).await?;
+    /// let databases = adapter.list_accessible_databases(false).await?;
+    ///
+    /// for db in databases {
+    ///     let db_adapter = adapter.connect_to_database(&db.name).await?;
+    ///     let schema = db_adapter.collect_schema().await?;
+    ///     println!("Collected schema for: {}", db.name);
+    /// }
+    /// ```
+    pub async fn connect_to_database(&self, database: &str) -> Result<PostgresAdapter> {
+        // Build new connection string with different database
+        let new_url = self.connection_url_for_database(database)?;
+
+        tracing::debug!("Connecting to database: {}", database);
+
+        // Create new adapter with the same config but different database
+        Self::with_config(&new_url, self.config.clone()).await
+    }
+
+    /// Generate connection URL for a different database on the same server.
+    ///
+    /// This method takes the current connection URL and replaces the database
+    /// component with the specified database name.
+    ///
+    /// # Arguments
+    ///
+    /// * `database` - Name of the database to generate URL for
+    ///
+    /// # Returns
+    ///
+    /// A new connection URL string targeting the specified database.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database name is empty or longer than 63 characters
+    /// - Database name contains dangerous characters (`;`, `'`, `"`)
+    ///
+    /// # Security
+    ///
+    /// This method validates database names to prevent URL injection attacks.
+    /// The validation is intentionally strict to ensure safety.
+    pub fn connection_url_for_database(&self, database: &str) -> Result<String> {
+        // Validate database name length
+        if database.is_empty() || database.len() > 63 {
+            return Err(crate::error::DbSurveyorError::configuration(format!(
+                "Invalid database name length: must be 1-63 characters, got {}",
+                database.len()
+            )));
+        }
+
+        // Check for dangerous characters that could enable injection attacks
+        if database.contains(';') || database.contains('\'') || database.contains('"') {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "Database name contains invalid characters (semicolon, single quote, or double quote not allowed)",
+            ));
+        }
+
+        // Parse the original URL
+        let mut url = url::Url::parse(&self.connection_url).map_err(|e| {
+            crate::error::DbSurveyorError::configuration(format!(
+                "Failed to parse connection URL: {}",
+                e
+            ))
+        })?;
+
+        // Replace the path (database name) in the URL
+        // The path in a postgres URL is "/database_name"
+        url.set_path(&format!("/{}", database));
+
+        Ok(url.to_string())
     }
 }
