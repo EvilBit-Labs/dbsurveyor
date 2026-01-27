@@ -175,6 +175,22 @@ test-postgres:
     @echo "🐘 Testing PostgreSQL adapter..."
     cargo nextest run postgres --features postgresql
 
+# Test comprehensive PostgreSQL adapter functionality
+test-postgres-comprehensive:
+    cd dbsurveyor-core && cargo nextest run --test postgres_comprehensive --features postgresql --no-capture
+
+# Test PostgreSQL connection pooling
+test-postgres-pooling:
+    cd dbsurveyor-core && cargo nextest run --test postgres_connection_pooling --features postgresql --no-capture
+
+# Test PostgreSQL versions and configurations
+test-postgres-versions:
+    cd dbsurveyor-core && cargo nextest run --test postgres_versions_and_configs --features postgresql --no-capture
+
+# Test all PostgreSQL comprehensive tests
+test-postgres-all:
+    cd dbsurveyor-core && cargo nextest run --test postgres_comprehensive --test postgres_connection_pooling --test postgres_versions_and_configs --features postgresql --no-capture
+
 test-mysql:
     @echo "🐬 Testing MySQL adapter..."
     cargo nextest run mysql --features mysql
