@@ -8,9 +8,9 @@
 
 use super::{ConnectionConfig, PostgresAdapter};
 use crate::Result;
+use sqlx::PgPool;
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::Postgres;
-use sqlx::PgPool;
 use std::time::Duration;
 use url::Url;
 
@@ -84,7 +84,11 @@ impl PostgresAdapter {
     /// Tuple of (active_connections, idle_connections, total_connections)
     pub fn pool_stats(&self) -> (u32, u32, u32) {
         let stats = self.pool_statistics();
-        (stats.active_connections, stats.idle_connections, stats.total_connections)
+        (
+            stats.active_connections,
+            stats.idle_connections,
+            stats.total_connections,
+        )
     }
 
     /// Gets detailed connection pool statistics for monitoring
