@@ -4,6 +4,7 @@
 //! - `connection`: Connection pool management and validation
 //! - `type_mapping`: PostgreSQL to unified data type conversion
 //! - `schema_collection`: Table, column, constraint, and index collection
+//! - `sampling`: Data sampling utilities and ordering strategy detection
 //!
 //! # Security Guarantees
 //! - All operations are read-only (SELECT/DESCRIBE only)
@@ -12,6 +13,7 @@
 //! - Connection pooling with configurable limits
 
 mod connection;
+mod sampling;
 mod schema_collection;
 mod type_mapping;
 
@@ -25,6 +27,7 @@ use sqlx::PgPool;
 
 // Re-export public items from submodules
 pub use connection::PoolStats;
+pub use sampling::{detect_ordering_strategy, generate_order_by_clause};
 pub use type_mapping::{map_postgresql_type, map_referential_action};
 
 /// PostgreSQL database adapter with connection pooling and comprehensive schema collection
@@ -104,5 +107,57 @@ impl DatabaseAdapter for PostgresAdapter {
 
     fn connection_config(&self) -> ConnectionConfig {
         self.config.clone()
+    }
+}
+
+// Additional PostgresAdapter methods for data sampling
+impl PostgresAdapter {
+    /// Detect the best ordering strategy for sampling a table.
+    ///
+    /// This method analyzes the table structure to determine the most reliable
+    /// way to order rows when sampling data. The detection priority is:
+    ///
+    /// 1. Primary key columns (most reliable)
+    /// 2. Timestamp columns (created_at, updated_at, etc.)
+    /// 3. Auto-increment/serial columns
+    /// 4. Unordered fallback (uses RANDOM() for sampling)
+    ///
+    /// # Arguments
+    ///
+    /// * `schema` - Schema name (e.g., "public")
+    /// * `table` - Table name
+    ///
+    /// # Returns
+    ///
+    /// Returns the detected `OrderingStrategy` or an error if detection fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let adapter = PostgresAdapter::new(&database_url).await?;
+    /// let strategy = adapter.detect_ordering_strategy("public", "users").await?;
+    /// ```
+    pub async fn detect_ordering_strategy(
+        &self,
+        schema: &str,
+        table: &str,
+    ) -> Result<OrderingStrategy> {
+        sampling::detect_ordering_strategy(&self.pool, schema, table).await
+    }
+
+    /// Generate an ORDER BY clause for the given ordering strategy.
+    ///
+    /// This is a convenience method that wraps `generate_order_by_clause`.
+    ///
+    /// # Arguments
+    ///
+    /// * `strategy` - The ordering strategy to generate SQL for
+    /// * `descending` - If true, order descending (most recent first)
+    ///
+    /// # Returns
+    ///
+    /// Returns a SQL ORDER BY clause string.
+    pub fn generate_order_by(&self, strategy: &OrderingStrategy, descending: bool) -> String {
+        sampling::generate_order_by_clause(strategy, descending)
     }
 }
