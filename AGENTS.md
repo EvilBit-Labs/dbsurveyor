@@ -76,6 +76,10 @@ The preferred technology stack is consistent across the project:
   - **Scopes**: `(collector)`, `(processor)`, `(shared)`, `(security)`, `(cli)`, etc.
   - **Breaking Changes**: Indicated with `!` in the header or `BREAKING CHANGE:` in the footer
 
+### Emoji Usage
+
+- Avoid using emojis and other non-ASCII characters in code, comments, or documentation, except when the code is handling non-plaintext characters (for example: em dash, en dash, or other non-ASCII symbols).
+
 ## 5. Security Requirements
 
 ### Critical Security Guarantees
