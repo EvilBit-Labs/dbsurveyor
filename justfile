@@ -297,7 +297,7 @@ docs:
 # =============================================================================
 
 # Full local CI parity check
-ci-check: fmt-check lint test-ci coverage-ci audit deny
+ci-check: fmt-check lint test-ci coverage-ci audit-ci deny
 
 # Fast CI check without coverage
 ci-check-fast: fmt-check lint test-no-bench
