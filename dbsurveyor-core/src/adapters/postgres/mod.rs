@@ -6,6 +6,7 @@
 //! - `schema_collection`: Table, column, constraint, and index collection
 //! - `sampling`: Data sampling utilities and ordering strategy detection
 //! - `enumeration`: Database enumeration for multi-database collection
+//! - `multi_database`: Multi-database collection orchestration
 //!
 //! # Security Guarantees
 //! - All operations are read-only (SELECT/DESCRIBE only)
@@ -15,6 +16,7 @@
 
 mod connection;
 mod enumeration;
+mod multi_database;
 mod sampling;
 mod schema_collection;
 mod type_mapping;
@@ -32,6 +34,10 @@ pub use connection::PoolStats;
 pub use enumeration::{
     EnumeratedDatabase, ListDatabasesOptions, SYSTEM_DATABASES, list_accessible_databases,
     list_databases,
+};
+pub use multi_database::{
+    DatabaseCollectionResult, DatabaseFailure, MultiDatabaseConfig, MultiDatabaseMetadata,
+    MultiDatabaseResult, collect_all_databases,
 };
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
 pub use type_mapping::{map_postgresql_type, map_referential_action};
@@ -399,5 +405,48 @@ impl PostgresAdapter {
         url.set_path(&format!("/{}", database));
 
         Ok(url.to_string())
+    }
+
+    /// Collect schemas from all accessible databases on the server.
+    ///
+    /// This method orchestrates multi-database collection:
+    /// 1. Enumerates all databases on the server
+    /// 2. Filters databases based on configuration
+    /// 3. Collects schemas concurrently with rate limiting
+    /// 4. Aggregates results and failures
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration controlling collection behavior
+    ///
+    /// # Returns
+    ///
+    /// A `MultiDatabaseResult` containing:
+    /// - Server information
+    /// - Successfully collected schemas
+    /// - Failed collection details
+    /// - Collection metadata
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let adapter = PostgresAdapter::new(&database_url).await?;
+    /// let config = MultiDatabaseConfig::new()
+    ///     .with_max_concurrency(8)
+    ///     .with_exclude_patterns(vec!["test_*".to_string()]);
+    ///
+    /// let result = adapter.collect_all_databases(&config).await?;
+    /// println!("Collected {} databases", result.databases.len());
+    /// for db in &result.databases {
+    ///     println!("  - {} ({} tables)",
+    ///         db.database_name,
+    ///         db.schema.tables.len());
+    /// }
+    /// ```
+    pub async fn collect_all_databases(
+        &self,
+        config: &MultiDatabaseConfig,
+    ) -> Result<MultiDatabaseResult> {
+        multi_database::collect_all_databases(self, config).await
     }
 }

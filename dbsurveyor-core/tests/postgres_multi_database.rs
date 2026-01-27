@@ -709,4 +709,398 @@ mod postgres_multi_database_tests {
             eprintln!("Config preserved correctly for new database connection");
         }
     }
+
+    // ============================================================================
+    // Multi-Database Collection Orchestration Tests (Task 7.3)
+    // ============================================================================
+
+    use dbsurveyor_core::adapters::postgres::{
+        DatabaseFailure, MultiDatabaseConfig, MultiDatabaseMetadata,
+    };
+    use dbsurveyor_core::CollectionMode;
+
+    #[test]
+    fn test_multi_database_config_default() {
+        let config = MultiDatabaseConfig::default();
+        assert_eq!(config.max_concurrency, 4);
+        assert!(!config.include_system);
+        assert!(config.exclude_patterns.is_empty());
+        assert!(config.continue_on_error);
+    }
+
+    #[test]
+    fn test_multi_database_config_builder() {
+        let config = MultiDatabaseConfig::new()
+            .with_max_concurrency(8)
+            .with_include_system(true)
+            .with_exclude_patterns(vec!["test_*".to_string(), "*_backup".to_string()])
+            .with_continue_on_error(false);
+
+        assert_eq!(config.max_concurrency, 8);
+        assert!(config.include_system);
+        assert_eq!(config.exclude_patterns.len(), 2);
+        assert!(!config.continue_on_error);
+    }
+
+    #[test]
+    fn test_multi_database_config_min_concurrency() {
+        // Should enforce minimum concurrency of 1
+        let config = MultiDatabaseConfig::new().with_max_concurrency(0);
+        assert_eq!(config.max_concurrency, 1);
+    }
+
+    #[test]
+    fn test_database_failure_serialization() {
+        let failure = DatabaseFailure {
+            database_name: "test_db".to_string(),
+            error_message: "Connection refused".to_string(),
+            is_connection_error: true,
+        };
+
+        let json = serde_json::to_string(&failure).expect("Failed to serialize");
+        assert!(json.contains("\"database_name\":\"test_db\""));
+        assert!(json.contains("\"error_message\":\"Connection refused\""));
+        assert!(json.contains("\"is_connection_error\":true"));
+
+        let deserialized: DatabaseFailure =
+            serde_json::from_str(&json).expect("Failed to deserialize");
+        assert_eq!(deserialized.database_name, failure.database_name);
+        assert_eq!(deserialized.error_message, failure.error_message);
+        assert_eq!(deserialized.is_connection_error, failure.is_connection_error);
+    }
+
+    #[test]
+    fn test_multi_database_metadata_serialization() {
+        let metadata = MultiDatabaseMetadata {
+            started_at: chrono::Utc::now(),
+            total_duration_ms: 1234,
+            databases_discovered: 10,
+            databases_filtered: 2,
+            databases_collected: 7,
+            databases_failed: 1,
+            databases_skipped: 0,
+            max_concurrency: 4,
+            collector_version: "1.0.0".to_string(),
+            warnings: vec!["Test warning".to_string()],
+        };
+
+        let json = serde_json::to_string(&metadata).expect("Failed to serialize");
+        assert!(json.contains("\"databases_discovered\":10"));
+        assert!(json.contains("\"databases_collected\":7"));
+        assert!(json.contains("\"max_concurrency\":4"));
+
+        let deserialized: MultiDatabaseMetadata =
+            serde_json::from_str(&json).expect("Failed to deserialize");
+        assert_eq!(
+            deserialized.databases_discovered,
+            metadata.databases_discovered
+        );
+        assert_eq!(deserialized.databases_collected, metadata.databases_collected);
+        assert_eq!(deserialized.max_concurrency, metadata.max_concurrency);
+    }
+
+    #[tokio::test]
+    async fn test_collect_all_databases_basic() {
+        if !has_database_connection() {
+            eprintln!("Skipping test_collect_all_databases_basic: no database URL configured");
+            return;
+        }
+
+        let database_url = get_test_database_url().unwrap();
+        let adapter = PostgresAdapter::new(&database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        // Use default configuration
+        let config = MultiDatabaseConfig::new().with_max_concurrency(2);
+
+        let result = adapter
+            .collect_all_databases(&config)
+            .await
+            .expect("Failed to collect all databases");
+
+        // Verify server info
+        assert_eq!(
+            result.server_info.server_type,
+            dbsurveyor_core::DatabaseType::PostgreSQL
+        );
+        assert!(!result.server_info.version.is_empty());
+        assert!(!result.server_info.connection_user.is_empty());
+
+        // Verify we collected at least one database
+        assert!(
+            !result.databases.is_empty() || !result.failures.is_empty(),
+            "Expected at least one database to be collected or fail"
+        );
+
+        // Verify metadata
+        assert!(result.collection_metadata.total_duration_ms > 0);
+        assert!(result.collection_metadata.databases_discovered > 0);
+        assert_eq!(result.collection_metadata.max_concurrency, 2);
+
+        eprintln!("Multi-database collection result:");
+        eprintln!("  Server: {} {}", result.server_info.server_type, result.server_info.version);
+        eprintln!("  Databases discovered: {}", result.collection_metadata.databases_discovered);
+        eprintln!("  Databases collected: {}", result.databases.len());
+        eprintln!("  Databases failed: {}", result.failures.len());
+        eprintln!("  Total duration: {}ms", result.collection_metadata.total_duration_ms);
+
+        for db in &result.databases {
+            eprintln!(
+                "    - {} ({} tables, {}ms)",
+                db.database_name,
+                db.schema.tables.len(),
+                db.collection_duration_ms
+            );
+        }
+
+        for failure in &result.failures {
+            eprintln!(
+                "    - {} (failed: {})",
+                failure.database_name, failure.error_message
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_all_databases_with_exclude_patterns() {
+        if !has_database_connection() {
+            eprintln!("Skipping test_collect_all_databases_with_exclude_patterns: no database URL configured");
+            return;
+        }
+
+        let database_url = get_test_database_url().unwrap();
+        let adapter = PostgresAdapter::new(&database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        // Configure to exclude template* databases (just in case they're accessible)
+        let config = MultiDatabaseConfig::new()
+            .with_max_concurrency(2)
+            .with_exclude_patterns(vec!["template*".to_string()]);
+
+        let result = adapter
+            .collect_all_databases(&config)
+            .await
+            .expect("Failed to collect all databases");
+
+        // Verify no template databases were collected
+        for db in &result.databases {
+            assert!(
+                !db.database_name.starts_with("template"),
+                "Template database {} should have been excluded",
+                db.database_name
+            );
+        }
+
+        eprintln!(
+            "Collected {} databases after excluding template*",
+            result.databases.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_collect_all_databases_server_info() {
+        if !has_database_connection() {
+            eprintln!("Skipping test_collect_all_databases_server_info: no database URL configured");
+            return;
+        }
+
+        let database_url = get_test_database_url().unwrap();
+        let adapter = PostgresAdapter::new(&database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        let config = MultiDatabaseConfig::new();
+
+        let result = adapter
+            .collect_all_databases(&config)
+            .await
+            .expect("Failed to collect all databases");
+
+        // Verify server info fields
+        let server_info = &result.server_info;
+        assert_eq!(server_info.server_type, dbsurveyor_core::DatabaseType::PostgreSQL);
+        assert!(!server_info.version.is_empty(), "Version should not be empty");
+        assert!(!server_info.host.is_empty(), "Host should not be empty");
+        assert!(!server_info.connection_user.is_empty(), "User should not be empty");
+
+        // Verify collection mode
+        match &server_info.collection_mode {
+            CollectionMode::MultiDatabase { discovered, collected, failed } => {
+                assert!(
+                    *discovered > 0,
+                    "Should have discovered at least one database"
+                );
+                assert_eq!(
+                    *collected,
+                    result.databases.len(),
+                    "Collected count should match databases array length"
+                );
+                assert_eq!(
+                    *failed,
+                    result.failures.len(),
+                    "Failed count should match failures array length"
+                );
+            }
+            _ => panic!("Expected MultiDatabase collection mode"),
+        }
+
+        eprintln!("Server info: {:?}", server_info);
+    }
+
+    #[tokio::test]
+    async fn test_collect_all_databases_metadata_timing() {
+        if !has_database_connection() {
+            eprintln!("Skipping test_collect_all_databases_metadata_timing: no database URL configured");
+            return;
+        }
+
+        let database_url = get_test_database_url().unwrap();
+        let adapter = PostgresAdapter::new(&database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        let config = MultiDatabaseConfig::new();
+
+        let start = std::time::Instant::now();
+        let result = adapter
+            .collect_all_databases(&config)
+            .await
+            .expect("Failed to collect all databases");
+        let actual_duration = start.elapsed();
+
+        // Verify timing metadata is reasonable
+        let metadata = &result.collection_metadata;
+
+        // The reported duration should be close to actual (within 1 second tolerance)
+        let reported_duration_secs = metadata.total_duration_ms as f64 / 1000.0;
+        let actual_duration_secs = actual_duration.as_secs_f64();
+
+        assert!(
+            (reported_duration_secs - actual_duration_secs).abs() < 1.0,
+            "Reported duration ({:.2}s) should be close to actual ({:.2}s)",
+            reported_duration_secs,
+            actual_duration_secs
+        );
+
+        // Individual database collection times should sum to approximately total
+        let individual_sum: u64 = result
+            .databases
+            .iter()
+            .map(|db| db.collection_duration_ms)
+            .sum();
+
+        eprintln!(
+            "Total duration: {}ms, Sum of individual: {}ms",
+            metadata.total_duration_ms, individual_sum
+        );
+    }
+
+    #[tokio::test]
+    async fn test_collect_all_databases_concurrency() {
+        if !has_database_connection() {
+            eprintln!("Skipping test_collect_all_databases_concurrency: no database URL configured");
+            return;
+        }
+
+        let database_url = get_test_database_url().unwrap();
+        let adapter = PostgresAdapter::new(&database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        // Test with concurrency of 1 (sequential)
+        let config_sequential = MultiDatabaseConfig::new().with_max_concurrency(1);
+
+        let start_sequential = std::time::Instant::now();
+        let result_sequential = adapter
+            .collect_all_databases(&config_sequential)
+            .await
+            .expect("Failed to collect with concurrency 1");
+        let duration_sequential = start_sequential.elapsed();
+
+        // Test with higher concurrency
+        let config_concurrent = MultiDatabaseConfig::new().with_max_concurrency(4);
+
+        let start_concurrent = std::time::Instant::now();
+        let result_concurrent = adapter
+            .collect_all_databases(&config_concurrent)
+            .await
+            .expect("Failed to collect with concurrency 4");
+        let duration_concurrent = start_concurrent.elapsed();
+
+        // Both should collect the same databases
+        assert_eq!(
+            result_sequential.databases.len(),
+            result_concurrent.databases.len(),
+            "Both runs should collect the same number of databases"
+        );
+
+        eprintln!(
+            "Sequential (concurrency=1): {}ms, Concurrent (concurrency=4): {}ms",
+            duration_sequential.as_millis(),
+            duration_concurrent.as_millis()
+        );
+
+        // With multiple databases, concurrent should generally be faster
+        // But this depends on how many databases exist, so we don't assert on timing
+    }
+
+    #[tokio::test]
+    async fn test_collect_all_databases_database_result_content() {
+        if !has_database_connection() {
+            eprintln!("Skipping test_collect_all_databases_database_result_content: no database URL configured");
+            return;
+        }
+
+        let database_url = get_test_database_url().unwrap();
+        let adapter = PostgresAdapter::new(&database_url)
+            .await
+            .expect("Failed to create adapter");
+
+        let config = MultiDatabaseConfig::new();
+
+        let result = adapter
+            .collect_all_databases(&config)
+            .await
+            .expect("Failed to collect all databases");
+
+        // Verify each collected database has valid content
+        for db_result in &result.databases {
+            // Database name should not be empty
+            assert!(
+                !db_result.database_name.is_empty(),
+                "Database name should not be empty"
+            );
+
+            // Collection duration should be positive
+            assert!(
+                db_result.collection_duration_ms > 0,
+                "Collection duration should be positive for {}",
+                db_result.database_name
+            );
+
+            // Schema should have database info
+            let schema = &db_result.schema;
+            assert!(
+                !schema.database_info.name.is_empty(),
+                "Schema database name should not be empty"
+            );
+
+            // Version should be populated
+            assert!(
+                schema.database_info.version.is_some(),
+                "Schema version should be populated for {}",
+                db_result.database_name
+            );
+
+            eprintln!(
+                "Database '{}': {} tables, {} views, {}ms",
+                db_result.database_name,
+                schema.tables.len(),
+                schema.views.len(),
+                db_result.collection_duration_ms
+            );
+        }
+    }
 }
