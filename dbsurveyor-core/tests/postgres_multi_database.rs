@@ -714,10 +714,10 @@ mod postgres_multi_database_tests {
     // Multi-Database Collection Orchestration Tests (Task 7.3)
     // ============================================================================
 
+    use dbsurveyor_core::CollectionMode;
     use dbsurveyor_core::adapters::postgres::{
         DatabaseFailure, MultiDatabaseConfig, MultiDatabaseMetadata,
     };
-    use dbsurveyor_core::CollectionMode;
 
     #[test]
     fn test_multi_database_config_default() {
@@ -766,7 +766,10 @@ mod postgres_multi_database_tests {
             serde_json::from_str(&json).expect("Failed to deserialize");
         assert_eq!(deserialized.database_name, failure.database_name);
         assert_eq!(deserialized.error_message, failure.error_message);
-        assert_eq!(deserialized.is_connection_error, failure.is_connection_error);
+        assert_eq!(
+            deserialized.is_connection_error,
+            failure.is_connection_error
+        );
     }
 
     #[test]
@@ -795,7 +798,10 @@ mod postgres_multi_database_tests {
             deserialized.databases_discovered,
             metadata.databases_discovered
         );
-        assert_eq!(deserialized.databases_collected, metadata.databases_collected);
+        assert_eq!(
+            deserialized.databases_collected,
+            metadata.databases_collected
+        );
         assert_eq!(deserialized.max_concurrency, metadata.max_concurrency);
     }
 
@@ -839,11 +845,20 @@ mod postgres_multi_database_tests {
         assert_eq!(result.collection_metadata.max_concurrency, 2);
 
         eprintln!("Multi-database collection result:");
-        eprintln!("  Server: {} {}", result.server_info.server_type, result.server_info.version);
-        eprintln!("  Databases discovered: {}", result.collection_metadata.databases_discovered);
+        eprintln!(
+            "  Server: {} {}",
+            result.server_info.server_type, result.server_info.version
+        );
+        eprintln!(
+            "  Databases discovered: {}",
+            result.collection_metadata.databases_discovered
+        );
         eprintln!("  Databases collected: {}", result.databases.len());
         eprintln!("  Databases failed: {}", result.failures.len());
-        eprintln!("  Total duration: {}ms", result.collection_metadata.total_duration_ms);
+        eprintln!(
+            "  Total duration: {}ms",
+            result.collection_metadata.total_duration_ms
+        );
 
         for db in &result.databases {
             eprintln!(
@@ -865,7 +880,9 @@ mod postgres_multi_database_tests {
     #[tokio::test]
     async fn test_collect_all_databases_with_exclude_patterns() {
         if !has_database_connection() {
-            eprintln!("Skipping test_collect_all_databases_with_exclude_patterns: no database URL configured");
+            eprintln!(
+                "Skipping test_collect_all_databases_with_exclude_patterns: no database URL configured"
+            );
             return;
         }
 
@@ -902,7 +919,9 @@ mod postgres_multi_database_tests {
     #[tokio::test]
     async fn test_collect_all_databases_server_info() {
         if !has_database_connection() {
-            eprintln!("Skipping test_collect_all_databases_server_info: no database URL configured");
+            eprintln!(
+                "Skipping test_collect_all_databases_server_info: no database URL configured"
+            );
             return;
         }
 
@@ -920,14 +939,27 @@ mod postgres_multi_database_tests {
 
         // Verify server info fields
         let server_info = &result.server_info;
-        assert_eq!(server_info.server_type, dbsurveyor_core::DatabaseType::PostgreSQL);
-        assert!(!server_info.version.is_empty(), "Version should not be empty");
+        assert_eq!(
+            server_info.server_type,
+            dbsurveyor_core::DatabaseType::PostgreSQL
+        );
+        assert!(
+            !server_info.version.is_empty(),
+            "Version should not be empty"
+        );
         assert!(!server_info.host.is_empty(), "Host should not be empty");
-        assert!(!server_info.connection_user.is_empty(), "User should not be empty");
+        assert!(
+            !server_info.connection_user.is_empty(),
+            "User should not be empty"
+        );
 
         // Verify collection mode
         match &server_info.collection_mode {
-            CollectionMode::MultiDatabase { discovered, collected, failed } => {
+            CollectionMode::MultiDatabase {
+                discovered,
+                collected,
+                failed,
+            } => {
                 assert!(
                     *discovered > 0,
                     "Should have discovered at least one database"
@@ -952,7 +984,9 @@ mod postgres_multi_database_tests {
     #[tokio::test]
     async fn test_collect_all_databases_metadata_timing() {
         if !has_database_connection() {
-            eprintln!("Skipping test_collect_all_databases_metadata_timing: no database URL configured");
+            eprintln!(
+                "Skipping test_collect_all_databases_metadata_timing: no database URL configured"
+            );
             return;
         }
 
@@ -1000,7 +1034,9 @@ mod postgres_multi_database_tests {
     #[tokio::test]
     async fn test_collect_all_databases_concurrency() {
         if !has_database_connection() {
-            eprintln!("Skipping test_collect_all_databases_concurrency: no database URL configured");
+            eprintln!(
+                "Skipping test_collect_all_databases_concurrency: no database URL configured"
+            );
             return;
         }
 
@@ -1049,7 +1085,9 @@ mod postgres_multi_database_tests {
     #[tokio::test]
     async fn test_collect_all_databases_database_result_content() {
         if !has_database_connection() {
-            eprintln!("Skipping test_collect_all_databases_database_result_content: no database URL configured");
+            eprintln!(
+                "Skipping test_collect_all_databases_database_result_content: no database URL configured"
+            );
             return;
         }
 

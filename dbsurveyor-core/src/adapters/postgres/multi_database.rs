@@ -14,11 +14,11 @@
 //! - Database names are validated before connection
 //! - Credentials are never logged or included in results
 
-use super::enumeration::EnumeratedDatabase;
 use super::PostgresAdapter;
+use super::enumeration::EnumeratedDatabase;
+use crate::Result;
 use crate::adapters::DatabaseAdapter;
 use crate::models::{CollectionMode, DatabaseSchema, DatabaseType, ServerInfo};
-use crate::Result;
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -412,10 +412,7 @@ fn filter_databases(
 
         // Check against exclude patterns
         if matches_any_pattern(&db.name, &config.exclude_patterns) {
-            tracing::debug!(
-                "Filtering database '{}' - matches exclude pattern",
-                db.name
-            );
+            tracing::debug!("Filtering database '{}' - matches exclude pattern", db.name);
             filtered_count += 1;
             continue;
         }
@@ -455,12 +452,7 @@ fn glob_match(pattern: &str, text: &str) -> bool {
     glob_match_recursive(&pattern_chars, &text_chars, 0, 0)
 }
 
-fn glob_match_recursive(
-    pattern: &[char],
-    text: &[char],
-    mut pi: usize,
-    mut ti: usize,
-) -> bool {
+fn glob_match_recursive(pattern: &[char], text: &[char], mut pi: usize, mut ti: usize) -> bool {
     while pi < pattern.len() {
         match pattern[pi] {
             '*' => {
@@ -545,11 +537,7 @@ async fn collect_databases_concurrent(
                         | crate::error::DbSurveyorError::ConnectionTimeout { .. }
                 );
 
-                tracing::warn!(
-                    "Failed to collect schema from '{}': {}",
-                    db_name,
-                    error_str
-                );
+                tracing::warn!("Failed to collect schema from '{}': {}", db_name, error_str);
 
                 failures.push(DatabaseFailure {
                     database_name: db_name,
@@ -719,7 +707,10 @@ mod tests {
         let deserialized: DatabaseFailure = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.database_name, failure.database_name);
         assert_eq!(deserialized.error_message, failure.error_message);
-        assert_eq!(deserialized.is_connection_error, failure.is_connection_error);
+        assert_eq!(
+            deserialized.is_connection_error,
+            failure.is_connection_error
+        );
     }
 
     #[test]
@@ -742,6 +733,9 @@ mod tests {
         assert!(json.contains("\"databases_collected\":7"));
 
         let deserialized: MultiDatabaseMetadata = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.databases_discovered, metadata.databases_discovered);
+        assert_eq!(
+            deserialized.databases_discovered,
+            metadata.databases_discovered
+        );
     }
 }

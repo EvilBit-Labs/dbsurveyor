@@ -561,10 +561,7 @@ async fn test_sample_table_with_rate_limit() -> Result<()> {
         .await?;
 
     assert_eq!(sample.rows.len(), 10, "Should have sampled 10 rows");
-    assert_eq!(
-        sample.sample_size, 10,
-        "Sample size should match row count"
-    );
+    assert_eq!(sample.sample_size, 10, "Sample size should match row count");
     // Note: pg_class.reltuples is an estimate and may not be updated immediately
     // after inserts. We just verify it's available (Some) - the actual count
     // may be stale until ANALYZE is run.
@@ -573,7 +570,10 @@ async fn test_sample_table_with_rate_limit() -> Result<()> {
         "Total rows estimate should be available"
     );
     assert!(
-        matches!(sample.sampling_strategy, SamplingStrategy::MostRecent { .. }),
+        matches!(
+            sample.sampling_strategy,
+            SamplingStrategy::MostRecent { .. }
+        ),
         "Expected MostRecent strategy for table with primary key, got {:?}",
         sample.sampling_strategy
     );
@@ -690,7 +690,10 @@ async fn test_sample_table_with_timestamp_ordering() -> Result<()> {
 
     assert_eq!(sample.rows.len(), 3, "Should have sampled 3 rows");
     assert!(
-        matches!(sample.sampling_strategy, SamplingStrategy::MostRecent { .. }),
+        matches!(
+            sample.sampling_strategy,
+            SamplingStrategy::MostRecent { .. }
+        ),
         "Expected MostRecent strategy for timestamp ordering"
     );
 
