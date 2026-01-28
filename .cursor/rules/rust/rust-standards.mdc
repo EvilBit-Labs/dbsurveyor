@@ -17,6 +17,7 @@ alwaysApply: false
 
 - **Formatting**: `cargo fmt` with default settings (4-space indentation)
 - **Linting**: `cargo clippy -- -D warnings` - ZERO warnings policy enforced
+- **File Organization**: Single-purpose files strictly enforced - one type of code per file, maximum 600 lines preferred, break large files into smaller focused modules
 - **Security**: `unsafe` code is denied at workspace level
 - **Documentation**: All public items must have `///` doc comments
 

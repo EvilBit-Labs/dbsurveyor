@@ -7,11 +7,15 @@ fileMatchPattern: '**/*.rs'
 
 ## Language Requirements
 
-- **Rust Version**: 1.89 (MSRV)
-- **Edition**: 2021
-- **Toolchain**: Version 1.89.0 (pinned to MSRV)
+- **Rust Version**: 1.87 (MSRV)
+- **Edition**: 2024
+- **Toolchain**: Version 1.87.0 (pinned to MSRV)
 
 ## Code Quality Standards
+
+### File organization
+
+Rust files should not contain multiple types of code in a single file. This rule is strictly enforced to prevent files from becoming too large and unwieldy, with a preferred limit of no more than 600 lines per file. If possible, the file should be divided into smaller, more focused files.
 
 ### Zero Warnings Policy
 

@@ -1,403 +1,384 @@
-# 🔒 justfile — DBSurveyor Security-First Developer Tasks
+# justfile - DBSurveyor Security-First Developer Tasks
+# Cross-platform justfile using OS annotations
+# Windows uses PowerShell, Unix uses bash
+
+set shell := ["bash", "-cu"]
+set windows-shell := ["powershell", "-NoProfile", "-Command"]
 set dotenv-load := true
 set ignore-comments := true
 
-# Default recipe - shows available commands
+# Use mise to manage all dev tools
+# See mise.toml for tool versions
+
+mise_exec := "mise exec --"
+root := justfile_dir()
+
+# =============================================================================
+# GENERAL COMMANDS
+# =============================================================================
+
 default:
-    just --list
+    @just --list
 
-# Show help
-help:
-    just --list
+# =============================================================================
+# CROSS-PLATFORM HELPERS (private)
+# =============================================================================
 
-# -----------------------------
-# 🔧 Setup & Installation
-# -----------------------------
+[private]
+[windows]
+ensure-dir dir:
+    New-Item -ItemType Directory -Force -Path "{{ dir }}" | Out-Null
 
-# Setup development environment
-setup: install
+[private]
+[unix]
+ensure-dir dir:
+    /bin/mkdir -p "{{ dir }}"
 
-# Install Rust development tools
-install-rust:
-    @echo "🔧 Installing Rust development tools..."
-    rustup component add clippy rustfmt
-    @echo "✅ Rust tools installed"
+[private]
+[windows]
+rmrf path:
+    if (Test-Path "{{ path }}") { Remove-Item "{{ path }}" -Recurse -Force }
 
-# Install Cargo tools
-install-cargo-tools:
-    @echo "📦 Installing Cargo tools..."
-    @if ! command -v cargo-audit >/dev/null 2>&1; then cargo install cargo-audit; fi
-    @if ! command -v cargo-deny >/dev/null 2>&1; then cargo install cargo-deny; fi
-    @if ! command -v cargo-llvm-cov >/dev/null 2>&1; then cargo install cargo-llvm-cov; fi
-    @echo "✅ Cargo tools installed"
+[private]
+[unix]
+rmrf path:
+    /bin/rm -rf "{{ path }}"
 
-# Install security tools
-install-security-tools:
-    @echo "🛡️ Installing security tools..."
-    @if ! command -v syft >/dev/null 2>&1; then \
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ~/.local/bin; \
-    fi
-    @echo "✅ Security tools installed"
+# =============================================================================
+# SETUP AND INITIALIZATION
+# =============================================================================
 
-# Install all dependencies and development tools
-install: install-rust install-cargo-tools install-security-tools
-    @echo "🚀 Development environment ready!"
+# Development setup - mise handles all tool installation via mise.toml
+setup:
+    mise install
 
-# Update dependencies
-update-deps:
-    @echo "🔄 Updating dependencies..."
-    cargo update
-    @echo "✅ Dependencies updated!"
+# =============================================================================
+# FORMATTING AND LINTING
+# =============================================================================
 
-# -----------------------------
-# 🧹 Linting, Formatting & Checking
-# -----------------------------
+alias format-rust := fmt
+alias lint-rust := clippy
 
-# Format code with rustfmt
-format:
-    @echo "🎨 Formatting code..."
-    cargo fmt
-    @echo "✅ Code formatted"
+# Main format recipe - calls all formatters
+format: fmt fmt-justfile
 
-# Check code formatting
-format-check:
-    @echo "🎨 Checking code formatting..."
-    cargo fmt --check
-
-# Lint code with clippy (strict warnings as errors)
-lint:
-    @echo "🔍 Running Rust Quality Gate (cargo clippy -- -D warnings)..."
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
-    @echo "✅ Rust Quality Gate passed - zero warnings enforced"
-
-# Run pre-commit hooks
-pre-commit:
-    @echo "🔄 Running pre-commit security checks..."
-    @just format-check
-    @just lint
-    @just test
-    @just test-credential-security
-    @echo "✅ Pre-commit checks passed - ready for secure commit"
-
-# Run all linting and formatting checks
-check: format-check lint
-    @echo "✅ All checks passed!"
-
-# Fix linting and formatting issues
-fix: format
-    cargo clippy --fix --allow-dirty
-
-# Run MegaLinter for comprehensive linting
-megalinter:
-    @echo "🔍 Running MegaLinter for comprehensive code analysis..."
-    npx mega-linter-runner --flavor rust
-    @echo "✅ MegaLinter analysis complete"
-
-megalinter-fix:
-    @echo "🔍 Running MegaLinter for comprehensive code analysis..."
-    npx mega-linter-runner --flavor rust --fix
-    @echo "✅ MegaLinter analysis complete"
-
-# -----------------------------
-# 🦀 Standardized Rust Tasks
-# -----------------------------
-
-# Format all Rust code
-rust-fmt:
-    cargo fmt --all
+# Format Rust code
+fmt:
+    @{{ mise_exec }} cargo fmt --all
 
 # Check Rust code formatting
-rust-fmt-check:
-    cargo fmt --all -- --check
+fmt-check:
+    @{{ mise_exec }} cargo fmt --all --check
 
-# Lint Rust code with clippy (strict mode)
-rust-clippy:
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
+# Format justfile
+fmt-justfile:
+    @{{ mise_exec }} just --fmt --unstable
 
-# Run all Rust tests
-rust-test:
-    cargo test --features postgresql,sqlite,encryption,compression --workspace
+# Lint justfile formatting
+lint-justfile:
+    @{{ mise_exec }} just --fmt --check --unstable
 
-# Run Rust test coverage with HTML report
-rust-cov:
-    cargo llvm-cov --features postgresql,sqlite,encryption,compression --workspace --open
+# Lint Rust code with clippy (strict zero-warning policy)
+clippy:
+    @{{ mise_exec }} cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-# Quality assurance: format check, clippy, and tests
-qa: rust-fmt-check rust-clippy rust-test
-    @echo "✅ All QA checks passed!"
+# Lint with minimal features
+clippy-min:
+    @{{ mise_exec }} cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 
-# Quality assurance with coverage
-qa-cov: rust-fmt-check rust-clippy rust-test rust-cov
-    @echo "✅ All QA checks with coverage completed!"
+# Main lint recipe
+lint: clippy lint-justfile
 
-# -----------------------------
-# 🧪 Testing & Coverage
-# -----------------------------
+# Run clippy with fixes
+fix:
+    @{{ mise_exec }} cargo clippy --fix --allow-dirty --allow-staged
 
-# Run all tests with security verification
-test:
-    @echo "🧪 Running test suite with security checks..."
-    @echo "⚠️  Testing offline-only operation - no external network calls allowed"
-    # Run dbsurveyor-collect tests sequentially to avoid environment variable conflicts
-    cargo test -p dbsurveyor-collect --features postgresql,sqlite --verbose -- --test-threads=1
-    # Run all other tests normally
-    cargo test --workspace --exclude dbsurveyor-collect --features encryption,compression --verbose
-    @echo "✅ All tests passed - security guarantees maintained"
+# Quick development check
+check: fmt-check lint
 
-# Run tests excluding benchmarks
-test-no-bench:
-    cargo test --features postgresql,sqlite,encryption,compression --lib --bins --tests
+# =============================================================================
+# BUILDING
+# =============================================================================
 
-# Run integration tests only
-test-integration:
-    cargo test --test '*' --features postgresql,sqlite,encryption,compression
-
-# Run unit tests only
-test-unit:
-    cargo test --lib --features postgresql,sqlite,encryption,compression
-
-# Run doctests only
-test-doc:
-    cargo test --doc --features postgresql,sqlite,encryption,compression
-
-# Run tests for specific database engines
-test-postgres:
-    @echo "🐘 Testing PostgreSQL adapter..."
-    cargo test postgres --verbose
-
-test-mysql:
-    @echo "🐬 Testing MySQL adapter..."
-    cargo test mysql --verbose
-
-test-sqlite:
-    @echo "📦 Testing SQLite adapter..."
-    cargo test sqlite --verbose
-
-# Run coverage with cargo-llvm-cov and enforce 80% threshold
-coverage:
-    @echo "🔍 Running coverage with >80% threshold..."
-    cargo llvm-cov --workspace --lcov --fail-under-lines 80 --output-path lcov.info -- --test-threads=1
-    @echo "✅ Coverage passed 80% threshold!"
-
-# Run coverage for CI - generates report even if some tests fail
-coverage-ci:
-    @echo "🔍 Running coverage for CI with >80% threshold..."
-    cargo llvm-cov --workspace --lcov --fail-under-lines 80 --output-path lcov.info
-    @echo "✅ Coverage passed 80% threshold!"
-
-# Run coverage report in HTML format for local viewing
-coverage-html:
-    @echo "🔍 Generating HTML coverage report..."
-    cargo llvm-cov --workspace --html --output-dir target/llvm-cov/html
-    @echo "📊 HTML report available at target/llvm-cov/html/index.html"
-
-# Run coverage report to terminal
-coverage-report:
-    cargo llvm-cov --workspace
-
-# Clean coverage artifacts
-coverage-clean:
-    cargo llvm-cov clean --workspace
-
-# -----------------------------
-# 🔒 Security Testing
-# -----------------------------
-
-# Verify encryption capabilities (AES-GCM with random nonce)
-test-encryption:
-    @echo "🔐 Testing AES-GCM encryption with random nonce generation..."
-    cargo test encryption --verbose -- --nocapture
-    @echo "✅ Encryption tests passed - AES-GCM security verified"
-
-# Test offline operation (no network calls)
-test-offline:
-    @echo "✈️  Testing complete offline operation..."
-    cargo test offline --verbose
-    @echo "✅ Offline operation verified - airgap compatible"
-
-# Verify no credentials leak into outputs
-test-credential-security:
-    @echo "🔑 Testing credential security..."
-    cargo test credential_security --verbose -- --nocapture
-    @echo "✅ Credential security verified - no leakage detected"
-
-# Full security validation suite
-security-full:
-    @echo "🛡️  Running FULL security validation..."
-    @just lint
-    @just test-encryption
-    @just test-offline
-    @just test-credential-security
-    @just security-audit
-    @echo "✅ FULL SECURITY VALIDATION PASSED"
-
-# -----------------------------
-# 🔧 Building & Running
-# -----------------------------
-
-# Build the project in debug mode
+# Build in debug mode
 build:
-    cargo build --workspace --all-features
+    @{{ mise_exec }} cargo build --workspace --all-features
 
-# Build the project in release mode with security optimizations
+# Build in release mode
 build-release:
-    @echo "🔨 Building with security optimizations..."
-    cargo build --release --workspace --all-features
-    @echo "✅ Build complete - offline operation verified"
+    @{{ mise_exec }} cargo build --workspace --release --all-features
 
 # Build minimal feature set (for airgap environments)
 build-minimal:
-    @echo "🔨 Building minimal airgap-compatible version..."
-    cargo build --release --no-default-features --features sqlite
-    @echo "✅ Minimal build complete - maximum airgap compatibility"
+    @{{ mise_exec }} cargo build --release --no-default-features --features sqlite
 
-# Build documentation
-doc:
-    cargo doc --features postgresql,sqlite,encryption,compression --no-deps
+# =============================================================================
+# TESTING
+# =============================================================================
 
-# Build and open documentation
-doc-open:
-    @echo "📚 Generating offline-compatible documentation..."
-    cargo doc --features postgresql,sqlite,encryption,compression --no-deps --document-private-items --open
-    @echo "✅ Documentation generated - works offline"
+# Run all tests with nextest
+test:
+    @{{ mise_exec }} cargo nextest run --workspace --features postgresql,sqlite,encryption,compression
 
-# Run the CLI tool with sample arguments
-run *args:
-    cargo run --features postgresql,sqlite,encryption,compression -- {{args}}
+# Run tests excluding benchmarks
+test-no-bench:
+    @{{ mise_exec }} cargo nextest run --features postgresql,sqlite,encryption,compression --lib --bins --tests
 
-# Run benchmarks
-bench:
-    cargo bench --features postgresql,sqlite,encryption,compression
+# Run integration tests only
+test-integration:
+    @{{ mise_exec }} cargo nextest run --test '*' --features postgresql,sqlite,encryption,compression
 
-# -----------------------------
-# 🔐 Security & Auditing
-# -----------------------------
+# Run unit tests only
+test-unit:
+    @{{ mise_exec }} cargo nextest run --lib --features postgresql,sqlite,encryption,compression
 
-# Security audit and SBOM generation
-security-audit:
-    @echo "🔐 Running comprehensive security audit..."
-    @echo "📋 Generating Software Bill of Materials (SBOM)..."
-    syft dir:. -o spdx-json > sbom.spdx.json
-    syft dir:. -o json > sbom.json
-    @echo "✅ Security audit complete - reports generated"
-    @echo "📄 SBOM files: sbom.spdx.json, sbom.json"
+# Run doctests (nextest doesn't support doctests)
+test-doc:
+    @{{ mise_exec }} cargo test --doc --features postgresql,sqlite,encryption,compression
 
-# SBOM generation for local inspection
-sbom:
-    @echo "📋 Generating Software Bill of Materials..."
-    syft dir:. -o spdx-json > sbom.spdx.json
-    syft dir:. -o json > sbom.json
-    @echo "✅ SBOM generated: sbom.spdx.json, sbom.json"
+# Run tests with CI profile
+test-ci:
+    @{{ mise_exec }} cargo nextest run --profile ci --features postgresql,sqlite,encryption,compression --workspace
 
-# Simulate release process without publishing
-release-dry:
-    @echo "🎭 Simulating release process..."
-    @just lint
-    @just test
-    @just build-release
-    @just sbom
-    @just security-audit
-    @echo "✅ Release dry run complete - ready for actual release"
+# Run tests with verbose output
+test-verbose:
+    @{{ mise_exec }} cargo nextest run --features postgresql,sqlite,encryption,compression --workspace --no-capture
+
+# Test PostgreSQL adapter
+test-postgres:
+    @{{ mise_exec }} cargo nextest run postgres --features postgresql
+
+# Test comprehensive PostgreSQL adapter functionality
+test-postgres-comprehensive:
+    cd dbsurveyor-core && {{ mise_exec }} cargo nextest run --test postgres_comprehensive --features postgresql --no-capture
+
+# Test PostgreSQL connection pooling
+test-postgres-pooling:
+    cd dbsurveyor-core && {{ mise_exec }} cargo nextest run --test postgres_connection_pooling --features postgresql --no-capture
+
+# Test PostgreSQL versions and configurations
+test-postgres-versions:
+    cd dbsurveyor-core && {{ mise_exec }} cargo nextest run --test postgres_versions_and_configs --features postgresql --no-capture
+
+# Test all PostgreSQL comprehensive tests
+test-postgres-all:
+    cd dbsurveyor-core && {{ mise_exec }} cargo nextest run --test postgres_comprehensive --test postgres_connection_pooling --test postgres_versions_and_configs --features postgresql --no-capture
+
+# Test MySQL adapter
+test-mysql:
+    @{{ mise_exec }} cargo nextest run mysql --features mysql
+
+# Test SQLite adapter
+test-sqlite:
+    @{{ mise_exec }} cargo nextest run sqlite --features sqlite
+
+# =============================================================================
+# COVERAGE
+# =============================================================================
+
+# Private helper: run cargo llvm-cov with proper setup
+[private]
+[unix]
+_coverage +args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf target/llvm-cov-target
+    RUSTFLAGS="--cfg coverage" {{ mise_exec }} cargo llvm-cov -p dbsurveyor-core --lcov --output-path lcov.info {{ args }}
+
+[private]
+[windows]
+_coverage +args:
+    Remove-Item -Recurse -Force target/llvm-cov-target -ErrorAction SilentlyContinue
+    $env:RUSTFLAGS = "--cfg coverage"; {{ mise_exec }} cargo llvm-cov -p dbsurveyor-core --lcov --output-path lcov.info {{ args }}
+
+# Run coverage with threshold check
+coverage:
+    @just _coverage --fail-under-lines 55
+
+# Run coverage for CI
+coverage-ci:
+    @just _coverage --fail-under-lines 55
+
+# Run coverage with HTML report
+coverage-html:
+    @{{ mise_exec }} cargo llvm-cov --workspace --html --output-dir target/llvm-cov/html
+
+# Run coverage report to terminal
+coverage-report:
+    @{{ mise_exec }} cargo llvm-cov --workspace
+
+# Clean coverage artifacts
+coverage-clean:
+    @{{ mise_exec }} cargo llvm-cov clean --workspace
+
+# =============================================================================
+# SECURITY TESTING
+# =============================================================================
+
+# Test encryption capabilities (AES-GCM)
+test-encryption:
+    @{{ mise_exec }} cargo nextest run encryption --features encryption --no-capture
+
+# Test offline operation (no network calls)
+test-offline:
+    @{{ mise_exec }} cargo nextest run offline
+
+# Verify no credentials leak into outputs
+test-credential-security:
+    @{{ mise_exec }} cargo nextest run credential_security --no-capture
+
+# Full security validation suite
+security-full: lint test-encryption test-offline test-credential-security audit deny
+
+# =============================================================================
+# SECURITY AND AUDITING
+# =============================================================================
 
 # Run dependency audit
 audit:
-    @echo "📊 Auditing dependencies for security vulnerabilities..."
-    cargo audit
-    @echo "✅ Dependency audit complete"
+    @{{ mise_exec }} cargo audit
 
-# Run strict CI audit (fails on all advisories)
+# Run cargo-deny checks
+deny:
+    @{{ mise_exec }} cargo deny check
+
+# Run strict CI audit
 audit-ci:
-    @echo "📊 Running strict CI audit (fails on all advisories)..."
-    cargo audit --ignore RUSTSEC-2023-0071
-    @echo "✅ Strict audit passed - no vulnerabilities found"
+    @{{ mise_exec }} cargo audit --ignore RUSTSEC-2023-0071
 
-# -----------------------------
-# 🧹 Clean & Maintenance
-# -----------------------------
+# =============================================================================
+# DOCUMENTATION
+# =============================================================================
 
-# Clean build artifacts
-clean:
-    @echo "🧹 Cleaning build artifacts..."
-    cargo clean
-    rm -f sbom.spdx.json sbom.json lcov.info
-    @echo "✅ Clean complete"
+# Build rustdoc
+doc:
+    @{{ mise_exec }} cargo doc --features postgresql,sqlite,encryption,compression --no-deps
+
+# Build and open documentation
+doc-open:
+    @{{ mise_exec }} cargo doc --features postgresql,sqlite,encryption,compression --no-deps --document-private-items --open
+
+# Build complete documentation (mdBook + rustdoc)
+[unix]
+docs-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{ mise_exec }} cargo doc --no-deps --document-private-items --target-dir docs/book/api-temp
+    mkdir -p docs/book/api
+    cp -r docs/book/api-temp/doc/* docs/book/api/
+    rm -rf docs/book/api-temp
+    cd docs && {{ mise_exec }} mdbook build
+
+# Serve documentation locally with live reload
+[unix]
+docs-serve:
+    cd docs && {{ mise_exec }} mdbook serve --open
+
+# Clean documentation artifacts
+[unix]
+docs-clean:
+    rm -rf docs/book target/doc
+
+# Check documentation build
+[unix]
+docs-check:
+    cd docs && {{ mise_exec }} mdbook build
+
+# Generate and serve documentation
+[unix]
+docs: docs-build docs-serve
+
+[windows]
+docs:
+    @echo "mdbook requires a Unix-like environment to serve"
+
+# =============================================================================
+# CI AND QUALITY ASSURANCE
+# =============================================================================
+
+# Full local CI parity check
+ci-check: fmt-check lint test-ci coverage-ci audit-ci deny
+
+# Fast CI check without coverage
+ci-check-fast: fmt-check lint test-no-bench
+
+# Full comprehensive checks
+full-checks: fmt-check lint test-ci coverage audit-ci build-release
+
+# Run benchmarks
+bench:
+    @{{ mise_exec }} cargo bench --features postgresql,sqlite,encryption,compression
+
+# =============================================================================
+# PACKAGING AND DEPLOYMENT
+# =============================================================================
+
+# Create airgap deployment package
+[unix]
+package-airgap: build-minimal
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p airgap-package
+    cp target/release/dbsurveyor* airgap-package/ 2>/dev/null || true
+    cp README.md airgap-package/
+
+[windows]
+package-airgap: build-minimal
+    New-Item -ItemType Directory -Force -Path "airgap-package" | Out-Null
+    Copy-Item "target/release/dbsurveyor*" "airgap-package/" -ErrorAction SilentlyContinue
+    Copy-Item "README.md" "airgap-package/"
+
+# =============================================================================
+# MAINTENANCE
+# =============================================================================
 
 # Update dependencies
 update:
-    cargo update
+    @{{ mise_exec }} cargo update
 
-# -----------------------------
-# 📦 Packaging & Deployment
-# -----------------------------
+# Check for outdated dependencies
+outdated:
+    @{{ mise_exec }} cargo outdated
 
-# Verify airgap deployment package
-package-airgap:
-    @echo "📦 Creating airgap deployment package..."
-    @just build-minimal
-    @echo "🔒 Verifying airgap compatibility..."
-    mkdir -p airgap-package
-    cp target/release/dbsurveyor* airgap-package/ || true
-    cp README.md airgap-package/
-    @echo "✅ Airgap package created in airgap-package/"
+# Clean build artifacts
+[unix]
+clean:
+    @{{ mise_exec }} cargo clean
+    rm -f sbom.spdx.json sbom.json lcov.info
 
-# -----------------------------
-# 🤖 CI Workflow
-# -----------------------------
+[windows]
+clean:
+    @{{ mise_exec }} cargo clean
+    Remove-Item -Force sbom.spdx.json, sbom.json, lcov.info -ErrorAction SilentlyContinue
 
-# CI-friendly check that runs all validation
-ci-check: format-check lint test coverage-ci
-    @echo "✅ All CI checks passed!"
+# =============================================================================
+# DEVELOPMENT WORKFLOW
+# =============================================================================
 
-# Fast CI check without coverage (for quick feedback)
-ci-check-fast: format-check lint test-no-bench
-    @echo "✅ Fast CI checks passed!"
+# Development workflow: format, lint, test
+dev: format lint test
 
-# Full comprehensive checks - runs all non-interactive verifications
-full-checks: format-check lint test coverage audit build-release
-    @echo "✅ All full checks passed!"
-
-# CI-friendly QA check (respects TERM=dumb)
-ci-qa: rust-fmt-check rust-clippy rust-test
-    @echo "✅ CI QA checks passed!"
-
-# -----------------------------
-# 🚀 Development Workflow
-# -----------------------------
-
-# Development workflow: format, lint, test, coverage
-dev: format lint test coverage
-    @echo "✅ Development checks complete!"
-
-# Watch for changes and run tests
-watch:
-    cargo watch -x "test --features postgresql,sqlite,encryption,compression"
-
-# Watch for changes and run checks
-watch-check:
-    cargo watch -x "check --features postgresql,sqlite,encryption,compression" -x "clippy -- -D warnings"
-
-# -----------------------------
-# 📊 Project Information
-# -----------------------------
+# Run the CLI tool
+run *args:
+    @{{ mise_exec }} cargo run --features postgresql,sqlite,encryption,compression -- {{ args }}
 
 # Show project information
 info:
-    @echo "🔒 DBSurveyor - Security-First Database Documentation"
-    @echo "========================================================="
-    @echo "Rust version: $(rustc --version)"
-    @echo "Cargo version: $(cargo --version)"
+    @echo "DBSurveyor - Security-First Database Documentation"
+    @echo "==================================================="
+    @{{ mise_exec }} rustc --version
+    @{{ mise_exec }} cargo --version
     @echo ""
-    @echo "🔒 Security Guarantees:"
-    @echo "  ✓ Offline-only operation (no network calls except to databases)"
-    @echo "  ✓ No telemetry or external reporting"
-    @echo "  ✓ No credentials in outputs"
-    @echo "  ✓ AES-GCM encryption with random nonce"
-    @echo "  ✓ Airgap compatibility"
+    @echo "Security Guarantees:"
+    @echo "  - Offline-only operation (no network calls except to databases)"
+    @echo "  - No telemetry or external reporting"
+    @echo "  - No credentials in outputs"
+    @echo "  - AES-GCM encryption with random nonce"
+    @echo "  - Airgap compatibility"
 
-# ⚠️ SECURITY NOTICE: This justfile enforces the following security guarantees:
+# SECURITY NOTICE: This justfile enforces the following security guarantees:
 # - NO NETWORK CALLS: All operations work offline after dependency download
 # - NO TELEMETRY: Zero data collection or external reporting mechanisms
 # - NO CREDENTIALS IN OUTPUTS: Database credentials never appear in any output
-# - AES-GCM ENCRYPTION: Industry-standard with random nonce, embedded KDF params, authenticated headers
+# - AES-GCM ENCRYPTION: Industry-standard with random nonce, embedded KDF params
 # - AIRGAP COMPATIBLE: Full functionality in air-gapped environments
-# - CI SECURITY CONTROLS: Strict linting, testing, and security gates

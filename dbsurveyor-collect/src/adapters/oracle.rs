@@ -53,13 +53,10 @@ impl OracleAdapter {
     /// This adapter requires Oracle Instant Client to be installed on the system.
     /// The connection string format is: `oracle://user:pass@host:port/service_name`
     #[allow(clippy::unused_async)]
-    pub async fn new(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> AdapterResult<Self> {
+    pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
         // Parse the connection string to validate format
-        let url = url::Url::parse(connection_string)
-            .map_err(|_| AdapterError::InvalidParameters)?;
+        let url =
+            url::Url::parse(connection_string).map_err(|_| AdapterError::InvalidParameters)?;
 
         if url.scheme() != "oracle" {
             return Err(AdapterError::InvalidParameters);
@@ -148,7 +145,8 @@ impl SchemaCollector for OracleAdapter {
     async fn test_connection(&self) -> AdapterResult<()> {
         Err(AdapterError::UnsupportedFeature(
             "Oracle adapter requires Oracle Instant Client to be installed. \
-             Please install Oracle Instant Client and rebuild with the oracle feature.".to_string(),
+             Please install Oracle Instant Client and rebuild with the oracle feature."
+                .to_string(),
         ))
     }
 
@@ -156,7 +154,8 @@ impl SchemaCollector for OracleAdapter {
     async fn collect_metadata(&self) -> AdapterResult<DatabaseMetadata> {
         Err(AdapterError::UnsupportedFeature(
             "Oracle adapter requires Oracle Instant Client to be installed. \
-             Please install Oracle Instant Client and rebuild with the oracle feature.".to_string(),
+             Please install Oracle Instant Client and rebuild with the oracle feature."
+                .to_string(),
         ))
     }
 

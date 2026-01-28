@@ -12,7 +12,7 @@ use super::{
 };
 use async_trait::async_trait;
 use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions};
-use sqlx::{ConnectOptions, Pool, MySql, Row};
+use sqlx::{ConnectOptions, MySql, Pool, Row};
 use std::str::FromStr;
 
 /// `MySQL` adapter with connection pooling
@@ -38,10 +38,7 @@ impl MySqlAdapter {
     /// # Errors
     ///
     /// Returns an error if the connection cannot be established
-    pub async fn new(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> AdapterResult<Self> {
+    pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
         // Parse connection options without logging
         let mut connect_options = MySqlConnectOptions::from_str(connection_string)
             .map_err(|_| AdapterError::InvalidParameters)?;
@@ -70,9 +67,7 @@ impl MySqlAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let version: String = row
-            .try_get(0)
-            .map_err(|_| AdapterError::QueryFailed)?;
+        let version: String = row.try_get(0).map_err(|_| AdapterError::QueryFailed)?;
 
         Ok(version)
     }
@@ -158,10 +153,10 @@ impl MySqlAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        if let Some(row) = row {
-            if let Ok(count) = row.try_get::<Option<u64>, _>(0) {
-                return Ok(count);
-            }
+        if let Some(row) = row
+            && let Ok(count) = row.try_get::<Option<u64>, _>(0)
+        {
+            return Ok(count);
         }
 
         Ok(None)
@@ -246,8 +241,7 @@ mod tests {
         rt.block_on(async {
             // Use a connection string that won't actually connect but will parse correctly
             if let Ok(adapter) =
-                MySqlAdapter::new("mysql://localhost/test", ConnectionConfig::default())
-                    .await
+                MySqlAdapter::new("mysql://localhost/test", ConnectionConfig::default()).await
             {
                 let description = adapter.safe_description();
                 assert!(description.contains("MySQL"));

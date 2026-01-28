@@ -38,10 +38,7 @@ impl PostgresAdapter {
     /// # Errors
     ///
     /// Returns an error if the connection cannot be established
-    pub async fn new(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> AdapterResult<Self> {
+    pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
         // Parse connection options without logging
         let mut connect_options = PgConnectOptions::from_str(connection_string)
             .map_err(|_| AdapterError::InvalidParameters)?;
@@ -70,9 +67,7 @@ impl PostgresAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let version: String = row
-            .try_get(0)
-            .map_err(|_| AdapterError::QueryFailed)?;
+        let version: String = row.try_get(0).map_err(|_| AdapterError::QueryFailed)?;
 
         Ok(version)
     }
@@ -158,13 +153,12 @@ impl PostgresAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        if let Some(row) = row {
-            if let Ok(count) = row.try_get::<i64, _>(0) {
-                if count >= 0 {
-                    #[allow(clippy::cast_sign_loss)]
-                    return Ok(Some(count as u64));
-                }
-            }
+        if let Some(row) = row
+            && let Ok(count) = row.try_get::<i64, _>(0)
+            && count >= 0
+        {
+            #[allow(clippy::cast_sign_loss)]
+            return Ok(Some(count as u64));
         }
 
         Ok(None)

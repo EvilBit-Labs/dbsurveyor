@@ -10,7 +10,7 @@
 #[cfg(all(test, feature = "postgresql"))]
 mod postgresql_integration {
     use dbsurveyor_collect::adapters::{
-        postgresql::PostgresAdapter, ConnectionConfig, SchemaCollector,
+        ConnectionConfig, SchemaCollector, postgresql::PostgresAdapter,
     };
 
     #[tokio::test]
@@ -29,10 +29,8 @@ mod postgresql_integration {
             .expect("Failed to get port");
 
         // Build connection string
-        let connection_string = format!(
-            "postgresql://postgres:postgres@localhost:{}/postgres",
-            port
-        );
+        let connection_string =
+            format!("postgresql://postgres:postgres@localhost:{}/postgres", port);
 
         // Create adapter
         let config = ConnectionConfig::default();
@@ -55,7 +53,7 @@ mod postgresql_integration {
 
         assert_eq!(metadata.database_type, "postgresql");
         assert!(metadata.version.is_some());
-        
+
         // PostgreSQL should have at least one schema (public)
         assert!(!metadata.schemas.is_empty());
     }
@@ -76,10 +74,8 @@ mod postgresql_integration {
             .await
             .expect("Failed to get port");
 
-        let connection_string = format!(
-            "postgresql://postgres:postgres@localhost:{}/postgres",
-            port
-        );
+        let connection_string =
+            format!("postgresql://postgres:postgres@localhost:{}/postgres", port);
 
         // Create a test table using sqlx
         let pool = PgPool::connect(&connection_string)
@@ -158,9 +154,7 @@ mod postgresql_integration {
 
 #[cfg(all(test, feature = "sqlite"))]
 mod sqlite_integration {
-    use dbsurveyor_collect::adapters::{
-        sqlite::SqliteAdapter, ConnectionConfig, SchemaCollector,
-    };
+    use dbsurveyor_collect::adapters::{ConnectionConfig, SchemaCollector, sqlite::SqliteAdapter};
 
     #[tokio::test]
     async fn test_sqlite_memory_database() {
@@ -263,9 +257,7 @@ mod sqlite_integration {
 
 #[cfg(all(test, feature = "mongodb"))]
 mod mongodb_integration {
-    use dbsurveyor_collect::adapters::{
-        mongodb::MongoAdapter, ConnectionConfig, SchemaCollector,
-    };
+    use dbsurveyor_collect::adapters::{ConnectionConfig, SchemaCollector, mongodb::MongoAdapter};
 
     #[tokio::test]
     #[ignore = "MongoDB requires running container, run with --ignored flag"]

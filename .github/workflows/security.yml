@@ -1,0 +1,41 @@
+name: Security
+
+on:
+    workflow_run:
+        workflows: [CI]
+        types: [completed]
+    schedule:
+        - cron: "0 6 * * *"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    security-events: write
+
+defaults:
+    run:
+        shell: bash
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    audit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: jdx/mise-action@v3
+              with:
+                  install: true
+                  cache: true
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Run cargo deny check
+              run: cargo deny check --config deny.ci.toml
+
+            - name: Run cargo outdated
+              run: cargo outdated --depth=1 --exit-code=1
+
+            - name: Run cargo dist check
+              run: cargo dist check

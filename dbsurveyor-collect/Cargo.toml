@@ -1,19 +1,19 @@
 [package]
 name = "dbsurveyor-collect"
-description = "Database metadata collector for dbsurveyor toolchain"
-categories = ["database", "command-line-utilities"]
-keywords = ["database", "schema", "metadata", "red-team", "security"]
-
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Database schema collection tool for DBSurveyor"
 
 [package.metadata.wix]
-upgrade-guid = "15648278-7BA0-47EA-AE62-485C88FAFA5A"
-path-guid = "9E7F2FC6-51F1-4618-A43D-653A5DA9CB20"
+upgrade-guid = "A036A9AB-C29A-470C-BBA5-D5509FE43937"
+path-guid = "400B3B0E-6E92-40E5-88C5-9DF3AC3C7A3A"
 license = false
 eula = false
 
@@ -21,50 +21,89 @@ eula = false
 name = "dbsurveyor-collect"
 path = "src/main.rs"
 
-[dependencies]
-# Core shared library
-dbsurveyor-core = { workspace = true }
+[features]
+# Default features include the most commonly used secure database drivers
+default = ["postgresql", "sqlite", "mongodb"]
 
-# CLI and async
-clap = { workspace = true }
+# Database driver features (propagate to core and enable local drivers)
+postgresql = [
+    "dbsurveyor-core/postgresql",
+    "dep:sqlx",
+    "sqlx/postgres",
+]
+mysql = [
+    "dbsurveyor-core/mysql",
+    "dep:sqlx",
+    "sqlx/mysql",
+]
+sqlite = [
+    "dbsurveyor-core/sqlite",
+    "dep:sqlx",
+    "sqlx/sqlite",
+]
+mongodb = [
+    "dbsurveyor-core/mongodb",
+    "dep:mongodb",
+]
+mssql = [
+    "dbsurveyor-core/mssql",
+    "dep:tiberius",
+    "tokio-util",
+]
+# Oracle adapter is currently a stub - requires Oracle Instant Client
+oracle = []
+
+# Optional features
+compression = ["dbsurveyor-core/compression", "dep:zstd"]
+encryption = ["dbsurveyor-core/encryption"]
+
+[dependencies]
+# Core dependencies
+dbsurveyor-core = { workspace = true }
 tokio = { workspace = true }
+clap = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-async-trait = "0.1.89"
+async-trait = { workspace = true }
+url = { workspace = true }
 
-# URL parsing for secure database connection handling
-url = "2.5.7"
-
-# Database drivers (feature-gated)
-# SQLx with minimal features - specific database support added via feature flags only
-# Using rustls for better security and cross-platform compatibility
-sqlx = { version = "0.8.6", features = [
-    "runtime-tokio-rustls",
-], optional = true }
-mongodb = { version = "3.2.5", optional = true }
-tiberius = { version = "0.12.3", optional = true }
+# Database dependencies (feature-gated)
+sqlx = { workspace = true, optional = true }
+mongodb = { workspace = true, optional = true }
+tiberius = { workspace = true, optional = true }
 tokio-util = { version = "0.7.16", features = ["compat"], optional = true }
 futures = "0.3"
 
+# Security dependencies (for password input)
+rpassword = { workspace = true }
+
+# Optional dependencies
+zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = "3.21.0"
 temp-env = "0.3.6"
-testcontainers-modules = { version = "0.13.0", features = ["postgres", "mongo"] }
-criterion = "0.7.0"
+testcontainers-modules = { workspace = true, features = ["mongo"] }
+criterion = { workspace = true }
 proptest = "1.7.0"
 
-[features]
-# Default features include the most commonly used secure database drivers
-default = ["postgresql", "sqlite", "mongodb"]
-postgresql = ["dep:sqlx", "sqlx/postgres"]
-mysql = ["dep:sqlx", "sqlx/mysql"]
-sqlite = ["dep:sqlx", "sqlx/sqlite"]
-mssql = ["dep:tiberius", "tokio-util"]
-oracle = []  # Oracle adapter is a stub - requires Oracle Instant Client
-mongodb = ["dep:mongodb"]
+# Nextest configuration for collector crate
+[package.metadata.nextest]
+# Database integration tests need sequential execution to avoid conflicts
+[[package.metadata.nextest.overrides]]
+filter = "test(postgres) or test(mysql) or test(sqlite) or test(mongodb) or test(integration)"
+test-group = "integration"
 
-[lints]
-workspace = true
+# Security and credential tests run sequentially
+[[package.metadata.nextest.overrides]]
+filter = "test(security) or test(credential) or test(encryption)"
+test-group = "security"
+
+# Unit tests can run in parallel
+[[package.metadata.nextest.overrides]]
+filter = "not test(postgres) and not test(mysql) and not test(sqlite) and not test(mongodb) and not test(integration) and not test(security) and not test(credential) and not test(encryption)"
+test-group = "unit"

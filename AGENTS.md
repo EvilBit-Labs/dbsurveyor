@@ -37,7 +37,7 @@ The project follows a Rust workspace structure with clear separation of concerns
 The preferred technology stack is consistent across the project:
 
 | Layer             | Technology                                | Notes                                            |
-|-------------------|-------------------------------------------|--------------------------------------------------|
+| ----------------- | ----------------------------------------- | ------------------------------------------------ |
 | **Language**      | Rust 2021 Edition                         | Modern Rust with idiomatic patterns              |
 | **CLI**           | Clap v4 with derive macros                | For clean, user-friendly command-line interfaces |
 | **Async**         | Tokio runtime                             | For async database operations                    |
@@ -54,6 +54,7 @@ The preferred technology stack is consistent across the project:
 
 - **Formatting**: `cargo fmt` using standard Rust formatting
 - **Linting**: `cargo clippy -- -D warnings` to enforce strict zero-warning policy
+- **File Organization**: Single-purpose files strictly enforced - one type of code per file, maximum 600 lines preferred, break large files into smaller focused modules
 - **Naming**: Follow standard Rust conventions - `snake_case` for variables/functions, `PascalCase` for types
 - **Error Handling**: Use `Result<T, E>` types and `?` operator. Create custom error types when needed
 - **Documentation**: Comprehensive `///` doc comments for all public APIs
@@ -74,6 +75,10 @@ The preferred technology stack is consistent across the project:
   - **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`
   - **Scopes**: `(collector)`, `(processor)`, `(shared)`, `(security)`, `(cli)`, etc.
   - **Breaking Changes**: Indicated with `!` in the header or `BREAKING CHANGE:` in the footer
+
+### Emoji Usage
+
+- Avoid using emojis and other non-ASCII characters in code, comments, or documentation, except when the code is handling non-plaintext characters (for example: em dash, en dash, or other non-ASCII symbols).
 
 ## 5. Security Requirements
 
@@ -166,9 +171,10 @@ just dev-setup               # Install tools and dependencies
 
 # Quality assurance
 just lint                    # Run clippy with strict warnings
-just format                  # Format code
+just fmt                     # Format code (run BEFORE ci-check)
 just test                    # Run test suite
 just pre-commit              # Run all pre-commit checks
+just ci-check                # Full CI validation (fmt, clippy, test, doc, deny)
 
 # Security validation
 just security-audit          # Run security audit and SBOM generation
@@ -186,8 +192,14 @@ just package-airgap          # Create airgap deployment package
 
 - **Unit Tests**: Test individual functions and modules
 - **Integration Tests**: Test database adapters with real databases using testcontainers
+  - Use `testcontainers-modules` with database-specific features (e.g., `postgres`)
 - **Security Tests**: Verify encryption, credential handling, offline operation
 - **Performance Tests**: Benchmark database operations and memory usage
+
+### CI Notes
+
+- `cargo-deny` duplicate warnings for Windows crates are transitive dependencies and expected
+- Always run `just fmt` before `just ci-check` to avoid fmt-check failures
 
 ## 10. Architecture Patterns
 
@@ -230,6 +242,13 @@ just package-airgap          # Create airgap deployment package
 - **Database Support**: PostgreSQL (primary), MySQL, SQLite, MongoDB (NoSQL)
 - **Deployment**: Self-contained binaries with no runtime dependencies
 - **Output Formats**: JSON, Markdown, encrypted bundles
+
+### PostgreSQL Adapter Architecture
+
+- **Connection Pool**: sqlx `PgPool` with `ConnectionConfig` for pool settings
+- **Multi-Database**: Enumerate via `pg_database`, connect via URL path rewriting
+- **Data Sampling**: Detect ordering strategy (PK/timestamp/serial), rate-limited queries
+- **Modular Structure**: `connection.rs`, `sampling.rs`, `enumeration.rs`, `multi_database.rs`
 
 ### Critical Constraints
 

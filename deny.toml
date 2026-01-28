@@ -1,0 +1,74 @@
+# cargo-deny configuration for DBSurveyor
+# See: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "x86_64-pc-windows-msvc",
+]
+all-features = true
+exclude-dev = false
+
+[licenses]
+unused-allowed-license = "allow"
+# Allow common open source licenses used in the Rust ecosystem
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "OpenSSL",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Unlicense",
+    "Zlib",
+]
+
+# Confidence threshold for license detection
+confidence-threshold = 0.8
+
+[bans]
+# Warn on multiple versions instead of deny - common in large dependency trees
+multiple-versions = "warn"
+# Allow wildcards - cargo-deny incorrectly flags workspace dependencies
+wildcards = "allow"
+deny = [
+    { crate = "git2", use-instead = "gix" },
+    "libssh2-sys",
+    { crate = "cmake", use-instead = "cc" },
+]
+# Note: openssl is a transitive dependency of tiberius (SQL Server adapter)
+# We can't deny it since we need SQL Server support
+skip = []
+skip-tree = []
+
+[advisories]
+yanked = "deny"
+ignore = [
+    # RSA timing attack - no fix available, in sqlx-mysql transitive dependency
+    "RUSTSEC-2023-0071",
+    # rustls-pemfile unmaintained - in testcontainers dev dependency
+    "RUSTSEC-2025-0134",
+]
+
+[sources]
+# Allow crates from crates.io
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+[sources.allow-org]
+# Allow specific organizations for git sources if needed
+github = []
+gitlab = []
+bitbucket = []

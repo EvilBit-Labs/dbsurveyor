@@ -38,6 +38,7 @@ DBSurveyor is a security-focused database documentation tool written in Rust tha
 
 - **Formatting**: `cargo fmt` using standard Rust formatting
 - **Linting**: `cargo clippy -- -D warnings` - ZERO warnings policy enforced
+- **File Organization**: Single-purpose files strictly enforced - one type of code per file, maximum 600 lines preferred, break large files into smaller focused modules
 - **Naming**: Follow Rust conventions - `snake_case` for variables/functions, `PascalCase` for types
 - **Error Handling**: Use `Result<T, E>` types and `?` operator, create custom error types with `thiserror`
 - **Documentation**: Comprehensive `///` doc comments for all public APIs

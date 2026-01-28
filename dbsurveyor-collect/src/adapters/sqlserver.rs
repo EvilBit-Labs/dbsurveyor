@@ -39,13 +39,10 @@ impl SqlServerAdapter {
     ///
     /// Returns an error if the connection cannot be established
     #[allow(clippy::unused_async)]
-    pub async fn new(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> AdapterResult<Self> {
+    pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
         // Parse connection string (format: sqlserver://user:pass@host:port/database)
-        let url = url::Url::parse(connection_string)
-            .map_err(|_| AdapterError::InvalidParameters)?;
+        let url =
+            url::Url::parse(connection_string).map_err(|_| AdapterError::InvalidParameters)?;
 
         let host = url.host_str().ok_or(AdapterError::InvalidParameters)?;
         let port = url.port().unwrap_or(1433);
@@ -58,7 +55,7 @@ impl SqlServerAdapter {
         tiberius_config.host(host);
         tiberius_config.port(port);
         tiberius_config.authentication(AuthMethod::sql_server(username, password));
-        
+
         if !database.is_empty() {
             tiberius_config.database(database);
         }
@@ -91,17 +88,18 @@ impl SqlServerAdapter {
     /// Get database version
     async fn get_version(&self) -> AdapterResult<String> {
         let mut client = self.connect().await?;
-        
+
         let stream = client
             .query("SELECT @@VERSION", &[])
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let rows = stream.into_first_result().await
+        let rows = stream
+            .into_first_result()
+            .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let row = rows.into_iter().next()
-            .ok_or(AdapterError::QueryFailed)?;
+        let row = rows.into_iter().next().ok_or(AdapterError::QueryFailed)?;
 
         let version: &str = row.get(0).ok_or(AdapterError::QueryFailed)?;
         Ok(version.to_string())
@@ -110,7 +108,7 @@ impl SqlServerAdapter {
     /// List all schemas in the database
     async fn list_schemas(&self) -> AdapterResult<Vec<String>> {
         let mut client = self.connect().await?;
-        
+
         let stream = client
             .query(
                 "SELECT SCHEMA_NAME 
@@ -125,7 +123,9 @@ impl SqlServerAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let rows = stream.into_first_result().await
+        let rows = stream
+            .into_first_result()
+            .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
         let mut schemas = Vec::new();
@@ -141,7 +141,7 @@ impl SqlServerAdapter {
     /// Get tables for a specific schema
     async fn get_tables(&self, schema: &str) -> AdapterResult<Vec<String>> {
         let mut client = self.connect().await?;
-        
+
         let query = format!(
             "SELECT TABLE_NAME 
              FROM INFORMATION_SCHEMA.TABLES 
@@ -154,7 +154,9 @@ impl SqlServerAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let rows = stream.into_first_result().await
+        let rows = stream
+            .into_first_result()
+            .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
         let mut tables = Vec::new();
@@ -170,7 +172,7 @@ impl SqlServerAdapter {
     /// Get columns for a specific table
     async fn get_columns(&self, schema: &str, table: &str) -> AdapterResult<Vec<ColumnMetadata>> {
         let mut client = self.connect().await?;
-        
+
         let query = format!(
             "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
              FROM INFORMATION_SCHEMA.COLUMNS
@@ -183,7 +185,9 @@ impl SqlServerAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let rows = stream.into_first_result().await
+        let rows = stream
+            .into_first_result()
+            .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
         let mut columns = Vec::new();
@@ -207,7 +211,7 @@ impl SqlServerAdapter {
     /// Get row count estimate for a table
     async fn get_row_count(&self, schema: &str, table: &str) -> AdapterResult<Option<u64>> {
         let mut client = self.connect().await?;
-        
+
         let query = format!(
             "SELECT SUM(p.rows) as row_count
              FROM sys.partitions p
@@ -221,16 +225,17 @@ impl SqlServerAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let rows = stream.into_first_result().await
+        let rows = stream
+            .into_first_result()
+            .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        if let Some(row) = rows.into_iter().next() {
-            if let Some(count) = row.get::<i64, _>(0) {
-                if count >= 0 {
-                    #[allow(clippy::cast_sign_loss)]
-                    return Ok(Some(count as u64));
-                }
-            }
+        if let Some(row) = rows.into_iter().next()
+            && let Some(count) = row.get::<i64, _>(0)
+            && count >= 0
+        {
+            #[allow(clippy::cast_sign_loss)]
+            return Ok(Some(count as u64));
         }
 
         Ok(None)
@@ -245,7 +250,7 @@ impl SchemaCollector for SqlServerAdapter {
 
     async fn test_connection(&self) -> AdapterResult<()> {
         let mut client = self.connect().await?;
-        
+
         client
             .query("SELECT 1", &[])
             .await

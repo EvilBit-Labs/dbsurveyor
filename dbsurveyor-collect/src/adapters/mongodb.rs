@@ -13,9 +13,9 @@ use super::{
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use mongodb::{
-    bson::{doc, Document},
-    options::ClientOptions,
     Client,
+    bson::{Document, doc},
+    options::ClientOptions,
 };
 
 /// `MongoDB` adapter for document database access
@@ -42,10 +42,7 @@ impl MongoAdapter {
     /// # Errors
     ///
     /// Returns an error if the connection cannot be established
-    pub async fn new(
-        connection_string: &str,
-        config: ConnectionConfig,
-    ) -> AdapterResult<Self> {
+    pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
         // Parse connection options
         let mut client_options = ClientOptions::parse(connection_string)
             .await
@@ -64,8 +61,8 @@ impl MongoAdapter {
             .unwrap_or_else(|| "test".to_string());
 
         // Create client
-        let client = Client::with_options(client_options)
-            .map_err(|_| AdapterError::ConnectionFailed)?;
+        let client =
+            Client::with_options(client_options).map_err(|_| AdapterError::ConnectionFailed)?;
 
         Ok(Self {
             client,
@@ -82,10 +79,7 @@ impl MongoAdapter {
             .await
             .map_err(|_| AdapterError::QueryFailed)?;
 
-        let version = result
-            .get_str("version")
-            .unwrap_or("unknown")
-            .to_string();
+        let version = result.get_str("version").unwrap_or("unknown").to_string();
 
         Ok(version)
     }
@@ -137,9 +131,7 @@ impl MongoAdapter {
                     _ => "unknown",
                 };
 
-                fields
-                    .entry(key)
-                    .or_insert_with(|| field_type.to_string());
+                fields.entry(key).or_insert_with(|| field_type.to_string());
             }
         }
 

@@ -1,37 +1,82 @@
 [package]
 name = "dbsurveyor-core"
-description = "Core data structures and utilities for dbsurveyor toolchain"
-
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-
-[lib]
-name = "dbsurveyor_core"
-path = "src/lib.rs"
-
-[dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
-uuid = { workspace = true }
-chrono = { workspace = true }
-anyhow = { workspace = true }
-thiserror = { workspace = true }
-url = { version = "2.5.7", default-features = false, features = ["serde"] }
-async-trait = "0.1.89"
-
-# Compression and encryption
-zstd = { version = "0.13.3", optional = true }
-aes-gcm = { version = "0.10.3", optional = true }
-ring = { version = "0.17.14", optional = true }
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Core data structures and utilities for DBSurveyor"
 
 [features]
-default = ["compression"]
-compression = ["zstd"]
-encryption = ["aes-gcm", "ring"]
+default = ["postgresql", "sqlite"]
+# Database driver features
+postgresql = ["sqlx", "sqlx/postgres"]
+mysql = ["sqlx", "sqlx/mysql"]
+sqlite = ["sqlx", "sqlx/sqlite"]
+mongodb = ["dep:mongodb"]
+mssql = ["dep:tiberius"]
+# Optional features
+compression = ["dep:zstd"]
+encryption = ["dep:aes-gcm", "dep:argon2", "dep:password-hash", "dep:base64"]
 
-[lints]
-workspace = true
+[dependencies]
+# Core dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+url = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+zeroize = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+futures = { workspace = true }
+
+# Database dependencies (feature-gated)
+sqlx = { workspace = true, optional = true, default-features = false }
+tiberius = { workspace = true, optional = true }
+mongodb = { workspace = true, optional = true }
+
+# Async runtime (required for rate limiting in sampling)
+tokio = { workspace = true }
+
+# Security dependencies (feature-gated)
+aes-gcm = { workspace = true, optional = true }
+argon2 = { workspace = true, optional = true }
+password-hash = { version = "0.5", optional = true }
+rand = { workspace = true }
+base64 = { workspace = true, optional = true }
+
+# Compression (feature-gated)
+zstd = { workspace = true, optional = true }
+
+# JSON Schema validation
+jsonschema = "0.33.0"
+regex = "1.11.2"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
+serde_json = { workspace = true }
+
+# Nextest configuration for this crate
+[package.metadata.nextest]
+# Security tests should run sequentially
+[[package.metadata.nextest.overrides]]
+filter = "test(security) or test(encryption) or test(credential)"
+test-group = "security"
+
+# Integration tests with limited parallelism
+[[package.metadata.nextest.overrides]]
+filter = "test(integration)"
+test-group = "integration"
+
+# Unit tests can run in parallel
+[[package.metadata.nextest.overrides]]
+filter = "not test(security) and not test(encryption) and not test(credential) and not test(integration)"
+test-group = "unit"
