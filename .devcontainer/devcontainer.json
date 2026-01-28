@@ -30,5 +30,27 @@
             "target": "/usr/local/cargo",
             "type": "volume"
         }
-    ]
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode-remote.remote-containers",
+                "EditorConfig.EditorConfig",
+                "tamasfe.even-better-toml",
+                "github.vscode-github-actions",
+                "GitHub.codespaces",
+                "GitHub.copilot-chat",
+                "GitHub.vscode-pull-request-github",
+                "skellock.just",
+                "yzhang.markdown-all-in-one",
+                "bierner.markdown-mermaid",
+                "DavidAnson.vscode-markdownlint",
+                "hverlin.mise-vscode",
+                "ms-python.python",
+                "1YiB.rust-bundle",
+                "rust-lang.rust-analyzer",
+                "redhat.vscode-yaml"
+            ]
+        }
+    }
 }
