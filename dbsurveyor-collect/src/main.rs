@@ -365,7 +365,12 @@ async fn save_encrypted(json_data: &str, output_path: &PathBuf) -> Result<()> {
 
     // Get password from user
     print!("Enter encryption password: ");
-    io::stdout().flush().unwrap();
+    io::stdout().flush().map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
+            "Failed to flush stdout before reading password: {}",
+            e
+        ))
+    })?;
     let password = rpassword::read_password().map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::configuration(format!(
             "Failed to read password: {}",
@@ -376,6 +381,27 @@ async fn save_encrypted(json_data: &str, output_path: &PathBuf) -> Result<()> {
     if password.is_empty() {
         return Err(dbsurveyor_core::error::DbSurveyorError::configuration(
             "Password cannot be empty",
+        ));
+    }
+
+    // Confirm password to prevent typos
+    print!("Confirm encryption password: ");
+    io::stdout().flush().map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
+            "Failed to flush stdout before reading password confirmation: {}",
+            e
+        ))
+    })?;
+    let password_confirm = rpassword::read_password().map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
+            "Failed to read password confirmation: {}",
+            e
+        ))
+    })?;
+
+    if password != password_confirm {
+        return Err(dbsurveyor_core::error::DbSurveyorError::configuration(
+            "Passwords do not match",
         ));
     }
 

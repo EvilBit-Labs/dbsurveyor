@@ -109,10 +109,16 @@ mod encryption_integration_tests {
         let password = "same_password";
         let mut nonces = std::collections::HashSet::new();
 
-        // Generate 10 encryptions and verify all nonces are unique
-        // Note: Reduced from 100 to 10 for faster test execution while still
-        // providing strong statistical evidence of nonce uniqueness
-        for _ in 0..10 {
+        // Allow CI to increase iterations via ENCRYPTION_TEST_ITERATIONS while
+        // keeping a small, fast default for local development.
+        const DEFAULT_NONCE_TEST_ITERATIONS: usize = 10;
+        let iterations = std::env::var("ENCRYPTION_TEST_ITERATIONS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(DEFAULT_NONCE_TEST_ITERATIONS);
+
+        // Generate multiple encryptions and verify all nonces are unique
+        for _ in 0..iterations {
             let encrypted = encrypt_data(data, password).unwrap();
             let nonce_clone = encrypted.nonce.clone();
             assert!(nonces.insert(nonce_clone), "Nonce collision detected!");
