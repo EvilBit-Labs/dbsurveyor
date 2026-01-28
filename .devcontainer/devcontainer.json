@@ -1,0 +1,33 @@
+{
+    "name": "Rust",
+    "image": "mcr.microsoft.com/devcontainers/rust:2-1-trixie",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "installDockerBuildx": true,
+            "version": "latest",
+            "dockerDashComposeVersion": "v2",
+            "moby": false
+        },
+        "ghcr.io/devcontainers/features/git-lfs:1": {
+            "autoPull": true,
+            "installDirectlyFromGitHubRelease": true,
+            "version": "latest"
+        },
+        "ghcr.io/devcontainers/features/github-cli:1": {
+            "installDirectlyFromGitHubRelease": true,
+            "version": "latest"
+        },
+        "ghcr.io/joshuanianji/devcontainer-features/github-cli-persistence:1": {},
+        "ghcr.io/devcontainers-extra/features/mise:1": {
+            "version": "latest"
+        },
+        "ghcr.io/devcontainer-config/features/dot-config:3": {}
+    },
+    "mounts": [
+        {
+            "source": "devcontainer-cargo-cache-${devcontainerId}",
+            "target": "/usr/local/cargo",
+            "type": "volume"
+        }
+    ]
+}
