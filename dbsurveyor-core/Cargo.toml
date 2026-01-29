@@ -62,7 +62,7 @@ regex = "1.11.2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
-testcontainers-modules = { workspace = true, features = ["postgres", "mysql"] }
+testcontainers-modules = { workspace = true, features = ["postgres", "mysql", "mongo"] }
 serde_json = { workspace = true }
 
 # Nextest configuration for this crate
