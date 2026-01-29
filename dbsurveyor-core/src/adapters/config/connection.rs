@@ -220,6 +220,10 @@ impl ConnectionConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Mutex to serialize environment variable tests to prevent race conditions
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_connection_config_default() {
@@ -291,8 +295,11 @@ mod tests {
 
     #[test]
     fn test_from_env_uses_defaults_when_no_env_vars() {
+        // Lock to prevent race conditions with other env var tests
+        let _lock = ENV_MUTEX.lock().unwrap();
+
         // Ensure env vars are not set (clear any that might exist)
-        // SAFETY: Test runs in isolation
+        // SAFETY: Test runs in isolation with mutex lock
         unsafe {
             std::env::remove_var("DBSURVEYOR_MAX_CONNECTIONS");
             std::env::remove_var("DBSURVEYOR_MIN_IDLE_CONNECTIONS");
@@ -313,7 +320,10 @@ mod tests {
 
     #[test]
     fn test_from_env_invalid_max_connections() {
-        // SAFETY: Test runs in isolation
+        // Lock to prevent race conditions with other env var tests
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        // SAFETY: Test runs in isolation with mutex lock
         unsafe {
             std::env::set_var("DBSURVEYOR_MAX_CONNECTIONS", "not_a_number");
         }
@@ -332,8 +342,11 @@ mod tests {
 
     #[test]
     fn test_from_env_validates_configuration() {
+        // Lock to prevent race conditions with other env var tests
+        let _lock = ENV_MUTEX.lock().unwrap();
+
         // Set an invalid configuration (max_connections = 0)
-        // SAFETY: Test runs in isolation
+        // SAFETY: Test runs in isolation with mutex lock
         unsafe {
             std::env::set_var("DBSURVEYOR_MAX_CONNECTIONS", "0");
         }
@@ -349,8 +362,18 @@ mod tests {
 
     #[test]
     fn test_from_env_all_variables() {
-        // SAFETY: Test runs in isolation
+        // Lock to prevent race conditions with other env var tests
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        // Clear any existing env vars first, then set our values
+        // SAFETY: Test runs in isolation with mutex lock
         unsafe {
+            std::env::remove_var("DBSURVEYOR_MAX_CONNECTIONS");
+            std::env::remove_var("DBSURVEYOR_MIN_IDLE_CONNECTIONS");
+            std::env::remove_var("DBSURVEYOR_CONNECT_TIMEOUT_SECS");
+            std::env::remove_var("DBSURVEYOR_IDLE_TIMEOUT_SECS");
+            std::env::remove_var("DBSURVEYOR_MAX_LIFETIME_SECS");
+
             std::env::set_var("DBSURVEYOR_MAX_CONNECTIONS", "25");
             std::env::set_var("DBSURVEYOR_MIN_IDLE_CONNECTIONS", "5");
             std::env::set_var("DBSURVEYOR_CONNECT_TIMEOUT_SECS", "45");
