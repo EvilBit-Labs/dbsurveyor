@@ -1,9 +1,11 @@
 //! PostgreSQL schema collection implementation.
 //!
 //! This module contains all the database introspection logic for collecting
-//! tables, columns, constraints, indexes, and foreign keys from PostgreSQL.
+//! tables, columns, constraints, indexes, views, routines, triggers, and
+//! foreign keys from PostgreSQL.
 
 use super::PostgresAdapter;
+use super::{routines, triggers, views};
 use crate::Result;
 use crate::adapters::helpers::RowExt;
 use crate::models::*;
@@ -50,13 +52,13 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
     };
 
     // Collect tables with comprehensive metadata
-    tracing::debug!("Enumerating database tables and views");
+    tracing::debug!("Enumerating database tables");
     let table_collection_start = std::time::Instant::now();
     let tables = match adapter.collect_tables().await {
         Ok(tables) => {
             let table_collection_duration = table_collection_start.elapsed();
             tracing::info!(
-                "Successfully collected {} tables and views in {:.2}s",
+                "Successfully collected {} tables in {:.2}s",
                 tables.len(),
                 table_collection_duration.as_secs_f64()
             );
@@ -65,6 +67,66 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         Err(e) => {
             tracing::error!("Failed to collect tables: {}", e);
             return Err(e);
+        }
+    };
+
+    // Collect views
+    tracing::debug!("Enumerating database views");
+    let collected_views = match views::collect_views(&adapter.pool).await {
+        Ok(v) => {
+            tracing::info!("Successfully collected {} views", v.len());
+            v
+        }
+        Err(e) => {
+            let warning = format!("Failed to collect views: {}", e);
+            tracing::warn!("{}", warning);
+            warnings.push(warning);
+            Vec::new()
+        }
+    };
+
+    // Collect functions
+    tracing::debug!("Enumerating database functions");
+    let functions = match routines::collect_functions(&adapter.pool).await {
+        Ok(f) => {
+            tracing::info!("Successfully collected {} functions", f.len());
+            f
+        }
+        Err(e) => {
+            let warning = format!("Failed to collect functions: {}", e);
+            tracing::warn!("{}", warning);
+            warnings.push(warning);
+            Vec::new()
+        }
+    };
+
+    // Collect procedures
+    tracing::debug!("Enumerating database procedures");
+    let procedures = match routines::collect_procedures(&adapter.pool).await {
+        Ok(p) => {
+            tracing::info!("Successfully collected {} procedures", p.len());
+            p
+        }
+        Err(e) => {
+            let warning = format!("Failed to collect procedures: {}", e);
+            tracing::warn!("{}", warning);
+            warnings.push(warning);
+            Vec::new()
+        }
+    };
+
+    // Collect triggers
+    tracing::debug!("Enumerating database triggers");
+    let collected_triggers = match triggers::collect_triggers(&adapter.pool).await {
+        Ok(t) => {
+            tracing::info!("Successfully collected {} triggers", t.len());
+            t
+        }
+        Err(e) => {
+            let warning = format!("Failed to collect triggers: {}", e);
+            tracing::warn!("{}", warning);
+            warnings.push(warning);
+            Vec::new()
         }
     };
 
@@ -77,16 +139,20 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         }
 
         for (schema, count) in &schema_table_counts {
-            tracing::debug!("Schema '{}': {} tables/views", schema, count);
+            tracing::debug!("Schema '{}': {} tables", schema, count);
         }
     }
 
     let collection_duration = start_time.elapsed();
 
     tracing::info!(
-        "PostgreSQL schema collection completed in {:.2}s - found {} tables/views across {} schemas",
+        "PostgreSQL schema collection completed in {:.2}s - found {} tables, {} views, {} functions, {} procedures, {} triggers across {} schemas",
         collection_duration.as_secs_f64(),
         tables.len(),
+        collected_views.len(),
+        functions.len(),
+        procedures.len(),
+        collected_triggers.len(),
         schemas.len()
     );
 
@@ -109,12 +175,12 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         format_version: "1.0".to_string(),
         database_info,
         tables,
-        views: Vec::new(),
+        views: collected_views,
         indexes: all_indexes,
         constraints: all_constraints,
-        procedures: Vec::new(),
-        functions: Vec::new(),
-        triggers: Vec::new(),
+        procedures,
+        functions,
+        triggers: collected_triggers,
         custom_types: Vec::new(),
         samples: None,
         collection_metadata: CollectionMetadata {
