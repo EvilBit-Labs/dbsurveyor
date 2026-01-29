@@ -222,8 +222,11 @@ fn detect_database_type(connection_string: &str) -> Result<crate::models::Databa
     } else if connection_string.starts_with("mysql://") {
         Ok(crate::models::DatabaseType::MySQL)
     } else if connection_string.starts_with("sqlite://")
+        || connection_string.starts_with("sqlite:")
+        || connection_string == ":memory:"
         || connection_string.ends_with(".db")
         || connection_string.ends_with(".sqlite")
+        || connection_string.ends_with(".sqlite3")
     {
         Ok(crate::models::DatabaseType::SQLite)
     } else if connection_string.starts_with("mongodb://")
@@ -296,6 +299,21 @@ mod tests {
 
         assert_eq!(
             detect_database_type("/path/to/db.db").unwrap(),
+            crate::models::DatabaseType::SQLite
+        );
+
+        assert_eq!(
+            detect_database_type(":memory:").unwrap(),
+            crate::models::DatabaseType::SQLite
+        );
+
+        assert_eq!(
+            detect_database_type("sqlite::memory:").unwrap(),
+            crate::models::DatabaseType::SQLite
+        );
+
+        assert_eq!(
+            detect_database_type("test.sqlite3").unwrap(),
             crate::models::DatabaseType::SQLite
         );
 
