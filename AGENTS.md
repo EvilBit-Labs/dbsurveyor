@@ -295,4 +295,45 @@ gh api repos/{owner}/{repo}/pulls/<number>/reviews
 5. **Operator Focus**: Build for security professionals and database administrators
 6. **Documentation**: Comprehensive docs for all public APIs and CLI usage
 
+## 14. Database Adapter Implementation Notes
+
+### MySQL Adapter Gotchas
+
+- **MySQL 8.0+ VARBINARY**: INFORMATION_SCHEMA returns VARBINARY for string columns; use `CAST(column AS CHAR)` in all queries
+- **Identifier quoting**: Use backticks for MySQL identifiers (`` `table_name` ``)
+
+### SQLite Adapter Notes
+
+- **No testcontainers needed**: Use `:memory:` or temp files for integration tests
+- **PRAGMA commands**: Use `PRAGMA table_info()`, `PRAGMA foreign_key_list()`, `PRAGMA index_list()` for schema introspection
+- **Type affinity**: SQLite uses dynamic typing; map based on declared type affinity rules (INTEGER, TEXT, BLOB, REAL, NUMERIC)
+- **ROWID**: Available as fallback ordering strategy when no explicit ordering column exists
+
+### MongoDB Adapter Notes
+
+- **Schema inference**: Sample documents and infer schema (NoSQL has no fixed schema)
+- **Nested documents**: Track fields with dot notation (e.g., `profile.firstName`)
+- **Mixed types**: Track multiple observed types per field, add comment for mixed types
+- **System databases**: Filter out `admin`, `config`, `local` by default
+
+### Integration Test Patterns
+
+- **Feature gating**: Add `#![cfg(feature = "feature_name")]` at crate level in test files
+- **Flaky testcontainers**: Port exposure timing can cause intermittent failures; re-running usually passes
+- **Environment variable tests**: Use mutex locks to prevent parallel test race conditions
+
+### Adapter Module Structure
+
+Each adapter follows this structure:
+
+```text
+adapters/{database}/
+  mod.rs              # Main adapter struct + DatabaseAdapter trait impl
+  connection.rs       # Connection handling/pooling
+  schema_collection.rs # Schema introspection queries
+  type_mapping.rs     # Database type -> UnifiedDataType
+  sampling.rs         # Data sampling with ordering detection
+  tests.rs            # Unit tests
+```
+
 This document serves as the authoritative guide for AI assistants working on the DBSurveyor project, ensuring consistent, secure, and high-quality development practices.
