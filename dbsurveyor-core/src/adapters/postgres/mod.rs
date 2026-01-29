@@ -4,6 +4,9 @@
 //! - `connection`: Connection pool management and validation
 //! - `type_mapping`: PostgreSQL to unified data type conversion
 //! - `schema_collection`: Table, column, constraint, and index collection
+//! - `views`: Database view collection
+//! - `routines`: Stored procedures and functions collection
+//! - `triggers`: Database trigger collection
 //! - `sampling`: Data sampling utilities and ordering strategy detection
 //! - `enumeration`: Database enumeration for multi-database collection
 //! - `multi_database`: Multi-database collection orchestration
@@ -17,9 +20,12 @@
 mod connection;
 mod enumeration;
 mod multi_database;
+mod routines;
 mod sampling;
 mod schema_collection;
+mod triggers;
 mod type_mapping;
+mod views;
 
 #[cfg(test)]
 mod tests;
