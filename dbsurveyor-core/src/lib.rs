@@ -20,6 +20,7 @@ pub mod adapters;
 pub mod error;
 pub mod logging;
 pub mod models;
+pub mod quality;
 pub mod security;
 pub mod validation;
 
@@ -33,6 +34,9 @@ pub use models::{
     AccessLevel, CollectionMode, CollectionStatus, Column, DatabaseInfo, DatabaseSchema,
     DatabaseServerSchema, DatabaseType, OrderingStrategy, SamplingStrategy, ServerInfo,
     SortDirection, Table, TableSample, UnifiedDataType,
+};
+pub use quality::{
+    AnomalyConfig, AnomalySensitivity, QualityAnalyzer, QualityConfig, TableQualityMetrics,
 };
 
 #[cfg(feature = "encryption")]
