@@ -267,4 +267,85 @@ mod tests {
 
         assert_eq!(count_duplicate_rows(&rows), 2);
     }
+
+    #[test]
+    fn test_uniqueness_non_object_row() {
+        // First row is not an object - should return default metrics
+        let rows = vec![json!([1, 2, 3]), json!([4, 5, 6])];
+
+        let metrics = analyze_uniqueness(&create_sample(rows));
+
+        assert_eq!(metrics.score, 1.0);
+        assert!(metrics.duplicate_columns.is_empty());
+    }
+
+    #[test]
+    fn test_uniqueness_array_values() {
+        // Array values should be serialized for comparison
+        let rows = vec![
+            json!({"data": [1, 2, 3]}),
+            json!({"data": [1, 2, 3]}), // duplicate array
+            json!({"data": [4, 5, 6]}),
+        ];
+
+        let metrics = analyze_uniqueness(&create_sample(rows));
+
+        let data_col = metrics
+            .duplicate_columns
+            .iter()
+            .find(|c| c.column_name == "data");
+        assert!(data_col.is_some());
+        assert_eq!(data_col.unwrap().duplicate_count, 1);
+    }
+
+    #[test]
+    fn test_uniqueness_object_values() {
+        // Object values should be serialized for comparison
+        let rows = vec![
+            json!({"meta": {"key": "value"}}),
+            json!({"meta": {"key": "value"}}), // duplicate object
+            json!({"meta": {"key": "other"}}),
+        ];
+
+        let metrics = analyze_uniqueness(&create_sample(rows));
+
+        let meta_col = metrics
+            .duplicate_columns
+            .iter()
+            .find(|c| c.column_name == "meta");
+        assert!(meta_col.is_some());
+        assert_eq!(meta_col.unwrap().duplicate_count, 1);
+    }
+
+    #[test]
+    fn test_uniqueness_boolean_values() {
+        // Boolean values are common duplicates
+        let rows = vec![
+            json!({"active": true}),
+            json!({"active": true}),
+            json!({"active": false}),
+            json!({"active": true}),
+        ];
+
+        let metrics = analyze_uniqueness(&create_sample(rows));
+
+        let active_col = metrics
+            .duplicate_columns
+            .iter()
+            .find(|c| c.column_name == "active");
+        assert!(active_col.is_some());
+        assert_eq!(active_col.unwrap().duplicate_count, 2); // 2 extra true values
+    }
+
+    #[test]
+    fn test_uniqueness_single_value() {
+        // Single row should have perfect uniqueness
+        let rows = vec![json!({"id": 1, "name": "Alice"})];
+
+        let metrics = analyze_uniqueness(&create_sample(rows));
+
+        assert!((metrics.score - 1.0).abs() < 0.001);
+        assert!(metrics.duplicate_columns.is_empty());
+        assert_eq!(metrics.duplicate_row_count, 0);
+    }
 }

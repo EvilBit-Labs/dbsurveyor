@@ -382,4 +382,96 @@ mod tests {
         assert!(FormatPattern::IsoDateTime.matches("2024-01-15T10:30:00Z"));
         assert!(!FormatPattern::IsoDateTime.matches("2024-01-15 10:30:00")); // no T
     }
+
+    #[test]
+    fn test_consistency_non_object_row() {
+        // First row is not an object - should return default metrics
+        let rows = vec![json!([1, 2, 3]), json!([4, 5, 6])];
+
+        let metrics = analyze_consistency(&create_sample(rows));
+
+        assert_eq!(metrics.score, 1.0);
+        assert!(metrics.type_inconsistencies.is_empty());
+        assert!(metrics.format_violations.is_empty());
+    }
+
+    #[test]
+    fn test_consistency_all_nulls_in_column() {
+        // All nulls should not cause type inconsistency (nulls are ignored)
+        let rows = vec![
+            json!({"value": null}),
+            json!({"value": null}),
+            json!({"value": null}),
+        ];
+
+        let metrics = analyze_consistency(&create_sample(rows));
+
+        // No type inconsistency because nulls are not counted
+        assert!(metrics.type_inconsistencies.is_empty());
+    }
+
+    #[test]
+    fn test_consistency_empty_strings_no_format() {
+        // Empty strings should not be checked for format
+        let rows = vec![
+            json!({"email": ""}),
+            json!({"email": ""}),
+            json!({"email": "user@example.com"}),
+        ];
+
+        let metrics = analyze_consistency(&create_sample(rows));
+
+        // Only one email to detect format from, so no dominant format
+        // No format violations expected
+        assert!(metrics.format_violations.is_empty());
+    }
+
+    #[test]
+    fn test_consistency_multiple_type_mismatches() {
+        // Multiple different types in one column
+        let rows = vec![
+            json!({"data": 123}),
+            json!({"data": "string"}),
+            json!({"data": true}),
+            json!({"data": 456}),
+            json!({"data": 789}),
+        ];
+
+        let metrics = analyze_consistency(&create_sample(rows));
+
+        // Should detect inconsistency - numbers are dominant
+        assert!(!metrics.type_inconsistencies.is_empty());
+        let inconsistency = &metrics.type_inconsistencies[0];
+        assert_eq!(inconsistency.expected_type, "number");
+        // Should have both string and boolean as other types
+        assert!(inconsistency.found_types.contains(&"string".to_string()));
+        assert!(inconsistency.found_types.contains(&"boolean".to_string()));
+    }
+
+    #[test]
+    fn test_detect_format_priority() {
+        // UUID should be detected before other patterns
+        assert_eq!(
+            detect_format("550e8400-e29b-41d4-a716-446655440000"),
+            Some(FormatPattern::Uuid)
+        );
+
+        // ISO datetime before ISO date
+        assert_eq!(
+            detect_format("2024-01-15T10:30:00"),
+            Some(FormatPattern::IsoDateTime)
+        );
+
+        // ISO date
+        assert_eq!(detect_format("2024-01-15"), Some(FormatPattern::IsoDate));
+
+        // Email
+        assert_eq!(
+            detect_format("user@example.com"),
+            Some(FormatPattern::Email)
+        );
+
+        // No pattern
+        assert_eq!(detect_format("random text"), None);
+    }
 }
