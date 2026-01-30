@@ -116,6 +116,7 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
         triggers,
         custom_types: Vec::new(), // SQLite doesn't have custom types
         samples: None,
+        quality_metrics: None,
         collection_metadata: CollectionMetadata {
             collected_at: chrono::Utc::now(),
             collection_duration_ms: collection_duration.as_millis() as u64,

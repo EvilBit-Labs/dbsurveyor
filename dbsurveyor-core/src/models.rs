@@ -390,6 +390,7 @@ pub struct DatabaseSchema {
     pub triggers: Vec<Trigger>,
     pub custom_types: Vec<CustomType>,
     pub samples: Option<Vec<TableSample>>, // Optional data samples
+    pub quality_metrics: Option<Vec<crate::quality::TableQualityMetrics>>, // Optional quality metrics
     pub collection_metadata: CollectionMetadata,
 }
 
@@ -425,6 +426,7 @@ impl DatabaseSchema {
             triggers: Vec::new(),
             custom_types: Vec::new(),
             samples: None,
+            quality_metrics: None,
             collection_metadata: CollectionMetadata {
                 collected_at: chrono::Utc::now(),
                 collection_duration_ms: 0,
@@ -432,6 +434,16 @@ impl DatabaseSchema {
                 warnings: Vec::new(),
             },
         }
+    }
+
+    /// Adds quality metrics to the schema
+    pub fn add_quality_metrics(&mut self, metrics: Vec<crate::quality::TableQualityMetrics>) {
+        self.quality_metrics = Some(metrics);
+    }
+
+    /// Gets the number of tables with quality metrics
+    pub fn quality_metrics_count(&self) -> usize {
+        self.quality_metrics.as_ref().map_or(0, |m| m.len())
     }
 
     /// Adds a warning to the collection metadata

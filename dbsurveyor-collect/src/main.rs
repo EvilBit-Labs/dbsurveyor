@@ -11,9 +11,15 @@
 //! - Optional AES-GCM encryption for outputs
 
 use clap::{Args, Parser, Subcommand};
-use dbsurveyor_core::{Result, adapters::create_adapter, error::redact_database_url, init_logging};
+use dbsurveyor_core::{
+    Result,
+    adapters::create_adapter,
+    error::redact_database_url,
+    init_logging,
+    quality::{AnomalyConfig, QualityAnalyzer, QualityConfig},
+};
 use std::path::PathBuf;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Parser)]
 #[command(name = "dbsurveyor-collect")]
@@ -111,6 +117,25 @@ pub struct Cli {
         help = "Comma-separated list of databases to exclude"
     )]
     pub exclude_databases: Vec<String>,
+
+    /// Enable quality analysis
+    #[arg(long, help = "Enable data quality analysis on sampled data")]
+    pub enable_quality: bool,
+
+    /// Quality threshold overrides (format: metric:value)
+    #[arg(
+        long,
+        value_delimiter = ',',
+        help = "Quality thresholds (completeness:0.9,uniqueness:0.95,consistency:0.85)"
+    )]
+    pub quality_threshold: Vec<String>,
+
+    /// Disable anomaly detection
+    #[arg(
+        long,
+        help = "Disable statistical anomaly detection in quality analysis"
+    )]
+    pub disable_anomaly_detection: bool,
 }
 
 #[derive(Subcommand)]
@@ -224,6 +249,30 @@ async fn test_connection(database_url: &str) -> Result<()> {
     Ok(())
 }
 
+/// Parses quality thresholds from CLI arguments.
+fn parse_quality_thresholds(thresholds: &[String]) -> (Option<f64>, Option<f64>, Option<f64>) {
+    let mut completeness = None;
+    let mut uniqueness = None;
+    let mut consistency = None;
+
+    for threshold in thresholds {
+        if let Some((metric, value)) = threshold.split_once(':') {
+            if let Ok(v) = value.parse::<f64>() {
+                match metric.to_lowercase().as_str() {
+                    "completeness" => completeness = Some(v),
+                    "uniqueness" => uniqueness = Some(v),
+                    "consistency" => consistency = Some(v),
+                    _ => warn!("Unknown quality metric: {}", metric),
+                }
+            } else {
+                warn!("Invalid threshold value for {}: {}", metric, value);
+            }
+        }
+    }
+
+    (completeness, uniqueness, consistency)
+}
+
 /// Collects database schema and saves to file
 async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) -> Result<()> {
     info!("Starting schema collection...");
@@ -238,7 +287,7 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
     info!("Created {} adapter", adapter.database_type());
 
     // Collect schema
-    let schema = adapter.collect_schema().await.map_err(|e| {
+    let mut schema = adapter.collect_schema().await.map_err(|e| {
         error!("Schema collection failed: {}", e);
         e
     })?;
@@ -247,6 +296,69 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
     info!("Found {} tables", schema.tables.len());
     info!("Found {} views", schema.views.len());
     info!("Found {} indexes", schema.indexes.len());
+
+    // Run quality analysis if enabled and samples exist
+    if cli.enable_quality {
+        if let Some(ref samples) = schema.samples {
+            info!(
+                "Running data quality analysis on {} samples...",
+                samples.len()
+            );
+
+            // Build quality config
+            let (completeness, uniqueness, consistency) =
+                parse_quality_thresholds(&cli.quality_threshold);
+
+            let mut config = QualityConfig::new();
+
+            if let Some(c) = completeness {
+                config = config.with_completeness_min(c);
+            }
+            if let Some(u) = uniqueness {
+                config = config.with_uniqueness_min(u);
+            }
+            if let Some(c) = consistency {
+                config = config.with_consistency_min(c);
+            }
+
+            if cli.disable_anomaly_detection {
+                config = config.with_anomaly_detection(AnomalyConfig::new().with_enabled(false));
+            }
+
+            let analyzer = QualityAnalyzer::new(config);
+            let quality_metrics = analyzer.analyze_all(samples)?;
+
+            // Report quality findings
+            let mut violations_count = 0;
+            for metric in &quality_metrics {
+                if !metric.threshold_violations.is_empty() {
+                    violations_count += metric.threshold_violations.len();
+                    for violation in &metric.threshold_violations {
+                        warn!(
+                            "Quality violation in '{}': {} = {:.2}% (threshold: {:.2}%)",
+                            metric.table_name,
+                            violation.metric,
+                            violation.actual * 100.0,
+                            violation.threshold * 100.0
+                        );
+                    }
+                }
+            }
+
+            schema.add_quality_metrics(quality_metrics);
+
+            if violations_count > 0 {
+                info!(
+                    "✓ Quality analysis completed with {} violations",
+                    violations_count
+                );
+            } else {
+                info!("✓ Quality analysis completed - all thresholds met");
+            }
+        } else {
+            info!("Quality analysis skipped - no samples available");
+        }
+    }
 
     // Save to file
     save_schema(&schema, output_path, cli).await?;
@@ -257,6 +369,12 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
     println!("Tables: {}", schema.tables.len());
     println!("Views: {}", schema.views.len());
     println!("Indexes: {}", schema.indexes.len());
+
+    if cli.enable_quality
+        && let Some(ref metrics) = schema.quality_metrics
+    {
+        println!("Quality metrics: {} tables analyzed", metrics.len());
+    }
 
     Ok(())
 }
