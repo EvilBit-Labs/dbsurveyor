@@ -97,8 +97,17 @@ fn value_to_string(value: &serde_json::Value) -> String {
         serde_json::Value::Bool(b) => b.to_string(),
         serde_json::Value::Number(n) => n.to_string(),
         serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Array(a) => serde_json::to_string(a).unwrap_or_default(),
-        serde_json::Value::Object(o) => serde_json::to_string(o).unwrap_or_default(),
+        serde_json::Value::Array(a) => serde_json::to_string(a).unwrap_or_else(|e| {
+            tracing::trace!("Failed to serialize array for uniqueness comparison: {}", e);
+            "__SERIALIZE_ERROR__".to_string()
+        }),
+        serde_json::Value::Object(o) => serde_json::to_string(o).unwrap_or_else(|e| {
+            tracing::trace!(
+                "Failed to serialize object for uniqueness comparison: {}",
+                e
+            );
+            "__SERIALIZE_ERROR__".to_string()
+        }),
     }
 }
 

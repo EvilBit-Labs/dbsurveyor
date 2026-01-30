@@ -69,14 +69,28 @@ impl ColumnCompleteness {
         empty_count: u64,
         total: u64,
     ) -> Self {
+        let column_name = column_name.into();
+
+        // Diagnostic for anomalous input that could indicate upstream issues
+        let combined = null_count.saturating_add(empty_count);
+        if combined > total {
+            tracing::warn!(
+                "Quality metrics anomaly: null_count ({}) + empty_count ({}) exceeds total ({}) for column '{}'",
+                null_count,
+                empty_count,
+                total,
+                column_name
+            );
+        }
+
         let completeness = if total == 0 {
             1.0
         } else {
-            (total - null_count - empty_count) as f64 / total as f64
+            (total.saturating_sub(combined)) as f64 / total as f64
         };
 
         Self {
-            column_name: column_name.into(),
+            column_name,
             null_count,
             empty_count,
             completeness: completeness.clamp(0.0, 1.0),
