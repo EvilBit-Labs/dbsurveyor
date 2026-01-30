@@ -304,4 +304,123 @@ mod tests {
         assert_eq!(extract_numeric(&json!(null)), None);
         assert_eq!(extract_numeric(&json!(true)), None);
     }
+
+    #[test]
+    fn test_anomaly_non_object_row() {
+        // First row is not an object - should return default metrics
+        let rows = vec![json!([1, 2, 3]), json!([4, 5, 6])];
+
+        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
+
+        assert_eq!(metrics.outlier_count, 0);
+        assert!(metrics.outliers.is_empty());
+    }
+
+    #[test]
+    fn test_anomaly_multiple_numeric_columns() {
+        // Multiple columns with outliers
+        let rows = vec![
+            json!({"a": 10, "b": 100}),
+            json!({"a": 10, "b": 100}),
+            json!({"a": 10, "b": 100}),
+            json!({"a": 10, "b": 100}),
+            json!({"a": 10, "b": 100}),
+            json!({"a": 10, "b": 100}),
+            json!({"a": 10, "b": 100}),
+            json!({"a": 10, "b": 100}),
+            json!({"a": 10, "b": 100}),
+            json!({"a": 1000, "b": 10000}), // outliers in both columns
+        ];
+
+        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
+
+        // Should detect outliers in both columns
+        assert!(metrics.outlier_count >= 2);
+        assert!(metrics.outliers.len() >= 2);
+    }
+
+    #[test]
+    fn test_anomaly_negative_values() {
+        // Test with negative values and negative outlier
+        let rows = vec![
+            json!({"value": -10}),
+            json!({"value": -10}),
+            json!({"value": -10}),
+            json!({"value": -10}),
+            json!({"value": -10}),
+            json!({"value": -10}),
+            json!({"value": -10}),
+            json!({"value": -10}),
+            json!({"value": -10}),
+            json!({"value": -1000}), // negative outlier
+        ];
+
+        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
+
+        assert!(metrics.outlier_count > 0);
+    }
+
+    #[test]
+    fn test_anomaly_float_values() {
+        // Test with floating point values
+        let rows = vec![
+            json!({"value": 1.5}),
+            json!({"value": 1.5}),
+            json!({"value": 1.5}),
+            json!({"value": 1.5}),
+            json!({"value": 1.5}),
+            json!({"value": 1.5}),
+            json!({"value": 1.5}),
+            json!({"value": 1.5}),
+            json!({"value": 1.5}),
+            json!({"value": 150.0}), // outlier
+        ];
+
+        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
+
+        assert!(metrics.outlier_count > 0);
+    }
+
+    #[test]
+    fn test_anomaly_mixed_numeric_and_non_numeric() {
+        // Some values are numeric, some are not
+        let rows = vec![
+            json!({"value": 10}),
+            json!({"value": 10}),
+            json!({"value": "not a number"}), // skipped
+            json!({"value": 10}),
+            json!({"value": 10}),
+            json!({"value": null}), // skipped
+            json!({"value": 10}),
+            json!({"value": 10}),
+            json!({"value": 10}),
+            json!({"value": 1000}), // outlier
+        ];
+
+        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
+
+        // Should still detect outlier among numeric values
+        assert!(metrics.outlier_count > 0);
+    }
+
+    #[test]
+    fn test_anomaly_string_numbers_negative() {
+        // String numbers including negative
+        let rows = vec![
+            json!({"value": "-10"}),
+            json!({"value": "-10"}),
+            json!({"value": "-10"}),
+            json!({"value": "-10"}),
+            json!({"value": "-10"}),
+            json!({"value": "-10"}),
+            json!({"value": "-10"}),
+            json!({"value": "-10"}),
+            json!({"value": "-10"}),
+            json!({"value": "-1000"}), // outlier as string
+        ];
+
+        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
+
+        assert!(metrics.outlier_count > 0);
+    }
 }

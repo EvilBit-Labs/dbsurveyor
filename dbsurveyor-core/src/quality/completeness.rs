@@ -215,4 +215,46 @@ mod tests {
             .unwrap();
         assert_eq!(name_col.null_count, 1);
     }
+
+    #[test]
+    fn test_completeness_non_object_row() {
+        // First row is not an object - should return default metrics
+        let rows = vec![json!([1, 2, 3]), json!([4, 5, 6])];
+
+        let metrics = analyze_completeness(&create_sample(rows));
+
+        assert_eq!(metrics.score, 1.0);
+        assert!(metrics.column_metrics.is_empty());
+    }
+
+    #[test]
+    fn test_completeness_single_column() {
+        let rows = vec![
+            json!({"value": 1}),
+            json!({"value": 2}),
+            json!({"value": 3}),
+        ];
+
+        let metrics = analyze_completeness(&create_sample(rows));
+
+        assert_eq!(metrics.column_metrics.len(), 1);
+        assert_eq!(metrics.column_metrics[0].column_name, "value");
+        assert!((metrics.score - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_completeness_whitespace_not_empty() {
+        // Whitespace-only strings are NOT considered empty (only "" is)
+        let rows = vec![
+            json!({"name": "  "}),
+            json!({"name": "\t"}),
+            json!({"name": "valid"}),
+        ];
+
+        let metrics = analyze_completeness(&create_sample(rows));
+
+        // Whitespace strings are considered present
+        assert_eq!(metrics.total_empty, 0);
+        assert!((metrics.score - 1.0).abs() < 0.001);
+    }
 }
