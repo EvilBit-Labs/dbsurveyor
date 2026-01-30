@@ -11,6 +11,11 @@ use super::models::{ColumnCompleteness, CompletenessMetrics};
 ///
 /// Completeness measures the presence of values - identifying null and empty
 /// values that may indicate data quality issues.
+///
+/// # Note
+/// Column names are derived from the first row only. Any columns that appear
+/// exclusively in subsequent rows will not be analyzed. This is acceptable for
+/// quality analysis on sampled data with consistent schemas.
 pub fn analyze_completeness(sample: &TableSample) -> CompletenessMetrics {
     if sample.rows.is_empty() {
         return CompletenessMetrics::default();

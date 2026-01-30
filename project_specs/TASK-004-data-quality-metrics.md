@@ -237,8 +237,8 @@ pub quality_config: Option<QualityConfig>,
 
 New flags:
 - `--enable-quality`: Enable quality analysis (default: disabled)
-- `--quality-threshold <metric:value>`: Override threshold
-- `--quality-report-only`: Generate quality report without full schema
+- `--quality-threshold <metric:value>`: Override threshold (e.g., `completeness:0.9`)
+- `--disable-anomaly-detection`: Disable statistical anomaly detection
 
 ### Phase 4: Output Integration
 

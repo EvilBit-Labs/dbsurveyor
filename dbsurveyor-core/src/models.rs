@@ -436,12 +436,17 @@ impl DatabaseSchema {
         }
     }
 
-    /// Adds quality metrics to the schema
+    /// Adds quality metrics to the schema.
+    ///
+    /// # Arguments
+    /// * `metrics` - Vector of quality metrics, one for each analyzed table
     pub fn add_quality_metrics(&mut self, metrics: Vec<crate::quality::TableQualityMetrics>) {
         self.quality_metrics = Some(metrics);
     }
 
-    /// Gets the number of tables with quality metrics
+    /// Returns the number of tables with quality metrics.
+    ///
+    /// Returns 0 if quality metrics have not been collected.
     pub fn quality_metrics_count(&self) -> usize {
         self.quality_metrics.as_ref().map_or(0, |m| m.len())
     }

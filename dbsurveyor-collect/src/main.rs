@@ -258,10 +258,17 @@ fn parse_quality_thresholds(thresholds: &[String]) -> (Option<f64>, Option<f64>,
     for threshold in thresholds {
         if let Some((metric, value)) = threshold.split_once(':') {
             if let Ok(v) = value.parse::<f64>() {
+                // Validate threshold is in valid range
+                if !(0.0..=1.0).contains(&v) {
+                    warn!(
+                        "Threshold value {} for {} is outside valid range [0.0, 1.0]",
+                        v, metric
+                    );
+                }
                 match metric.to_lowercase().as_str() {
-                    "completeness" => completeness = Some(v),
-                    "uniqueness" => uniqueness = Some(v),
-                    "consistency" => consistency = Some(v),
+                    "completeness" => completeness = Some(v.clamp(0.0, 1.0)),
+                    "uniqueness" => uniqueness = Some(v.clamp(0.0, 1.0)),
+                    "consistency" => consistency = Some(v.clamp(0.0, 1.0)),
                     _ => warn!("Unknown quality metric: {}", metric),
                 }
             } else {
