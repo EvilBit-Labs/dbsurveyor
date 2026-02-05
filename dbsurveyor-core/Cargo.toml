@@ -57,7 +57,7 @@ base64 = { workspace = true }
 zstd = { workspace = true, optional = true }
 
 # JSON Schema validation
-jsonschema = "0.33.0"
+jsonschema = "0.41.0"
 regex = "1.11.2"
 
 [dev-dependencies]
