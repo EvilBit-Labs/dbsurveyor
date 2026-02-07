@@ -102,3 +102,4 @@ node_modules/
 
 # Ephemeral files
 public/
+.claude/settings.local.json
