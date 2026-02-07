@@ -216,15 +216,13 @@ code_generation:
 issue_enrichment:
     auto_enrich:
         enabled: true
-
     planning:
-        enabled: true
+        enabled: false
         auto_planning:
             enabled: false
             labels:
                 - "enhancement"
                 - "bug"
-
     labeling:
         auto_apply_labels: true
         labeling_instructions:
