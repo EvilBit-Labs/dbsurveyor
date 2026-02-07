@@ -7,6 +7,7 @@ Add per-query retry logic to PostgreSQL adapter using RetryPolicy trait. This en
 ## Scope
 
 **What's Included**:
+
 - Create query execution wrapper in `file:dbsurveyor-core/src/adapters/postgres/mod.rs`:
   - `execute_with_retry<T, F>(&self, operation: F, retry_policy: &dyn RetryPolicy) -> Result<T>`
   - Generic wrapper that applies retry logic to any async database operation
@@ -30,6 +31,7 @@ Add per-query retry logic to PostgreSQL adapter using RetryPolicy trait. This en
   - Verify exponential backoff timing
 
 **What's Explicitly Out**:
+
 - Retry logic for MySQL/SQLite adapters (separate work)
 - Configurable retry parameters (using hardcoded defaults from `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/2`)
 - Connection pool retry (focus on query-level retry only)

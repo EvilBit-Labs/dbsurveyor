@@ -7,6 +7,7 @@ Replace placeholder Markdown generation with comprehensive, production-ready doc
 ## Scope
 
 **What's Included**:
+
 - Implement full Markdown generation in `generate_markdown()` in `file:dbsurveyor/src/main.rs`:
   - **Header section**: Database name, version, collection date, collector version
   - **Summary section**: Object counts (tables, views, indexes, constraints, procedures, functions, triggers)
@@ -39,6 +40,7 @@ Replace placeholder Markdown generation with comprehensive, production-ready doc
 - Add integration tests with real schema files
 
 **What's Explicitly Out**:
+
 - Mermaid ERD diagram generation (separate ticket)
 - HTML conversion (separate ticket)
 - Advanced formatting (syntax highlighting, collapsible sections) (deferred)

@@ -7,6 +7,7 @@ Extend the data model to support granular object-level failure tracking for part
 ## Scope
 
 **What's Included**:
+
 - Define `ObjectFailure` struct in `file:dbsurveyor-core/src/models.rs` with fields:
   - `object_type: ObjectType` (Table, View, Index, Constraint, Procedure, Function, Trigger, CustomType)
   - `object_name: String`
@@ -23,6 +24,7 @@ Extend the data model to support granular object-level failure tracking for part
 - Unit tests for serialization/deserialization of all enum variants
 
 **What's Explicitly Out**:
+
 - Actual population of object failures during collection (handled in `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/7`)
 - Postprocessor display of object failures (future work)
 - Retry logic implementation (handled in `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/2`)

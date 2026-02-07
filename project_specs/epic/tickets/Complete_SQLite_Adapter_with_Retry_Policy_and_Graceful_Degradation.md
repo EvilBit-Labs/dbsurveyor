@@ -7,6 +7,7 @@ Bring SQLite adapter to feature parity with PostgreSQL for v1.0 release. Integra
 ## Scope
 
 **What's Included**:
+
 - Integrate `RetryPolicy` into SQLite query execution (similar to `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/da7b9aca-42df-40ef-9c17-7df3bfbaf3e8`):
   - Create query execution wrapper using `DefaultRetryPolicy`
   - Categorize SQLite-specific errors (SQLITE_AUTH for permission, etc.)
@@ -30,6 +31,7 @@ Bring SQLite adapter to feature parity with PostgreSQL for v1.0 release. Integra
 - Update documentation in `file:dbsurveyor-core/src/adapters/sqlite/mod.rs`
 
 **What's Explicitly Out**:
+
 - Multi-database collection for SQLite (SQLite is single-database per file)
 - SQLite-specific advanced features (FTS, R*Tree, JSON1) (deferred)
 - SQLite 2.x compatibility (focus on SQLite 3.x)
@@ -63,6 +65,6 @@ Bring SQLite adapter to feature parity with PostgreSQL for v1.0 release. Integra
 
 - **Spec**: `spec:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/820ca524-8c7d-4939-8097-f1158e7d67ea` (Tech Plan - Adapter Integration)
 - **Epic Brief**: `spec:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/64fc1d47-e1e3-40db-a5dc-8dc9c248814c` (v1.0 Must Have - SQLite adapter)
-- **Related Tickets**: 
+- **Related Tickets**:
   - `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/a6020349-6b60-4e3e-a5b5-f7ee3a264721` (RetryPolicy)
   - `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/dbbfad98-830e-499a-9363-7dc1badbb23a` (ObjectFailure model)

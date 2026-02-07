@@ -7,6 +7,7 @@ Add support for processing multi-database bundles in the postprocessor. Enable t
 ## Scope
 
 **What's Included**:
+
 - Extend `load_schema()` in `file:dbsurveyor/src/main.rs` to detect and handle multi-database bundles:
   - Detect `MultiDatabaseResult` vs `DatabaseSchema` in JSON
   - Parse `MultiDatabaseOutput::Bundle` variant
@@ -35,6 +36,7 @@ Add support for processing multi-database bundles in the postprocessor. Enable t
 - Add integration tests for all commands with multi-database bundles
 
 **What's Explicitly Out**:
+
 - Cross-database analysis (foreign keys across databases, schema comparison) (deferred to post-v1.0)
 - Visual diagrams (Mermaid ERD) for multi-database bundles (deferred)
 - HTML reports for multi-database bundles (deferred)
@@ -78,5 +80,5 @@ flowchart TD
 - **Spec**: `spec:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/820ca524-8c7d-4939-8097-f1158e7d67ea` (Tech Plan - MultiDatabaseOutput)
 - **Core Flows**: `spec:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/661dbe3d-b679-4287-991e-26f4a0dd98b9` (Flow 3 - batch documentation)
 - **Epic Brief**: `spec:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/64fc1d47-e1e3-40db-a5dc-8dc9c248814c` (v1.0 Must Have - postprocessor)
-- **Related Tickets**: 
+- **Related Tickets**:
   - `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/f609d694-2c7e-4e8d-9542-020dad45750b` (MultiDatabaseOutput variants)

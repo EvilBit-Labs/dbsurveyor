@@ -7,6 +7,7 @@ Create retry policy abstraction with hardcoded v1.0 defaults for per-query retry
 ## Scope
 
 **What's Included**:
+
 - Define `RetryPolicy` trait in new file `file:dbsurveyor-core/src/adapters/retry.rs`:
   - `should_retry(&self, category: ErrorCategory, attempt: u32) -> bool`
   - `backoff_duration(&self, attempt: u32) -> Duration`
@@ -25,6 +26,7 @@ Create retry policy abstraction with hardcoded v1.0 defaults for per-query retry
 - Re-export from `file:dbsurveyor-core/src/adapters/mod.rs`
 
 **What's Explicitly Out**:
+
 - Configurable retry parameters (deferred to v1.1+)
 - Adapter-specific retry policies (use `DefaultRetryPolicy` for all adapters in v1.0)
 - Actual integration into adapter query execution (handled in `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/6`)

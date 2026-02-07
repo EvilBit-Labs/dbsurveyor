@@ -7,6 +7,7 @@ Bring MySQL adapter to feature parity with PostgreSQL for v1.0 release. Integrat
 ## Scope
 
 **What's Included**:
+
 - Integrate `RetryPolicy` into MySQL query execution (similar to `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/da7b9aca-42df-40ef-9c17-7df3bfbaf3e8`):
   - Create query execution wrapper using `DefaultRetryPolicy`
   - Categorize MySQL-specific errors (error codes 1142 for permission, etc.)
@@ -30,6 +31,7 @@ Bring MySQL adapter to feature parity with PostgreSQL for v1.0 release. Integrat
 - Update documentation in `file:dbsurveyor-core/src/adapters/mysql/mod.rs`
 
 **What's Explicitly Out**:
+
 - Multi-database collection for MySQL (deferred to post-v1.0)
 - Advanced MySQL-specific features (partitions, events) (deferred)
 - MySQL 5.x compatibility (focus on MySQL 8.0+)
@@ -61,6 +63,6 @@ Bring MySQL adapter to feature parity with PostgreSQL for v1.0 release. Integrat
 
 - **Spec**: `spec:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/820ca524-8c7d-4939-8097-f1158e7d67ea` (Tech Plan - Adapter Integration)
 - **Epic Brief**: `spec:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/64fc1d47-e1e3-40db-a5dc-8dc9c248814c` (v1.0 Must Have - MySQL adapter)
-- **Related Tickets**: 
+- **Related Tickets**:
   - `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/a6020349-6b60-4e3e-a5b5-f7ee3a264721` (RetryPolicy)
   - `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/dbbfad98-830e-499a-9363-7dc1badbb23a` (ObjectFailure model)

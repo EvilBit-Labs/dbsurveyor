@@ -7,6 +7,7 @@ Update PostgreSQL schema collection to populate ObjectFailure metadata instead o
 ## Scope
 
 **What's Included**:
+
 - Refactor `collect_tables()` in `file:dbsurveyor-core/src/adapters/postgres/schema_collection.rs`:
   - Wrap each table's sub-collection (columns, indexes, constraints, foreign keys) in error handling
   - On failure, record `ObjectFailure` with appropriate `stage` (CollectColumns, CollectIndexes, etc.)
@@ -31,6 +32,7 @@ Update PostgreSQL schema collection to populate ObjectFailure metadata instead o
   - Simulate timeout on index collection (verify table collected without indexes)
 
 **What's Explicitly Out**:
+
 - Changes to views/routines/triggers collection (already gracefully degrade with warnings)
 - MySQL/SQLite adapter changes (separate work)
 - Postprocessor display of object failures (future work)

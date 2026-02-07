@@ -7,6 +7,7 @@ Replace placeholder SQL DDL generation with production-ready SQL reconstruction.
 ## Scope
 
 **What's Included**:
+
 - Implement full SQL DDL generation in `generate_sql()` in `file:dbsurveyor/src/main.rs`:
   - **CREATE TABLE statements**: For each table:
     - Column definitions with types, nullability, defaults
@@ -41,6 +42,7 @@ Replace placeholder SQL DDL generation with production-ready SQL reconstruction.
 - Add integration tests with real schema files
 
 **What's Explicitly Out**:
+
 - Data migration (INSERT statements) (deferred)
 - Advanced database-specific features (partitions, tablespaces, etc.) (deferred)
 - SQL Server and Oracle dialects (deferred to post-v1.0)

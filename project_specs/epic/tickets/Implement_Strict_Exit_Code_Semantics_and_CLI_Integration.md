@@ -7,6 +7,7 @@ Add automation-friendly exit code calculation with configurable strict mode. Thi
 ## Scope
 
 **What's Included**:
+
 - Implement `calculate_exit_code()` function in `file:dbsurveyor-collect/src/main.rs`:
   - **Default mode** (`strict = false`): Exit 0 if at least one database succeeded; exit 1 if all failed
   - **Strict mode** (`strict = true`): Exit 1 if any database-level failure OR any `object_failures` include Tables
@@ -26,6 +27,7 @@ Add automation-friendly exit code calculation with configurable strict mode. Thi
 - Integration tests verifying exit codes in CI/CD scenarios
 
 **What's Explicitly Out**:
+
 - Custom exit code configuration (hardcoded 0/1 for v1.0)
 - Exit code documentation in postprocessor (separate work)
 - Logging of exit code rationale (use verbose mode for debugging)

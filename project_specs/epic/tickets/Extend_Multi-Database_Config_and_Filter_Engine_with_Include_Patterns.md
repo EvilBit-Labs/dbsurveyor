@@ -7,6 +7,7 @@ Add include pattern support to multi-database filtering with additive semantics 
 ## Scope
 
 **What's Included**:
+
 - Extend `MultiDatabaseConfig` in `file:dbsurveyor-core/src/adapters/config/multi_database.rs`:
   - Add `include_patterns: Vec<String>` field
   - Update builder method: `with_include_patterns(patterns: Vec<String>)`
@@ -27,6 +28,7 @@ Add include pattern support to multi-database filtering with additive semantics 
 - Integration tests with real PostgreSQL database enumeration
 
 **What's Explicitly Out**:
+
 - Schema-level or table-level filtering (deferred to future)
 - Regex patterns (only glob patterns `*` and `?` for v1.0)
 - Interactive database selection (flag-driven only)

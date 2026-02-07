@@ -7,6 +7,7 @@ Integrate include patterns, output variants, and failure stub generation into Po
 ## Scope
 
 **What's Included**:
+
 - Update `collect_all_databases()` signature in `file:dbsurveyor-core/src/adapters/postgres/multi_database.rs`:
   - Return `MultiDatabaseOutput` instead of `MultiDatabaseResult`
   - Accept `config: &MultiDatabaseConfig` with include patterns and output mode
@@ -31,6 +32,7 @@ Integrate include patterns, output variants, and failure stub generation into Po
 - Add tests for include pattern filtering with real PostgreSQL server
 
 **What's Explicitly Out**:
+
 - CLI serialization logic (handled in `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/4`)
 - Manifest file format definition (handled in `ticket:de2eeeb8-bfeb-4a11-98aa-84efc70568b2/4`)
 - MySQL/SQLite multi-database support (future work)

@@ -7,7 +7,9 @@ Create type-safe output mode variants and serialization logic for single bundle 
 ## Scope
 
 **What's Included**:
+
 - Define `MultiDatabaseOutput` enum in `file:dbsurveyor-core/src/adapters/config/multi_database.rs`:
+
   ```rust
   pub enum MultiDatabaseOutput {
       Bundle(MultiDatabaseResult),
@@ -17,6 +19,7 @@ Create type-safe output mode variants and serialization logic for single bundle 
       },
   }
   ```
+
 - Define `MultiDatabaseManifest` struct with metadata:
   - `server_info: ServerInfo`
   - `databases: Vec<DatabaseManifestEntry>` (name, status, collection_duration_ms)
@@ -37,6 +40,7 @@ Create type-safe output mode variants and serialization logic for single bundle 
 - Integration tests for both output modes
 
 **What's Explicitly Out**:
+
 - Encryption/compression handling (reuse existing logic from single-file output)
 - Postprocessor support for multi-db bundles (separate work)
 - Manifest-based cross-database analysis (future feature)
