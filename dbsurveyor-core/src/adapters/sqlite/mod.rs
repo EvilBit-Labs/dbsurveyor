@@ -121,6 +121,38 @@ impl DatabaseAdapter for SqliteAdapter {
     fn connection_config(&self) -> ConnectionConfig {
         self.config.clone()
     }
+
+    async fn sample_tables(
+        &self,
+        schema: &DatabaseSchema,
+        config: &super::SamplingConfig,
+    ) -> Result<Vec<crate::models::TableSample>> {
+        let mut samples = Vec::new();
+
+        for table in &schema.tables {
+            tracing::debug!("Sampling table {}", table.name);
+
+            match self.sample_table(&table.name, config).await {
+                Ok(sample) => {
+                    tracing::debug!(
+                        "Sampled {} rows from {}",
+                        sample.sample_size,
+                        table.name
+                    );
+                    samples.push(sample);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to sample table {}: {}",
+                        table.name,
+                        e
+                    );
+                }
+            }
+        }
+
+        Ok(samples)
+    }
 }
 
 // Additional SqliteAdapter methods for data sampling

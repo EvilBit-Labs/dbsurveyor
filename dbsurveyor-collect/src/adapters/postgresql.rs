@@ -37,8 +37,11 @@ impl PostgresAdapter {
     ///
     /// # Errors
     ///
-    /// Returns an error if the connection cannot be established
+    /// Returns an error if the connection cannot be established or configuration is invalid
     pub async fn new(connection_string: &str, config: ConnectionConfig) -> AdapterResult<Self> {
+        // Validate configuration before using it
+        config.validate()?;
+
         // Parse connection options without logging
         let mut connect_options = PgConnectOptions::from_str(connection_string)
             .map_err(|_| AdapterError::InvalidParameters)?;
@@ -51,8 +54,8 @@ impl PostgresAdapter {
             .max_connections(config.max_connections)
             .min_connections(config.min_idle_connections)
             .acquire_timeout(config.acquire_timeout)
-            .idle_timeout(config.idle_timeout)
-            .max_lifetime(config.max_lifetime)
+            .idle_timeout(Some(config.idle_timeout))
+            .max_lifetime(Some(config.max_lifetime))
             .connect_with(connect_options)
             .await
             .map_err(|_| AdapterError::ConnectionFailed)?;

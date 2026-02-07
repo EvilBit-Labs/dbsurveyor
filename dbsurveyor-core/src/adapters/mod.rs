@@ -10,7 +10,7 @@
 //! - `placeholder`: Placeholder adapter macro for unimplemented databases
 //! - Database-specific modules (postgres, mysql, sqlite, mongodb, mssql)
 
-use crate::{Result, models::DatabaseSchema};
+use crate::{Result, models::{DatabaseSchema, TableSample}};
 use async_trait::async_trait;
 
 // Configuration module
@@ -18,7 +18,9 @@ pub mod config;
 
 // Re-export configuration types for convenience
 pub use config::{
-    CollectionConfig, ConnectionConfig, OutputFormat, SamplingConfig, SensitivePattern,
+    CollectionConfig, ConnectionConfig, DatabaseCollectionResult, DatabaseFailure,
+    MultiDatabaseConfig, MultiDatabaseMetadata, MultiDatabaseResult, OutputFormat, SamplingConfig,
+    SensitivePattern,
 };
 
 /// Features that database adapters may support.
@@ -87,6 +89,31 @@ pub trait DatabaseAdapter: Send + Sync {
 
     /// Gets the connection configuration (credentials sanitized).
     fn connection_config(&self) -> ConnectionConfig;
+
+    /// Samples data from tables in the collected schema.
+    ///
+    /// This method iterates over the tables in the schema and collects
+    /// sample rows using the provided sampling configuration. Each adapter
+    /// implementation handles sampling according to its database engine's
+    /// capabilities.
+    ///
+    /// # Arguments
+    /// * `schema` - The collected schema containing table metadata
+    /// * `config` - Sampling configuration (sample size, throttle, etc.)
+    ///
+    /// # Returns
+    /// A vector of `TableSample` results, one per sampled table.
+    /// Tables that fail to sample are logged and skipped.
+    ///
+    /// # Default Implementation
+    /// Returns an empty vector (no sampling support).
+    async fn sample_tables(
+        &self,
+        _schema: &DatabaseSchema,
+        _config: &SamplingConfig,
+    ) -> Result<Vec<TableSample>> {
+        Ok(Vec::new())
+    }
 }
 
 /// Factory function to create database adapters based on connection string.

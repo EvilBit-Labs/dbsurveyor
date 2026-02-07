@@ -11,15 +11,12 @@
 //! - Optional AES-GCM encryption for outputs
 
 use clap::{Args, Parser, Subcommand};
-use dbsurveyor_core::{
-    Result,
-    adapters::create_adapter,
-    error::redact_database_url,
-    init_logging,
-    quality::{AnomalyConfig, QualityAnalyzer, QualityConfig},
-};
+use dbsurveyor_core::Result;
 use std::path::PathBuf;
-use tracing::{error, info, warn};
+
+mod collect;
+mod multi_db;
+mod output;
 
 #[derive(Parser)]
 #[command(name = "dbsurveyor-collect")]
@@ -187,7 +184,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Initialize logging
-    init_logging(cli.global.verbose, cli.global.quiet)?;
+    dbsurveyor_core::init_logging(cli.global.verbose, cli.global.quiet)?;
 
     // Initialize JSON Schema validator
     dbsurveyor_core::initialize_schema_validator().map_err(|e| {
@@ -204,17 +201,17 @@ async fn main() -> Result<()> {
                 .output
                 .clone()
                 .unwrap_or_else(|| "schema.dbsurveyor.json".into());
-            collect_schema(&args.database_url, &output, &cli).await
+            collect::collect_schema(&args.database_url, &output, &cli).await
         }
-        Some(Command::Test(args)) => test_connection(&args.database_url).await,
+        Some(Command::Test(args)) => collect::test_connection(&args.database_url).await,
         Some(Command::List) => {
-            list_supported_databases();
+            collect::list_supported_databases();
             Ok(())
         }
         None => {
             // Default behavior: collect schema if database_url is provided
             if let Some(ref database_url) = cli.database_url {
-                collect_schema(database_url, &cli.output, &cli).await
+                collect::collect_schema(database_url, &cli.output, &cli).await
             } else {
                 eprintln!("Error: Database URL is required");
                 eprintln!("Use --help for usage information");
@@ -224,389 +221,190 @@ async fn main() -> Result<()> {
     }
 }
 
-/// Tests database connection without collecting schema
-async fn test_connection(database_url: &str) -> Result<()> {
-    info!("Testing database connection...");
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use dbsurveyor_core::MultiDatabaseConfig;
+    use dbsurveyor_core::models::*;
 
-    let adapter = create_adapter(database_url).await.map_err(|e| {
-        error!("Failed to create database adapter: {}", e);
-        e
-    })?;
+    /// Creates a test schema with the given tables.
+    pub fn make_test_schema(tables: Vec<Table>) -> DatabaseSchema {
+        // Use serde to construct CollectionMetadata with a fixed timestamp
+        // to avoid needing chrono as a direct dependency
+        let metadata_json = serde_json::json!({
+            "collected_at": "2025-01-01T00:00:00Z",
+            "collection_duration_ms": 0,
+            "collector_version": "test",
+            "warnings": []
+        });
+        let collection_metadata: CollectionMetadata =
+            serde_json::from_value(metadata_json).unwrap();
 
-    info!("Created {} adapter", adapter.database_type());
-
-    adapter.test_connection().await.map_err(|e| {
-        error!("Connection test failed: {}", e);
-        e
-    })?;
-
-    info!("✓ Connection test successful");
-    println!(
-        "Connection to {} database successful",
-        adapter.database_type()
-    );
-
-    Ok(())
-}
-
-/// Parses quality thresholds from CLI arguments.
-fn parse_quality_thresholds(thresholds: &[String]) -> (Option<f64>, Option<f64>, Option<f64>) {
-    let mut completeness = None;
-    let mut uniqueness = None;
-    let mut consistency = None;
-
-    for threshold in thresholds {
-        if let Some((metric, value)) = threshold.split_once(':') {
-            if let Ok(v) = value.parse::<f64>() {
-                // Validate threshold is in valid range
-                if !(0.0..=1.0).contains(&v) {
-                    warn!(
-                        "Threshold value {} for {} is outside valid range [0.0, 1.0]",
-                        v, metric
-                    );
-                }
-                match metric.to_lowercase().as_str() {
-                    "completeness" => completeness = Some(v.clamp(0.0, 1.0)),
-                    "uniqueness" => uniqueness = Some(v.clamp(0.0, 1.0)),
-                    "consistency" => consistency = Some(v.clamp(0.0, 1.0)),
-                    _ => warn!("Unknown quality metric: {}", metric),
-                }
-            } else {
-                warn!("Invalid threshold value for {}: {}", metric, value);
-            }
+        DatabaseSchema {
+            format_version: "1.0".to_string(),
+            database_info: DatabaseInfo {
+                name: "test_db".to_string(),
+                version: Some("15.0".to_string()),
+                size_bytes: None,
+                encoding: None,
+                collation: None,
+                owner: None,
+                is_system_database: false,
+                access_level: AccessLevel::Full,
+                collection_status: CollectionStatus::Success,
+            },
+            tables,
+            views: Vec::new(),
+            indexes: Vec::new(),
+            constraints: Vec::new(),
+            procedures: Vec::new(),
+            functions: Vec::new(),
+            triggers: Vec::new(),
+            custom_types: Vec::new(),
+            samples: None,
+            quality_metrics: None,
+            collection_metadata,
         }
     }
 
-    (completeness, uniqueness, consistency)
-}
-
-/// Collects database schema and saves to file
-async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) -> Result<()> {
-    info!("Starting schema collection...");
-    info!("Target: {}", redact_database_url(database_url));
-    info!("Output: {}", output_path.display());
-
-    let adapter = create_adapter(database_url).await.map_err(|e| {
-        error!("Failed to create database adapter: {}", e);
-        e
-    })?;
-
-    info!("Created {} adapter", adapter.database_type());
-
-    // Collect schema
-    let mut schema = adapter.collect_schema().await.map_err(|e| {
-        error!("Schema collection failed: {}", e);
-        e
-    })?;
-
-    info!("✓ Schema collection completed");
-    info!("Found {} tables", schema.tables.len());
-    info!("Found {} views", schema.views.len());
-    info!("Found {} indexes", schema.indexes.len());
-
-    // Run quality analysis if enabled and samples exist
-    if cli.enable_quality {
-        if let Some(ref samples) = schema.samples {
-            info!(
-                "Running data quality analysis on {} samples...",
-                samples.len()
-            );
-
-            // Build quality config
-            let (completeness, uniqueness, consistency) =
-                parse_quality_thresholds(&cli.quality_threshold);
-
-            let mut config = QualityConfig::new();
-
-            if let Some(c) = completeness {
-                config = config.with_completeness_min(c);
-            }
-            if let Some(u) = uniqueness {
-                config = config.with_uniqueness_min(u);
-            }
-            if let Some(c) = consistency {
-                config = config.with_consistency_min(c);
-            }
-
-            if cli.disable_anomaly_detection {
-                config = config.with_anomaly_detection(AnomalyConfig::new().with_enabled(false));
-            }
-
-            let analyzer = QualityAnalyzer::new(config);
-            let quality_metrics = analyzer.analyze_all(samples)?;
-
-            // Report quality findings
-            let mut violations_count = 0;
-            for metric in &quality_metrics {
-                if !metric.threshold_violations.is_empty() {
-                    violations_count += metric.threshold_violations.len();
-                    for violation in &metric.threshold_violations {
-                        warn!(
-                            "Quality violation in '{}': {} = {:.2}% (threshold: {:.2}%)",
-                            metric.table_name,
-                            violation.metric,
-                            violation.actual * 100.0,
-                            violation.threshold * 100.0
-                        );
-                    }
-                }
-            }
-
-            schema.add_quality_metrics(quality_metrics);
-
-            if violations_count > 0 {
-                info!(
-                    "✓ Quality analysis completed with {} violations",
-                    violations_count
-                );
-            } else {
-                info!("✓ Quality analysis completed - all thresholds met");
-            }
-        } else {
-            info!("Quality analysis skipped - no samples available");
+    /// Creates a test column with the given name.
+    pub fn make_column(name: &str) -> Column {
+        Column {
+            name: name.to_string(),
+            data_type: UnifiedDataType::String { max_length: None },
+            is_nullable: true,
+            is_primary_key: false,
+            is_auto_increment: false,
+            default_value: None,
+            comment: None,
+            ordinal_position: 1,
         }
     }
 
-    // Save to file
-    save_schema(&schema, output_path, cli).await?;
-
-    info!("✓ Schema saved to {}", output_path.display());
-    println!("Schema collection completed successfully");
-    println!("Output: {}", output_path.display());
-    println!("Tables: {}", schema.tables.len());
-    println!("Views: {}", schema.views.len());
-    println!("Indexes: {}", schema.indexes.len());
-
-    if cli.enable_quality
-        && let Some(ref metrics) = schema.quality_metrics
-    {
-        println!("Quality metrics: {} tables analyzed", metrics.len());
-    }
-
-    Ok(())
-}
-
-/// Saves schema to file with optional compression and encryption
-async fn save_schema(
-    schema: &dbsurveyor_core::models::DatabaseSchema,
-    output_path: &PathBuf,
-    cli: &Cli,
-) -> Result<()> {
-    // Serialize to JSON
-    let json_data = serde_json::to_string_pretty(schema).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON serialization", e)
-    })?;
-
-    // Validate output against JSON Schema before saving
-    let json_value: serde_json::Value = serde_json::from_str(&json_data).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON parsing for validation", e)
-    })?;
-
-    dbsurveyor_core::validate_schema_output(&json_value).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::collection_failed("Schema validation failed", e)
-    })?;
-
-    info!("✓ Output validation passed");
-
-    if cli.encrypt {
-        #[cfg(feature = "encryption")]
-        {
-            save_encrypted(&json_data, output_path).await
+    /// Creates a test table with the given name and columns.
+    pub fn make_table(name: &str, columns: Vec<Column>) -> Table {
+        Table {
+            name: name.to_string(),
+            schema: Some("public".to_string()),
+            columns,
+            primary_key: None,
+            foreign_keys: Vec::new(),
+            indexes: Vec::new(),
+            constraints: Vec::new(),
+            comment: None,
+            row_count: None,
         }
-        #[cfg(not(feature = "encryption"))]
-        {
-            Err(dbsurveyor_core::error::DbSurveyorError::configuration(
-                "Encryption not available. Compile with --features encryption",
-            ))
-        }
-    } else if cli.compress {
-        #[cfg(feature = "compression")]
-        {
-            save_compressed(&json_data, output_path).await
-        }
-        #[cfg(not(feature = "compression"))]
-        {
-            Err(dbsurveyor_core::error::DbSurveyorError::configuration(
-                "Compression not available. Compile with --features compression",
-            ))
-        }
-    } else {
-        save_json(&json_data, output_path).await
-    }
-}
-
-/// Saves JSON data to file
-async fn save_json(json_data: &str, output_path: &PathBuf) -> Result<()> {
-    tokio::fs::write(output_path, json_data)
-        .await
-        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
-            context: format!("Failed to write to {}", output_path.display()),
-            source: e,
-        })?;
-    Ok(())
-}
-
-/// Saves compressed JSON data
-#[cfg(feature = "compression")]
-async fn save_compressed(json_data: &str, output_path: &PathBuf) -> Result<()> {
-    use std::io::Write;
-
-    let mut encoder = zstd::Encoder::new(Vec::new(), 3).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Failed to create compressor: {}",
-            e
-        ))
-    })?;
-
-    encoder.write_all(json_data.as_bytes()).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!("Compression failed: {}", e))
-    })?;
-
-    let compressed_data = encoder.finish().map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Compression finalization failed: {}",
-            e
-        ))
-    })?;
-
-    tokio::fs::write(output_path, compressed_data)
-        .await
-        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
-            context: format!(
-                "Failed to write compressed file to {}",
-                output_path.display()
-            ),
-            source: e,
-        })?;
-
-    Ok(())
-}
-
-/// Saves encrypted JSON data
-#[cfg(feature = "encryption")]
-async fn save_encrypted(json_data: &str, output_path: &PathBuf) -> Result<()> {
-    use dbsurveyor_core::security::encryption::encrypt_data;
-    use std::io::{self, Write};
-
-    // Get password from user
-    print!("Enter encryption password: ");
-    io::stdout().flush().map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Failed to flush stdout before reading password: {}",
-            e
-        ))
-    })?;
-    let password = rpassword::read_password().map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Failed to read password: {}",
-            e
-        ))
-    })?;
-
-    if password.is_empty() {
-        return Err(dbsurveyor_core::error::DbSurveyorError::configuration(
-            "Password cannot be empty",
-        ));
     }
 
-    // Confirm password to prevent typos
-    print!("Confirm encryption password: ");
-    io::stdout().flush().map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Failed to flush stdout before reading password confirmation: {}",
-            e
-        ))
-    })?;
-    let password_confirm = rpassword::read_password().map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Failed to read password confirmation: {}",
-            e
-        ))
-    })?;
+    // Multi-database configuration tests
 
-    if password != password_confirm {
-        return Err(dbsurveyor_core::error::DbSurveyorError::configuration(
-            "Passwords do not match",
-        ));
+    #[test]
+    fn test_multi_db_config_defaults() {
+        let config = MultiDatabaseConfig::new();
+        assert_eq!(config.max_concurrency, 4);
+        assert!(!config.include_system);
+        assert!(config.exclude_patterns.is_empty());
+        assert!(config.continue_on_error);
     }
 
-    let encrypted = encrypt_data(json_data.as_bytes(), &password)?;
-    let encrypted_json = serde_json::to_string_pretty(&encrypted).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::collection_failed("Encryption serialization", e)
-    })?;
-
-    tokio::fs::write(output_path, encrypted_json)
-        .await
-        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
-            context: format!(
-                "Failed to write encrypted file to {}",
-                output_path.display()
-            ),
-            source: e,
-        })?;
-
-    Ok(())
-}
-
-/// Lists supported database types and their connection string formats
-fn list_supported_databases() {
-    println!("Supported Database Types:");
-    println!();
-
-    #[cfg(feature = "postgresql")]
-    {
-        println!("PostgreSQL:");
-        println!("  Connection: postgres://user:password@host:port/database");
-        println!("  Example:    postgres://admin:secret@localhost:5432/mydb");
-        println!();
+    #[test]
+    fn test_multi_db_config_from_cli_flags() {
+        // Simulate CLI flags: --include-system-databases --exclude-databases test_db,staging
+        let config = MultiDatabaseConfig::new()
+            .with_include_system(true)
+            .with_exclude_patterns(vec!["test_db".to_string(), "staging".to_string()]);
+        assert!(config.include_system);
+        assert_eq!(config.exclude_patterns.len(), 2);
+        assert_eq!(config.exclude_patterns[0], "test_db");
+        assert_eq!(config.exclude_patterns[1], "staging");
     }
 
-    #[cfg(feature = "mysql")]
-    {
-        println!("MySQL:");
-        println!("  Connection: mysql://user:password@host:port/database");
-        println!("  Example:    mysql://root:password@localhost:3306/mydb");
-        println!();
+    #[test]
+    fn test_multi_db_config_exclude_patterns_with_globs() {
+        let config = MultiDatabaseConfig::new()
+            .with_exclude_patterns(vec!["test_*".to_string(), "*_backup".to_string()]);
+        assert_eq!(config.exclude_patterns.len(), 2);
     }
 
-    #[cfg(feature = "sqlite")]
-    {
-        println!("SQLite:");
-        println!("  Connection: sqlite:///path/to/database.db");
-        println!("  Example:    sqlite:///home/user/data.db");
-        println!("  Example:    /path/to/database.sqlite");
-        println!();
+    #[test]
+    fn test_multi_db_config_continue_on_error_default() {
+        let config = MultiDatabaseConfig::new();
+        assert!(config.continue_on_error);
     }
 
-    #[cfg(feature = "mongodb")]
-    {
-        println!("MongoDB:");
-        println!("  Connection: mongodb://user:password@host:port/database");
-        println!("  Example:    mongodb://admin:secret@localhost:27017/mydb");
-        println!();
+    #[test]
+    fn test_multi_db_config_min_concurrency() {
+        let config = MultiDatabaseConfig::new().with_max_concurrency(0);
+        assert_eq!(config.max_concurrency, 1); // Enforced minimum
     }
 
-    #[cfg(feature = "mssql")]
-    {
-        println!("SQL Server:");
-        println!("  Connection: mssql://user:password@host:port/database");
-        println!("  Example:    mssql://sa:password@localhost:1433/mydb");
-        println!();
+    #[test]
+    fn test_multi_db_result_serialization() {
+        use dbsurveyor_core::adapters::config::multi_database::{
+            DatabaseCollectionResult, DatabaseFailure, MultiDatabaseMetadata, MultiDatabaseResult,
+        };
+        use dbsurveyor_core::models::{CollectionMode, ServerInfo};
+
+        let metadata_json = serde_json::json!({
+            "started_at": "2025-01-01T00:00:00Z",
+            "total_duration_ms": 1500,
+            "databases_discovered": 5,
+            "databases_filtered": 1,
+            "databases_collected": 3,
+            "databases_failed": 1,
+            "databases_skipped": 0,
+            "max_concurrency": 4,
+            "collector_version": "test",
+            "warnings": []
+        });
+        let metadata: MultiDatabaseMetadata = serde_json::from_value(metadata_json).unwrap();
+
+        let result = MultiDatabaseResult {
+            server_info: ServerInfo {
+                server_type: dbsurveyor_core::models::DatabaseType::PostgreSQL,
+                version: "16.0".to_string(),
+                host: "localhost".to_string(),
+                port: Some(5432),
+                total_databases: 5,
+                collected_databases: 3,
+                system_databases_excluded: 2,
+                connection_user: "test".to_string(),
+                has_superuser_privileges: false,
+                collection_mode: CollectionMode::MultiDatabase {
+                    discovered: 5,
+                    collected: 3,
+                    failed: 1,
+                },
+            },
+            databases: vec![DatabaseCollectionResult {
+                database_name: "app_db".to_string(),
+                schema: make_test_schema(vec![make_table(
+                    "users",
+                    vec![make_column("id"), make_column("name")],
+                )]),
+                collection_duration_ms: 500,
+            }],
+            failures: vec![DatabaseFailure {
+                database_name: "broken_db".to_string(),
+                error_message: "Connection refused".to_string(),
+                is_connection_error: true,
+            }],
+            collection_metadata: metadata,
+        };
+
+        // Verify it serializes to valid JSON
+        let json = serde_json::to_string_pretty(&result).unwrap();
+        assert!(json.contains("\"app_db\""));
+        assert!(json.contains("\"broken_db\""));
+        assert!(json.contains("\"databases_collected\": 3"));
+
+        // Verify roundtrip deserialization
+        let deserialized: MultiDatabaseResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.databases.len(), 1);
+        assert_eq!(deserialized.failures.len(), 1);
+        assert_eq!(
+            deserialized.collection_metadata.databases_collected,
+            3
+        );
     }
-
-    println!("Output Formats:");
-    println!("  .json      - Plain JSON (default)");
-
-    #[cfg(feature = "compression")]
-    println!("  .json.zst  - Compressed JSON (--compress)");
-
-    #[cfg(feature = "encryption")]
-    println!("  .enc       - Encrypted JSON (--encrypt)");
-
-    println!();
-    println!("Security Features:");
-    println!("  • Read-only database operations");
-    println!("  • Credential sanitization in logs");
-    println!("  • Optional AES-GCM encryption");
-    println!("  • Offline operation after connection");
 }

@@ -12,6 +12,7 @@ use thiserror::Error;
 /// All error messages are sanitized to prevent credential leakage.
 /// Connection strings and passwords are never included in error output.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum DbSurveyorError {
     /// Database connection failed (credentials sanitized)
     #[error("Database connection failed: {context}")]
@@ -249,5 +250,106 @@ mod tests {
 
         let error = DbSurveyorError::insufficient_privileges("SELECT on schema");
         assert!(error.to_string().contains("SELECT on schema"));
+    }
+
+    #[test]
+    fn test_connection_failed_error() {
+        let source = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "refused");
+        let error = DbSurveyorError::connection_failed(source);
+        let msg = error.to_string();
+        assert!(msg.contains("Database connection failed"));
+        assert!(!msg.contains("refused"));
+    }
+
+    #[test]
+    fn test_parse_field_with_table_context() {
+        let source = std::io::Error::new(std::io::ErrorKind::InvalidData, "bad data");
+        let error = DbSurveyorError::parse_field("column_name", Some("users"), source);
+        let msg = error.to_string();
+        assert!(msg.contains("column_name"));
+        assert!(msg.contains("users"));
+    }
+
+    #[test]
+    fn test_parse_field_without_table_context() {
+        let source = std::io::Error::new(std::io::ErrorKind::InvalidData, "bad");
+        let error = DbSurveyorError::parse_field("version", None, source);
+        let msg = error.to_string();
+        assert!(msg.contains("version"));
+        assert!(msg.contains("database result"));
+    }
+
+    #[test]
+    fn test_collection_failed_error() {
+        let source = std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout");
+        let error = DbSurveyorError::collection_failed("Schema enumeration", source);
+        let msg = error.to_string();
+        assert!(msg.contains("Schema enumeration"));
+    }
+
+    #[test]
+    fn test_query_failed_error() {
+        let error = DbSurveyorError::query_failed("SELECT failed on pg_catalog");
+        let msg = error.to_string();
+        assert!(msg.contains("SELECT failed on pg_catalog"));
+    }
+
+    #[test]
+    fn test_unsupported_feature_error() {
+        let error =
+            DbSurveyorError::unsupported_feature("multi-database", "SQLite");
+        let msg = error.to_string();
+        assert!(msg.contains("multi-database"));
+        assert!(msg.contains("SQLite"));
+    }
+
+    #[test]
+    fn test_connection_timeout_error() {
+        let error = DbSurveyorError::connection_timeout(
+            "Pool acquisition",
+            std::time::Duration::from_secs(30),
+        );
+        let msg = error.to_string();
+        assert!(msg.contains("Pool acquisition"));
+        assert!(msg.contains("30"));
+    }
+
+    #[test]
+    fn test_redact_mysql_url() {
+        let url = "mysql://root:mysecret@db.example.com:3306/mydb";
+        let redacted = redact_database_url(url);
+        assert!(!redacted.contains("mysecret"));
+        assert!(redacted.contains("root:****"));
+    }
+
+    #[test]
+    fn test_redact_mongodb_url() {
+        let url = "mongodb://admin:p%40ss@mongo.local:27017/admin";
+        let redacted = redact_database_url(url);
+        assert!(!redacted.contains("p%40ss"));
+        assert!(redacted.contains("****"));
+    }
+
+    #[test]
+    fn test_redact_url_with_special_chars_in_password() {
+        let url = "postgres://user:p%40ss%3Aw0rd@localhost/db";
+        let redacted = redact_database_url(url);
+        assert!(!redacted.contains("p%40ss"));
+        assert!(!redacted.contains("w0rd"));
+        assert!(redacted.contains("****"));
+    }
+
+    #[test]
+    fn test_error_messages_never_contain_credentials() {
+        let connection_url = "postgres://admin:supersecret@prod.db:5432/app";
+        let source = std::io::Error::new(
+            std::io::ErrorKind::ConnectionRefused,
+            "connection refused",
+        );
+        let error = DbSurveyorError::connection_failed(source);
+        let msg = format!("{error}");
+        assert!(!msg.contains("supersecret"));
+        assert!(!msg.contains("admin:supersecret"));
+        assert!(!msg.contains(connection_url));
     }
 }

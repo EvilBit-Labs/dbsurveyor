@@ -127,7 +127,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.3, 2.1, 9.1_
 
 - [ ] 5. Implement comprehensive PostgreSQL adapter testing and advanced features
-- [ ] 5.1 Implement advanced connection pooling configuration
+- [x] 5.1 Implement advanced connection pooling configuration
   - Add configurable pool limits: max_connections (default: 10), min_idle_connections (default: 2)
   - Implement connection timeouts: connect_timeout (default: 30s), acquire_timeout (default: 30s)
   - Add idle connection management: idle_timeout (default: 10min), max_lifetime (default: 1hour)
@@ -136,7 +136,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Testing must also include via testcontainers against an actual postgres database
   - _Requirements: 1.1, 1.2, 1.7_
 
-- [ ] 5.2 Add comprehensive connection pool testing
+- [x] 5.2 Add comprehensive connection pool testing
   - Test connection pool exhaustion scenarios (max_connections + 1)
   - Add timeout validation under load testing
   - Test pool parameter configuration with various settings
@@ -386,7 +386,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Test cross-database consistency and output format compatibility
   - _Requirements: 1.1, 1.2, 2.1_
 
-- [ ] 19.4 Add property-based testing for edge cases
+- [~] 19.4 Add property-based testing for edge cases
   - Set up proptest for generating random database schemas
   - Test schema collection with various table and column configurations
   - Add property tests for data type mapping and serialization
@@ -394,7 +394,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Validate security properties with property-based credential tests
   - _Requirements: 1.1, 1.2, 2.2_
 
-- [ ] 19.5 Implement comprehensive security testing
+- [~] 19.5 Implement comprehensive security testing
   - Test credential sanitization in all error messages and logs
   - Verify no database credentials appear in output files
   - Test schema collection with malicious table/column names
@@ -403,7 +403,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.1, 2.2_
 
 - [ ] 22. Implement core security testing suite
-- [ ] 22.1 Test credential protection and sanitization
+- [~] 22.1 Test credential protection and sanitization
   - Test database connection strings never appear in logs, error messages, or output files
   - Verify password fields are `zeroized` in memory after use
   - Test credential sanitization in all error paths and logging statements
@@ -411,7 +411,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Test memory cleanup for sensitive data structures
   - _Requirements: 1.5, 2.1, 2.2, 2.3_
 
-- [ ] 22.2 Test SQL injection resistance and malicious input handling
+- [~] 22.2 Test SQL injection resistance and malicious input handling
   - Test schema collection with malicious table/column names containing SQL injection payloads
   - Validate parameterized query usage prevents SQL injection
   - Test handling of special characters and Unicode in database identifiers
@@ -419,7 +419,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Verify input validation and sanitization for all user inputs
   - _Requirements: 2.1, 2.2, 2.4_
 
-- [ ] 22.3 Test offline operation and network isolation
+- [~] 22.3 Test offline operation and network isolation
   - Test complete functionality without internet connectivity
   - Verify no external network calls except to target databases
   - Test airgap compatibility with all features enabled
@@ -427,7 +427,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Test with network interfaces disabled or firewalled
   - _Requirements: 2.3, 2.4_
 
-- [ ] 22.4 Test cryptographic security implementation
+- [~] 22.4 Test cryptographic security implementation
   - Test AES-GCM encryption with random nonce generation for uniqueness
   - Verify Argon2id KDF parameters meet security requirements
   - Test encryption/decryption roundtrip with various data sizes
@@ -435,7 +435,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Test key derivation performance and security properties
   - _Requirements: 2.7, 9.3, 9.4, 9.5_
 
-- [ ] 22.5 Set up security-focused database testing
+- [~] 22.5 Set up security-focused database testing
   - Set up testcontainers with custom security profiles and privilege configurations
   - Test with minimal database privileges (read-only access)
   - Validate behavior with restricted database permissions
@@ -443,7 +443,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Add security-focused integration tests with real databases
   - _Requirements: 1.5, 2.1, 2.2_
 
-- [ ] 23. Add CLI snapshot testing with insta
+- [~] 23. Add CLI snapshot testing with insta
 
   - Create snapshot tests for all CLI help output
   - Test error message formatting and credential sanitization
@@ -452,7 +452,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Ensure consistent CLI behavior across all collector variants
   - _Requirements: 1.1, 2.1, 8.1_
 
-- [ ] 24. Implement performance benchmarking
+- [~] 24. Implement performance benchmarking
 
   - Create Criterion benchmarks for schema collection performance
   - Benchmark different database sizes and complexity levels
@@ -462,7 +462,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 9.6_
 
 - [ ] 25. Create documentation with rustdoc and mdbook
-- [ ] 25.1 Set up comprehensive rustdoc API documentation
+- [~] 25.1 Set up comprehensive rustdoc API documentation
   - Set up comprehensive rustdoc with examples and security notes (Requirement 14.1)
   - Document all public APIs with security implications and usage examples
   - Add module-level documentation with architecture overviews
@@ -470,7 +470,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Configure rustdoc with proper cross-references and navigation
   - _Requirements: 14.1_
 
-- [ ] 25.2 Create user-facing mdbook documentation
+- [~] 25.2 Create user-facing mdbook documentation
   - Create mdbook user guide with installation and usage instructions (Requirement 14.2)
   - Document all CLI options and configuration parameters with examples
   - Add security best practices and operational guidelines
@@ -478,7 +478,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Create getting started tutorial with step-by-step examples
   - _Requirements: 14.2_
 
-- [ ] 25.3 Add practical usage examples and scenarios
+- [~] 25.3 Add practical usage examples and scenarios
   - Add practical examples for red team, compliance, and development scenarios (Requirement 14.3)
   - Create database-specific usage examples (PostgreSQL, MySQL, SQLite, MongoDB)
   - Document encryption and compression workflows with security considerations
@@ -486,7 +486,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Include performance tuning and optimization guides
   - _Requirements: 14.3_
 
-- [ ] 25.4 Create architecture and development documentation
+- [~] 25.4 Create architecture and development documentation
   - Create architecture and plugin development guides (Requirement 14.4)
   - Document the dual-binary architecture and design decisions
   - Add plugin development guide with WASM integration examples
@@ -494,7 +494,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Document security architecture and threat model
   - _Requirements: 3.1, 10.1, 14.4_
 
-- [ ] 25.5 Set up automated documentation deployment and testing
+- [~] 25.5 Set up automated documentation deployment and testing
   - Set up automated documentation deployment (Requirement 14.5)
   - Ensure all examples are tested for accuracy (Requirement 14.6)
   - Configure GitHub Pages or similar for documentation hosting
@@ -503,7 +503,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 14.5, 14.6_
 
 - [ ] 20. Set up comprehensive cross-platform CI testing with GitHub Actions
-- [ ] 20.1 Configure platform-specific CI matrix testing
+- [~] 20.1 Configure platform-specific CI matrix testing
   - ✅ Create matrix-based CI workflow for macOS, Windows, and Linux platforms (existing .github/workflows)
   - Configure macOS and Windows runners for build validation with SQLite-only testing
   - Set up Linux runners for comprehensive testing with all database types
@@ -511,7 +511,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Configure cross-compilation testing for different architectures
   - _Requirements: 1.1, 1.2, 7.1, 7.2_
 
-- [ ] 20.2 Implement comprehensive security scanning
+- [~] 20.2 Implement comprehensive security scanning
   - ✅ Configure security scanning with CodeQL, cargo-audit, cargo-deny, and Grype vulnerability checks
   - ✅ Add clippy linting with zero-warnings policy across all platforms (justfile enforces this)
   - ✅ Configure SBOM generation and security attestation for release artifacts (justfile includes sbom task)
@@ -519,7 +519,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Implement secret scanning for commits and pull requests
   - _Requirements: 2.1, 2.2_
 
-- [ ] 20.3 Set up database integration testing in CI
+- [~] 20.3 Set up database integration testing in CI
   - Implement testcontainers integration for realistic database testing on Linux
   - Configure PostgreSQL, MySQL, and MongoDB containers for CI testing
   - Add database version matrix testing (multiple PostgreSQL/MySQL versions)
@@ -527,7 +527,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Add timeout and resource limit configuration for CI containers
   - _Requirements: 1.1, 1.2, 2.1_
 
-- [ ] 20.4 Configure test coverage and performance monitoring
+- [~] 20.4 Configure test coverage and performance monitoring
   - Configure test coverage reporting with cargo-llvm-cov and codecov integration
   - Add performance regression testing with Criterion benchmarks
   - Implement coverage threshold enforcement (70% minimum)
@@ -535,7 +535,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Configure coverage reporting for different test types (unit, integration, security)
   - _Requirements: 1.1, 1.2_
 
-- [ ] 20.5 Optimize CI performance and caching
+- [~] 20.5 Optimize CI performance and caching
   - Implement artifact caching for dependencies and build outputs
   - Configure Rust toolchain caching and incremental compilation
   - Add selective test execution based on changed files

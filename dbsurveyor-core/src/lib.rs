@@ -26,7 +26,8 @@ pub mod validation;
 
 // Re-export commonly used types
 pub use adapters::{
-    AdapterFeature, CollectionConfig, ConnectionConfig, DatabaseAdapter, OutputFormat,
+    AdapterFeature, CollectionConfig, ConnectionConfig, DatabaseAdapter, DatabaseCollectionResult,
+    DatabaseFailure, MultiDatabaseConfig, MultiDatabaseMetadata, MultiDatabaseResult, OutputFormat,
     SamplingConfig, SensitivePattern,
 };
 pub use error::{DbSurveyorError, Result};

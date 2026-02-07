@@ -111,6 +111,41 @@ impl DatabaseAdapter for MySqlAdapter {
     fn connection_config(&self) -> ConnectionConfig {
         self.config.clone()
     }
+
+    async fn sample_tables(
+        &self,
+        schema: &DatabaseSchema,
+        config: &super::SamplingConfig,
+    ) -> Result<Vec<crate::models::TableSample>> {
+        let mut samples = Vec::new();
+        let db_name = &schema.database_info.name;
+
+        for table in &schema.tables {
+            tracing::debug!("Sampling table {}.{}", db_name, table.name);
+
+            match self.sample_table(db_name, &table.name, config).await {
+                Ok(sample) => {
+                    tracing::debug!(
+                        "Sampled {} rows from {}.{}",
+                        sample.sample_size,
+                        db_name,
+                        table.name
+                    );
+                    samples.push(sample);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to sample table {}.{}: {}",
+                        db_name,
+                        table.name,
+                        e
+                    );
+                }
+            }
+        }
+
+        Ok(samples)
+    }
 }
 
 // Additional MySqlAdapter methods for data sampling

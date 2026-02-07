@@ -41,10 +41,11 @@ pub use enumeration::{
     EnumeratedDatabase, ListDatabasesOptions, SYSTEM_DATABASES, list_accessible_databases,
     list_databases,
 };
-pub use multi_database::{
+pub use crate::adapters::config::multi_database::{
     DatabaseCollectionResult, DatabaseFailure, MultiDatabaseConfig, MultiDatabaseMetadata,
-    MultiDatabaseResult, collect_all_databases,
+    MultiDatabaseResult,
 };
+pub use multi_database::collect_all_databases;
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
 pub use type_mapping::{map_postgresql_type, map_referential_action};
 
@@ -131,6 +132,41 @@ impl DatabaseAdapter for PostgresAdapter {
 
     fn connection_config(&self) -> ConnectionConfig {
         self.config.clone()
+    }
+
+    async fn sample_tables(
+        &self,
+        schema: &DatabaseSchema,
+        config: &super::SamplingConfig,
+    ) -> Result<Vec<crate::models::TableSample>> {
+        let mut samples = Vec::new();
+
+        for table in &schema.tables {
+            let schema_name = table.schema.as_deref().unwrap_or("public");
+            tracing::debug!("Sampling table {}.{}", schema_name, table.name);
+
+            match self.sample_table(schema_name, &table.name, config).await {
+                Ok(sample) => {
+                    tracing::debug!(
+                        "Sampled {} rows from {}.{}",
+                        sample.sample_size,
+                        schema_name,
+                        table.name
+                    );
+                    samples.push(sample);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to sample table {}.{}: {}",
+                        schema_name,
+                        table.name,
+                        e
+                    );
+                }
+            }
+        }
+
+        Ok(samples)
     }
 }
 
