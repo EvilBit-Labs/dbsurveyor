@@ -15,7 +15,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - ✅ **BONUS**: Added cryptographic constants, validation helper functions, and optimized test performance
   - _Requirements: 2.7, 9.3, 9.4, 9.5_
 
-- [ ] 2. Implement PostgreSQL schema collection with real database queries
+- [x] 2. Implement PostgreSQL schema collection with real database queries
 - [x] 2.1 Set up PostgreSQL connection pooling infrastructure
   - Replace placeholder `collect_schema` method in PostgresAdapter
   - Implement sqlx::PgPool configuration with proper connection limits
