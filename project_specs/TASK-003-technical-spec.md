@@ -96,7 +96,7 @@ pub trait DatabaseAdapter: Send + Sync {
 
 **Files to Create/Modify**:
 
-```
+```text
 dbsurveyor-core/src/adapters/mysql/
   mod.rs              # Main adapter struct + trait impl
   connection.rs       # Connection pool management
@@ -133,7 +133,7 @@ SELECT * FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA = ?
 
 **Files to Create/Modify**:
 
-```
+```text
 dbsurveyor-core/src/adapters/sqlite/
   mod.rs              # Main adapter struct
   connection.rs       # Connection handling (no pooling)
@@ -168,7 +168,7 @@ SELECT name, sql FROM sqlite_master WHERE type='trigger'
 
 **Files to Create/Modify**:
 
-```
+```text
 dbsurveyor-core/src/adapters/mongodb/
   mod.rs              # Main adapter struct
   connection.rs       # MongoDB client management
@@ -201,7 +201,7 @@ db.run_command(doc! { "collStats": collection_name }).await
 
 **Files to Modify**:
 
-```
+```text
 dbsurveyor-core/src/adapters/postgres/
   views.rs            # NEW: View collection
   routines.rs         # NEW: Procedures/functions

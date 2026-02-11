@@ -249,8 +249,15 @@ async fn test_connection(database_url: &str) -> Result<()> {
     Ok(())
 }
 
+/// Parsed quality threshold values from CLI arguments.
+struct QualityThresholds {
+    completeness: Option<f64>,
+    uniqueness: Option<f64>,
+    consistency: Option<f64>,
+}
+
 /// Parses quality thresholds from CLI arguments.
-fn parse_quality_thresholds(thresholds: &[String]) -> (Option<f64>, Option<f64>, Option<f64>) {
+fn parse_quality_thresholds(thresholds: &[String]) -> QualityThresholds {
     let mut completeness = None;
     let mut uniqueness = None;
     let mut consistency = None;
@@ -277,7 +284,11 @@ fn parse_quality_thresholds(thresholds: &[String]) -> (Option<f64>, Option<f64>,
         }
     }
 
-    (completeness, uniqueness, consistency)
+    QualityThresholds {
+        completeness,
+        uniqueness,
+        consistency,
+    }
 }
 
 /// Collects database schema and saves to file
@@ -313,18 +324,17 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
             );
 
             // Build quality config
-            let (completeness, uniqueness, consistency) =
-                parse_quality_thresholds(&cli.quality_threshold);
+            let thresholds = parse_quality_thresholds(&cli.quality_threshold);
 
             let mut config = QualityConfig::new();
 
-            if let Some(c) = completeness {
+            if let Some(c) = thresholds.completeness {
                 config = config.with_completeness_min(c);
             }
-            if let Some(u) = uniqueness {
+            if let Some(u) = thresholds.uniqueness {
                 config = config.with_uniqueness_min(u);
             }
-            if let Some(c) = consistency {
+            if let Some(c) = thresholds.consistency {
                 config = config.with_consistency_min(c);
             }
 

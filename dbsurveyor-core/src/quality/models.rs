@@ -30,10 +30,17 @@ pub struct ThresholdViolation {
     pub severity: ViolationSeverity,
 }
 
+/// Values below this fraction of the threshold are classified as critical.
+const CRITICAL_SEVERITY_RATIO: f64 = 0.8;
+
 impl ThresholdViolation {
     /// Creates a new threshold violation.
+    ///
+    /// # Severity Classification
+    /// - Critical: actual value is below 80% of threshold
+    /// - Warning: actual value is between 80% and 100% of threshold
     pub fn new(metric: impl Into<String>, threshold: f64, actual: f64) -> Self {
-        let severity = if actual < threshold * 0.8 {
+        let severity = if actual < threshold * CRITICAL_SEVERITY_RATIO {
             ViolationSeverity::Critical
         } else {
             ViolationSeverity::Warning
@@ -183,6 +190,17 @@ pub struct ColumnDuplicates {
 impl ColumnDuplicates {
     /// Creates new column duplicates metrics.
     pub fn new(column_name: impl Into<String>, duplicate_count: u64, total: u64) -> Self {
+        let column_name = column_name.into();
+
+        if duplicate_count > total {
+            tracing::warn!(
+                "Quality metrics anomaly: duplicate_count ({}) exceeds total ({}) for column '{}'",
+                duplicate_count,
+                total,
+                column_name
+            );
+        }
+
         let unique_count = total.saturating_sub(duplicate_count);
         let uniqueness = if total == 0 {
             1.0
@@ -191,7 +209,7 @@ impl ColumnDuplicates {
         };
 
         Self {
-            column_name: column_name.into(),
+            column_name,
             duplicate_count,
             unique_count,
             uniqueness: uniqueness.clamp(0.0, 1.0),
@@ -423,6 +441,21 @@ mod tests {
         let metrics = AnomalyMetrics::default();
         assert_eq!(metrics.outlier_count, 0);
         assert!(metrics.outliers.is_empty());
+    }
+
+    #[test]
+    fn test_column_completeness_anomalous_input() {
+        // When null_count + empty_count exceeds total, completeness should clamp to 0.0
+        let metrics = ColumnCompleteness::new("problematic", 60, 50, 100);
+        assert_eq!(metrics.completeness, 0.0);
+    }
+
+    #[test]
+    fn test_column_duplicates_anomalous_input() {
+        // When duplicate_count exceeds total, uniqueness should clamp to 0.0
+        let metrics = ColumnDuplicates::new("problematic", 150, 100);
+        assert_eq!(metrics.uniqueness, 0.0);
+        assert_eq!(metrics.unique_count, 0);
     }
 
     #[test]

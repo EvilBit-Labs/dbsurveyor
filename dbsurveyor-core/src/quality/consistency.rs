@@ -61,7 +61,12 @@ impl FormatPattern {
         }
     }
 
-    /// Simple pattern matching without regex for performance.
+    /// Heuristic pattern matching without regex for performance.
+    ///
+    /// These checks are intentionally loose -- they detect "looks like" patterns
+    /// for data quality classification, not strict format validation (e.g., the
+    /// email check is not RFC 5322 compliant). This trade-off favors speed and
+    /// low overhead in the collection pipeline.
     fn matches(&self, value: &str) -> bool {
         match self {
             FormatPattern::Email => value.contains('@') && value.contains('.'),

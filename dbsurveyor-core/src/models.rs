@@ -542,6 +542,19 @@ mod tests {
     }
 
     #[test]
+    fn test_add_quality_metrics() {
+        let db_info = DatabaseInfo::new("test_db".to_string());
+        let mut schema = DatabaseSchema::new(db_info);
+
+        assert_eq!(schema.quality_metrics_count(), 0);
+
+        let metrics =
+            crate::quality::TableQualityMetrics::new("users", Some("public".to_string()), 50);
+        schema.add_quality_metrics(vec![metrics]);
+        assert_eq!(schema.quality_metrics_count(), 1);
+    }
+
+    #[test]
     fn test_database_type_display() {
         assert_eq!(DatabaseType::PostgreSQL.to_string(), "PostgreSQL");
         assert_eq!(DatabaseType::MySQL.to_string(), "MySQL");

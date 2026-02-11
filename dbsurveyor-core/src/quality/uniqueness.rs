@@ -3,7 +3,7 @@
 //! This module analyzes duplicate values at both column and row level
 //! to assess data uniqueness and integrity.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::models::TableSample;
 
@@ -112,12 +112,21 @@ fn value_to_string(value: &serde_json::Value) -> String {
 }
 
 /// Counts the number of duplicate rows in the sample.
+///
+/// Normalizes JSON object key ordering via `BTreeMap` so that rows with
+/// identical key-value pairs but different insertion order are correctly
+/// identified as duplicates.
 fn count_duplicate_rows(rows: &[serde_json::Value]) -> u64 {
     let mut seen_rows: HashSet<String> = HashSet::new();
     let mut duplicate_count: u64 = 0;
 
     for row in rows {
-        let row_str = serde_json::to_string(row).unwrap_or_default();
+        let row_str = if let Some(obj) = row.as_object() {
+            let sorted: BTreeMap<_, _> = obj.iter().collect();
+            serde_json::to_string(&sorted).unwrap_or_default()
+        } else {
+            serde_json::to_string(row).unwrap_or_default()
+        };
 
         if seen_rows.contains(&row_str) {
             duplicate_count += 1;
