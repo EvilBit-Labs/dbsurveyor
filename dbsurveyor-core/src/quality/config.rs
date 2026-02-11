@@ -112,18 +112,36 @@ impl QualityConfig {
 
     /// Builder method to set completeness threshold.
     pub fn with_completeness_min(mut self, threshold: f64) -> Self {
+        if !(0.0..=1.0).contains(&threshold) {
+            tracing::warn!(
+                "completeness_min {} clamped to valid range [0.0, 1.0]",
+                threshold
+            );
+        }
         self.completeness_min = threshold.clamp(0.0, 1.0);
         self
     }
 
     /// Builder method to set uniqueness threshold.
     pub fn with_uniqueness_min(mut self, threshold: f64) -> Self {
+        if !(0.0..=1.0).contains(&threshold) {
+            tracing::warn!(
+                "uniqueness_min {} clamped to valid range [0.0, 1.0]",
+                threshold
+            );
+        }
         self.uniqueness_min = threshold.clamp(0.0, 1.0);
         self
     }
 
     /// Builder method to set consistency threshold.
     pub fn with_consistency_min(mut self, threshold: f64) -> Self {
+        if !(0.0..=1.0).contains(&threshold) {
+            tracing::warn!(
+                "consistency_min {} clamped to valid range [0.0, 1.0]",
+                threshold
+            );
+        }
         self.consistency_min = threshold.clamp(0.0, 1.0);
         self
     }

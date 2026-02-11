@@ -21,7 +21,7 @@ DBSurveyor currently lacks comprehensive data quality assessment capabilities. R
 
 The data quality module will integrate with the existing sampling pipeline, processing `TableSample` objects to compute quality metrics. The module follows DBSurveyor's established patterns:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Collection Pipeline                        │
 ├─────────────────────────────────────────────────────────────────┤

@@ -135,13 +135,30 @@ impl QualityAnalyzer {
 
     /// Analyzes multiple table samples and returns metrics for each.
     ///
+    /// Samples that fail analysis are logged and skipped rather than
+    /// aborting the entire batch. This ensures partial results are
+    /// still available when individual tables encounter issues.
+    ///
     /// # Arguments
     /// * `samples` - The table samples to analyze
     ///
     /// # Returns
-    /// A vector of quality metrics, one for each sample.
+    /// A vector of quality metrics for successfully analyzed samples.
     pub fn analyze_all(&self, samples: &[TableSample]) -> Result<Vec<TableQualityMetrics>> {
-        samples.iter().map(|s| self.analyze(s)).collect()
+        let mut results = Vec::with_capacity(samples.len());
+        for sample in samples {
+            match self.analyze(sample) {
+                Ok(metrics) => results.push(metrics),
+                Err(e) => {
+                    tracing::warn!(
+                        "Quality analysis failed for table '{}': {}",
+                        sample.table_name,
+                        e
+                    );
+                }
+            }
+        }
+        Ok(results)
     }
 
     /// Calculates the overall quality score from individual metrics.
