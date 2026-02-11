@@ -57,8 +57,8 @@ base64 = { workspace = true }
 zstd = { workspace = true, optional = true }
 
 # JSON Schema validation
-jsonschema = "0.33.0"
-regex = "1.11.2"
+jsonschema = { version = "0.41.0", default-features = false }
+regex = "1.12.3"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

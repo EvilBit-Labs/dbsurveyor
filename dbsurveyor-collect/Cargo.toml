@@ -85,11 +85,11 @@ rpassword = { workspace = true }
 zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
-tempfile = "3.21.0"
+tempfile = "3.25.0"
 temp-env = "0.3.6"
 testcontainers-modules = { workspace = true, features = ["mongo"] }
 criterion = { workspace = true }
-proptest = "1.7.0"
+proptest = "1.10.0"
 
 # Nextest configuration for collector crate
 [package.metadata.nextest]
