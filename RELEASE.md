@@ -1,174 +1,86 @@
-# Release Process Documentation
+# Release Process
 
 ## Overview
 
-This document outlines the release process for DBSurveyor, including current capabilities and planned enhancements.
+Releases are built by [GoReleaser](https://goreleaser.com/) using prebuilt Rust
+binaries. The pipeline is defined in `.github/workflows/release.yml` and
+configured by `.goreleaser.yaml`.
 
-## Current Release Process
+## Triggering a Release
 
-### Automated Release Pipeline
+Releases are triggered by pushing a semver tag:
 
-The release process is fully automated through GitHub Actions:
+```bash
+cargo release patch   # or minor / major
+```
 
-1. **Trigger**: Release is triggered when a GitHub release is published
-2. **Build**: Cross-platform builds for all supported architectures
-3. **Testing**: Full test suite execution before release
-4. **Security**: SBOM generation, vulnerability scanning, and artifact signing
-5. **Distribution**: GitHub releases with signed artifacts
+`cargo-release` bumps versions, commits, and pushes a signed tag matching the
+pattern `v<major>.<minor>.<patch>`. The workflow starts automatically.
 
-### Supported Platforms
+## What the Pipeline Does
 
-- **Linux**: x86_64, aarch64
-- **macOS**: x86_64, aarch64
-- **Windows**: x86_64, aarch64
+1. **Build** -- a matrix job compiles both binaries (`dbsurveyor` and
+   `dbsurveyor-collect`) for every target platform.
+2. **Release** -- GoReleaser packages archives, generates SHA-256 checksums,
+   creates the GitHub Release, and pushes a Homebrew formula.
+3. **Attestation** -- GitHub build provenance attestations are generated for
+   all artifacts.
 
-### Artifact Types
+## Supported Platforms
 
-- Binary executables for all platforms
-- SHA256 checksums for integrity verification
-- Cryptographic signatures using Cosign
-- SBOM (Software Bill of Materials) in SPDX format
-- Vulnerability scan reports
+All targets are cross-compiled from `ubuntu-latest` using `cargo zigbuild`:
 
-## Planned Enhancements
+| Target | Archive |
+|--------|---------|
+| `x86_64-unknown-linux-gnu` | tar.gz |
+| `aarch64-unknown-linux-gnu` | tar.gz |
+| `x86_64-unknown-linux-musl` | tar.gz |
+| `aarch64-apple-darwin` | tar.gz |
+| `x86_64-apple-darwin` | tar.gz |
+| `x86_64-pc-windows-gnu` | zip |
 
-### Homebrew Integration
+## Artifact Types
 
-**Status**: Disabled (see `cargo-dist.toml`)
+- **Archives** -- `.tar.gz` (Unix), `.zip` (Windows), each containing both
+  binaries plus LICENSE and README
+- **Checksums** -- `checksums.txt` with SHA-256 hashes
+- **Homebrew formula** -- published to `EvilBit-Labs/homebrew-tap`
+- **GitHub attestations** -- SLSA build provenance
 
-**TODO**: Enable Homebrew support for `brew install` capability
+## Homebrew Installation
 
-#### Required Tasks
+```bash
+brew install EvilBit-Labs/tap/dbsurveyor
+```
 
-1. **Enable Homebrew in cargo-dist**:
+## Required Secrets
 
-   ```toml
-   [cargo-dist.homebrew]
-   enabled = true
-   ```
-
-2. **Create GitHub Tap Repository**:
-
-   - Repository: `EvilBit-Labs/homebrew-tap`
-   - Purpose: Host Homebrew formula
-   - Access: Public repository for formula distribution
-
-3. **Update Release Workflow**:
-
-   - Add Homebrew formula generation step
-   - Configure formula metadata and dependencies
-   - Set up automated formula publishing
-
-4. **Formula Configuration**:
-
-   - Define dependencies and requirements
-   - Configure installation paths and permissions
-   - Set up proper versioning and updates
-
-#### Implementation Steps
-
-1. **Create Homebrew Tap**:
-
-   ```bash
-   # Create tap repository
-   gh repo create EvilBit-Labs/homebrew-tap --public --description "Homebrew tap for EvilBit Labs"
-   ```
-
-2. **Update Release Workflow**:
-   Add to `.github/workflows/release.yml`:
-
-   ```yaml
-        - name: Generate Homebrew Formula
-       if: matrix.target == 'x86_64-apple-darwin' # Only for macOS x86_64
-       run: |
-         cargo dist generate-homebrew-formula
-         # Copy formula to tap repository
-   ```
-
-3. **Configure Formula Metadata**:
-
-   - Package name: `dbsurveyor`
-   - Description: "Secure database schema documentation tool"
-   - Homepage: Project repository URL
-   - License: MIT
-   - Dependencies: None (self-contained binary)
-
-#### Benefits
-
-- **Easy Installation**: `brew install EvilBit-Labs/tap/dbsurveyor`
-- **Automatic Updates**: `brew upgrade dbsurveyor`
-- **Dependency Management**: Homebrew handles all dependencies
-- **macOS Integration**: Native macOS package management
-
-### Package Manager Support
-
-**Future Enhancements**:
-
-- **Snap**: Linux package distribution
-- **Chocolatey**: Windows package management
-- **Cargo**: Rust package registry (for library components)
+| Secret | Purpose |
+|--------|---------|
+| `GITHUB_TOKEN` | Provided automatically; creates releases and uploads artifacts |
+| `HOMEBREW_TAP_TOKEN` | PAT with write access to `EvilBit-Labs/homebrew-tap` |
 
 ## Release Checklist
 
 ### Pre-Release
 
-- [ ] All tests passing
-- [ ] Security audit clean
-- [ ] Documentation updated
-- [ ] Changelog updated
-- [ ] Version bumped in Cargo.toml
-
-### Release Process
-
-- [ ] Create GitHub release
-- [ ] Verify all artifacts generated
-- [ ] Confirm signatures valid
-- [ ] Test installation on target platforms
-- [ ] Update documentation if needed
+- [ ] All CI checks passing on `main`
+- [ ] Security audit clean (`cargo audit`)
+- [ ] Changelog / release notes prepared
+- [ ] Version bumped via `cargo release`
 
 ### Post-Release
 
-- [ ] Monitor for issues
-- [ ] Update release notes if needed
-- [ ] Archive old releases (if applicable)
-
-## Security Considerations
-
-### Artifact Verification
-
-All release artifacts are:
-
-- **Signed**: Using Cosign with keyless OIDC
-- **Checksummed**: SHA256 for integrity verification
-- **Scanned**: Vulnerability scanning with Grype
-- **Documented**: SBOM for supply chain transparency
-
-### Distribution Security
-
-- **HTTPS Only**: All downloads via HTTPS
-- **Signed Releases**: GitHub releases with cryptographic signatures
-- **Audit Trail**: Complete build and release audit trail
-- **Reproducible**: Deterministic builds for verification
+- [ ] Verify artifacts on the GitHub Release page
+- [ ] Verify checksums file is present and correct
+- [ ] Confirm Homebrew formula updated in tap repository
+- [ ] Test `brew install EvilBit-Labs/tap/dbsurveyor` on a clean machine
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Build Failures**: Check target support and dependencies
-2. **Signing Issues**: Verify OIDC token and permissions
-3. **Upload Failures**: Check GitHub token permissions
-4. **Formula Issues**: Validate Homebrew formula syntax
-
-### Support
-
-For release-related issues:
-
-- Check GitHub Actions logs
-- Review security scan results
-- Verify artifact integrity
-- Contact maintainer if needed
-
----
-
-**Last Updated**: 2025-08-30
-**Next Review**: 2026-08-30
+| Issue | Resolution |
+|-------|------------|
+| Build fails for a single target | Check the matrix job logs; `cross` targets need Docker |
+| GoReleaser fails with path error | Verify artifact layout matches `.goreleaser.yaml` prebuilt paths |
+| Homebrew push fails | Confirm `HOMEBREW_TAP_TOKEN` secret has write access to the tap repo |
+| Prerelease not marked | Tags with `-rc.N`, `-beta.N`, etc. are auto-detected by GoReleaser |
