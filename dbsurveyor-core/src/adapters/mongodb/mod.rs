@@ -180,7 +180,7 @@ impl MongoAdapter {
         );
 
         Ok(DatabaseSchema {
-            format_version: "1.0".to_string(),
+            format_version: FORMAT_VERSION.to_string(),
             database_info,
             tables,
             views: Vec::new(),
@@ -393,8 +393,8 @@ impl MongoAdapter {
                 .iter()
                 .map(|(key, value)| {
                     let sort_order = match value.as_i32() {
-                        Some(1) => Some(SortOrder::Ascending),
-                        Some(-1) => Some(SortOrder::Descending),
+                        Some(1) => Some(SortDirection::Ascending),
+                        Some(-1) => Some(SortDirection::Descending),
                         _ => None,
                     };
                     IndexColumn {

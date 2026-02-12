@@ -114,23 +114,13 @@ fn detect_format(value: &str) -> Option<FormatPattern> {
 /// Consistency measures type uniformity within columns and adherence
 /// to detected format patterns.
 pub fn analyze_consistency(sample: &TableSample) -> ConsistencyMetrics {
-    if sample.rows.is_empty() {
-        return ConsistencyMetrics::default();
-    }
+    let column_names = match sample.column_names() {
+        Some(names) => names,
+        None => return ConsistencyMetrics::default(),
+    };
 
     let mut type_inconsistencies: Vec<TypeInconsistency> = Vec::new();
     let mut format_violations: Vec<FormatViolation> = Vec::new();
-
-    // Get column names from first row
-    let column_names: Vec<String> = if let Some(first_row) = sample.rows.first() {
-        if let Some(obj) = first_row.as_object() {
-            obj.keys().cloned().collect()
-        } else {
-            return ConsistencyMetrics::default();
-        }
-    } else {
-        return ConsistencyMetrics::default();
-    };
 
     let total_rows = sample.rows.len();
 
