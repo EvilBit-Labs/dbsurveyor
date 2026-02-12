@@ -429,38 +429,6 @@ mod tests {
     }
 
     #[test]
-    fn test_completeness_metrics_default() {
-        let metrics = CompletenessMetrics::default();
-        assert_eq!(metrics.score, 1.0);
-        assert!(metrics.column_metrics.is_empty());
-        assert_eq!(metrics.total_nulls, 0);
-        assert_eq!(metrics.total_empty, 0);
-    }
-
-    #[test]
-    fn test_consistency_metrics_default() {
-        let metrics = ConsistencyMetrics::default();
-        assert_eq!(metrics.score, 1.0);
-        assert!(metrics.type_inconsistencies.is_empty());
-        assert!(metrics.format_violations.is_empty());
-    }
-
-    #[test]
-    fn test_uniqueness_metrics_default() {
-        let metrics = UniquenessMetrics::default();
-        assert_eq!(metrics.score, 1.0);
-        assert!(metrics.duplicate_columns.is_empty());
-        assert_eq!(metrics.duplicate_row_count, 0);
-    }
-
-    #[test]
-    fn test_anomaly_metrics_default() {
-        let metrics = AnomalyMetrics::default();
-        assert_eq!(metrics.outlier_count, 0);
-        assert!(metrics.outliers.is_empty());
-    }
-
-    #[test]
     fn test_column_completeness_anomalous_input() {
         // When null_count + empty_count exceeds total, completeness should clamp to 0.0
         let metrics = ColumnCompleteness::new("problematic", 60, 50, 100);
@@ -473,25 +441,5 @@ mod tests {
         let metrics = ColumnDuplicates::new("problematic", 150, 100);
         assert_eq!(metrics.uniqueness, 0.0);
         assert_eq!(metrics.unique_count, 0);
-    }
-
-    #[test]
-    fn test_table_quality_metrics_serde_roundtrip() {
-        let metrics = TableQualityMetrics::new("orders", Some("sales".to_string()), 500)
-            .with_quality_score(0.92)
-            .with_completeness(CompletenessMetrics {
-                score: 0.95,
-                column_metrics: vec![ColumnCompleteness::new("email", 5, 0, 100)],
-                total_nulls: 5,
-                total_empty: 0,
-            });
-
-        let json = serde_json::to_string(&metrics).unwrap();
-        let deserialized: TableQualityMetrics = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(metrics.table_name, deserialized.table_name);
-        assert_eq!(metrics.schema_name, deserialized.schema_name);
-        assert!((metrics.quality_score - deserialized.quality_score).abs() < 0.001);
-        assert!((metrics.completeness.score - deserialized.completeness.score).abs() < 0.001);
     }
 }

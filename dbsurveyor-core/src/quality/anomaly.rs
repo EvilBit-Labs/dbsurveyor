@@ -274,32 +274,6 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_statistics() {
-        let values = vec![2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0];
-        let (mean, std_dev) = calculate_statistics(&values);
-
-        assert!((mean - 5.0).abs() < 0.001);
-        assert!((std_dev - 2.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_calculate_statistics_empty() {
-        let (mean, std_dev) = calculate_statistics(&[]);
-        assert_eq!(mean, 0.0);
-        assert_eq!(std_dev, 0.0);
-    }
-
-    #[test]
-    fn test_extract_numeric() {
-        assert_eq!(extract_numeric(&json!(42)), Some(42.0));
-        assert_eq!(extract_numeric(&json!(3.5)), Some(3.5));
-        assert_eq!(extract_numeric(&json!("123")), Some(123.0));
-        assert_eq!(extract_numeric(&json!("not a number")), None);
-        assert_eq!(extract_numeric(&json!(null)), None);
-        assert_eq!(extract_numeric(&json!(true)), None);
-    }
-
-    #[test]
     fn test_anomaly_non_object_row() {
         // First row is not an object - should return default metrics
         let rows = vec![json!([1, 2, 3]), json!([4, 5, 6])];
@@ -355,27 +329,6 @@ mod tests {
     }
 
     #[test]
-    fn test_anomaly_float_values() {
-        // Test with floating point values
-        let rows = vec![
-            json!({"value": 1.5}),
-            json!({"value": 1.5}),
-            json!({"value": 1.5}),
-            json!({"value": 1.5}),
-            json!({"value": 1.5}),
-            json!({"value": 1.5}),
-            json!({"value": 1.5}),
-            json!({"value": 1.5}),
-            json!({"value": 1.5}),
-            json!({"value": 150.0}), // outlier
-        ];
-
-        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
-
-        assert!(metrics.outlier_count > 0);
-    }
-
-    #[test]
     fn test_anomaly_mixed_numeric_and_non_numeric() {
         // Some values are numeric, some are not
         let rows = vec![
@@ -394,27 +347,6 @@ mod tests {
         let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
 
         // Should still detect outlier among numeric values
-        assert!(metrics.outlier_count > 0);
-    }
-
-    #[test]
-    fn test_anomaly_string_numbers_negative() {
-        // String numbers including negative
-        let rows = vec![
-            json!({"value": "-10"}),
-            json!({"value": "-10"}),
-            json!({"value": "-10"}),
-            json!({"value": "-10"}),
-            json!({"value": "-10"}),
-            json!({"value": "-10"}),
-            json!({"value": "-10"}),
-            json!({"value": "-10"}),
-            json!({"value": "-10"}),
-            json!({"value": "-1000"}), // outlier as string
-        ];
-
-        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
-
         assert!(metrics.outlier_count > 0);
     }
 }

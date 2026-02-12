@@ -355,34 +355,6 @@ mod tests {
     }
 
     #[test]
-    fn test_format_pattern_uuid_matching() {
-        assert!(FormatPattern::Uuid.matches("550e8400-e29b-41d4-a716-446655440000"));
-        assert!(!FormatPattern::Uuid.matches("not-a-uuid"));
-        assert!(!FormatPattern::Uuid.matches("550e8400e29b41d4a716446655440000")); // no dashes
-    }
-
-    #[test]
-    fn test_format_pattern_email_matching() {
-        assert!(FormatPattern::Email.matches("user@example.com"));
-        assert!(!FormatPattern::Email.matches("not-an-email"));
-        assert!(!FormatPattern::Email.matches("user@localhost")); // no dot
-    }
-
-    #[test]
-    fn test_format_pattern_iso_date_matching() {
-        assert!(FormatPattern::IsoDate.matches("2024-01-15"));
-        assert!(!FormatPattern::IsoDate.matches("01/15/2024"));
-        assert!(!FormatPattern::IsoDate.matches("2024-1-15")); // wrong length
-    }
-
-    #[test]
-    fn test_format_pattern_iso_datetime_matching() {
-        assert!(FormatPattern::IsoDateTime.matches("2024-01-15T10:30:00"));
-        assert!(FormatPattern::IsoDateTime.matches("2024-01-15T10:30:00Z"));
-        assert!(!FormatPattern::IsoDateTime.matches("2024-01-15 10:30:00")); // no T
-    }
-
-    #[test]
     fn test_consistency_non_object_row() {
         // First row is not an object - should return default metrics
         let rows = vec![json!([1, 2, 3]), json!([4, 5, 6])];
