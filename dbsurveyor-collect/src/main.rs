@@ -402,18 +402,17 @@ async fn save_schema(
     output_path: &PathBuf,
     cli: &Cli,
 ) -> Result<()> {
-    // Serialize to JSON
-    let json_data = serde_json::to_string_pretty(schema).map_err(|e| {
+    // Convert to Value for validation, then serialize to string once
+    let json_value = serde_json::to_value(schema).map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON serialization", e)
-    })?;
-
-    // Validate output against JSON Schema before saving
-    let json_value: serde_json::Value = serde_json::from_str(&json_data).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON parsing for validation", e)
     })?;
 
     dbsurveyor_core::validate_schema_output(&json_value).map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::collection_failed("Schema validation failed", e)
+    })?;
+
+    let json_data = serde_json::to_string_pretty(&json_value).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON formatting", e)
     })?;
 
     info!("✓ Output validation passed");
