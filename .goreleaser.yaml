@@ -23,6 +23,7 @@ builds:
     binary: dbsurveyor
     command: zigbuild
     flags:
+      - --release
       - -p=dbsurveyor
       - --all-features
     targets:
@@ -40,6 +41,7 @@ builds:
     binary: dbsurveyor-collect
     command: zigbuild
     flags:
+      - --release
       - -p=dbsurveyor-collect
       - --all-features
     targets:
