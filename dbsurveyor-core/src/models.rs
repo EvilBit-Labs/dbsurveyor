@@ -6,6 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Current schema format version.
+pub const FORMAT_VERSION: &str = "1.0";
+
 /// Supported database types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DatabaseType {
@@ -129,14 +132,7 @@ pub struct Index {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexColumn {
     pub name: String,
-    pub sort_order: Option<SortOrder>,
-}
-
-/// Sort order for index columns
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum SortOrder {
-    Ascending,
-    Descending,
+    pub sort_order: Option<SortDirection>,
 }
 
 /// Database constraint information
@@ -357,7 +353,7 @@ pub enum OrderingStrategy {
 }
 
 /// Sort direction for ordering
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SortDirection {
     Ascending,
     Descending,
@@ -374,6 +370,19 @@ pub struct TableSample {
     pub sampling_strategy: SamplingStrategy,
     pub collected_at: chrono::DateTime<chrono::Utc>,
     pub warnings: Vec<String>,
+}
+
+impl TableSample {
+    /// Extracts column names from the first row of sample data.
+    ///
+    /// Returns `None` if the sample is empty or the first row is not a JSON object.
+    /// Column names are derived from the first row only.
+    pub fn column_names(&self) -> Option<Vec<String>> {
+        self.rows
+            .first()?
+            .as_object()
+            .map(|obj| obj.keys().cloned().collect())
+    }
 }
 
 /// Complete database schema representation
@@ -415,7 +424,7 @@ impl DatabaseSchema {
     /// Creates a new empty database schema
     pub fn new(database_info: DatabaseInfo) -> Self {
         Self {
-            format_version: "1.0".to_string(),
+            format_version: FORMAT_VERSION.to_string(),
             database_info,
             tables: Vec::new(),
             views: Vec::new(),

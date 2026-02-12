@@ -105,7 +105,7 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
     }
 
     Ok(DatabaseSchema {
-        format_version: "1.0".to_string(),
+        format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
         views,
@@ -447,7 +447,7 @@ async fn collect_index_columns(
         // SQLite doesn't store sort order in index_info, default to ascending
         columns.push(IndexColumn {
             name,
-            sort_order: Some(SortOrder::Ascending),
+            sort_order: Some(SortDirection::Ascending),
         });
     }
 

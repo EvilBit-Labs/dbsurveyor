@@ -20,24 +20,14 @@ use super::models::{AnomalyMetrics, ColumnAnomaly};
 /// # Returns
 /// Anomaly metrics containing detected outliers per column.
 pub fn analyze_anomalies(sample: &TableSample, sensitivity: AnomalySensitivity) -> AnomalyMetrics {
-    if sample.rows.is_empty() {
-        return AnomalyMetrics::default();
-    }
+    let column_names = match sample.column_names() {
+        Some(names) => names,
+        None => return AnomalyMetrics::default(),
+    };
 
     let z_threshold = sensitivity.z_score_threshold();
     let mut outliers: Vec<ColumnAnomaly> = Vec::new();
     let mut total_outlier_count: u64 = 0;
-
-    // Get column names from first row
-    let column_names: Vec<String> = if let Some(first_row) = sample.rows.first() {
-        if let Some(obj) = first_row.as_object() {
-            obj.keys().cloned().collect()
-        } else {
-            return AnomalyMetrics::default();
-        }
-    } else {
-        return AnomalyMetrics::default();
-    };
 
     // Analyze each column for numeric outliers
     for column_name in &column_names {

@@ -14,23 +14,13 @@ use super::models::{ColumnDuplicates, UniquenessMetrics};
 /// Uniqueness measures the presence of duplicate values, both at the
 /// individual column level and for complete rows.
 pub fn analyze_uniqueness(sample: &TableSample) -> UniquenessMetrics {
-    if sample.rows.is_empty() {
-        return UniquenessMetrics::default();
-    }
+    let column_names = match sample.column_names() {
+        Some(names) => names,
+        None => return UniquenessMetrics::default(),
+    };
 
     let total_rows = sample.rows.len() as u64;
     let mut duplicate_columns: Vec<ColumnDuplicates> = Vec::new();
-
-    // Get column names from first row
-    let column_names: Vec<String> = if let Some(first_row) = sample.rows.first() {
-        if let Some(obj) = first_row.as_object() {
-            obj.keys().cloned().collect()
-        } else {
-            return UniquenessMetrics::default();
-        }
-    } else {
-        return UniquenessMetrics::default();
-    };
 
     // Analyze column-level uniqueness
     for column_name in &column_names {

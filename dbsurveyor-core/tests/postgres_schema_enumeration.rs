@@ -309,7 +309,7 @@ async fn test_postgres_schema_enumeration() -> Result<(), Box<dyn std::error::Er
     assert_eq!(custom_index.columns[0].name, "created_at");
     assert_eq!(
         custom_index.columns[0].sort_order,
-        Some(dbsurveyor_core::models::SortOrder::Descending)
+        Some(dbsurveyor_core::models::SortDirection::Descending)
     );
 
     // Test custom table constraints and indexes
@@ -1429,7 +1429,7 @@ async fn test_postgres_constraints_and_indexes() -> Result<(), Box<dyn std::erro
     assert_eq!(desc_index.columns[0].name, "created_at");
     assert_eq!(
         desc_index.columns[0].sort_order,
-        Some(dbsurveyor_core::models::SortOrder::Descending)
+        Some(dbsurveyor_core::models::SortDirection::Descending)
     );
 
     // Check for composite index
