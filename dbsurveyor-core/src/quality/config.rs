@@ -4,6 +4,7 @@
 //! threshold settings and anomaly detection sensitivity.
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// Anomaly detection sensitivity level.
 ///
@@ -86,11 +87,25 @@ pub struct QualityConfig {
     pub anomaly_detection: AnomalyConfig,
 }
 
+/// Validation errors for quality configuration.
+#[derive(Debug, Error)]
+pub enum ConfigValidationError {
+    #[error("completeness_min must be between 0.0 and 1.0, got {0}")]
+    InvalidCompleteness(f64),
+    #[error("uniqueness_min must be between 0.0 and 1.0, got {0}")]
+    InvalidUniqueness(f64),
+    #[error("consistency_min must be between 0.0 and 1.0, got {0}")]
+    InvalidConsistency(f64),
+}
+
 impl Default for QualityConfig {
     fn default() -> Self {
         Self {
             enabled: true,
             completeness_min: 0.95,
+            // Note: 0.98 is strict. Low-cardinality columns (e.g., status,
+            // category) will naturally trigger violations and may need
+            // per-table threshold adjustments via CLI overrides.
             uniqueness_min: 0.98,
             consistency_min: 0.90,
             anomaly_detection: AnomalyConfig::default(),
@@ -155,23 +170,20 @@ impl QualityConfig {
     /// Validates the configuration.
     ///
     /// Returns an error if any threshold is outside valid range.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), ConfigValidationError> {
         if !(0.0..=1.0).contains(&self.completeness_min) {
-            return Err(format!(
-                "completeness_min must be between 0.0 and 1.0, got {}",
-                self.completeness_min
+            return Err(ConfigValidationError::InvalidCompleteness(
+                self.completeness_min,
             ));
         }
         if !(0.0..=1.0).contains(&self.uniqueness_min) {
-            return Err(format!(
-                "uniqueness_min must be between 0.0 and 1.0, got {}",
-                self.uniqueness_min
+            return Err(ConfigValidationError::InvalidUniqueness(
+                self.uniqueness_min,
             ));
         }
         if !(0.0..=1.0).contains(&self.consistency_min) {
-            return Err(format!(
-                "consistency_min must be between 0.0 and 1.0, got {}",
-                self.consistency_min
+            return Err(ConfigValidationError::InvalidConsistency(
+                self.consistency_min,
             ));
         }
         Ok(())
@@ -269,8 +281,10 @@ mod tests {
             completeness_min: 1.5, // Bypass clamping
             ..QualityConfig::default()
         };
-        assert!(config.validate().is_err());
-        assert!(config.validate().unwrap_err().contains("completeness_min"));
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigValidationError::InvalidCompleteness(_))
+        ));
     }
 
     #[test]
@@ -279,8 +293,10 @@ mod tests {
             uniqueness_min: -0.1,
             ..QualityConfig::default()
         };
-        assert!(config.validate().is_err());
-        assert!(config.validate().unwrap_err().contains("uniqueness_min"));
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigValidationError::InvalidUniqueness(_))
+        ));
     }
 
     #[test]
@@ -289,8 +305,10 @@ mod tests {
             consistency_min: 2.0,
             ..QualityConfig::default()
         };
-        assert!(config.validate().is_err());
-        assert!(config.validate().unwrap_err().contains("consistency_min"));
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigValidationError::InvalidConsistency(_))
+        ));
     }
 
     #[test]

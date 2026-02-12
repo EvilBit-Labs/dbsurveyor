@@ -239,6 +239,12 @@ impl Default for UniquenessMetrics {
 }
 
 /// Anomaly detected in a column.
+///
+/// The `mean` and `std_dev` fields are statistical aggregates that do not
+/// expose individual data values. However, for highly sensitive numeric
+/// columns (e.g., salaries, transaction amounts), these aggregates may
+/// reveal distribution characteristics. Operators working with sensitive
+/// data should be aware of this trade-off.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnAnomaly {
     /// Column name
@@ -247,9 +253,9 @@ pub struct ColumnAnomaly {
     pub outlier_count: u64,
     /// Z-score threshold used for detection
     pub z_score_threshold: f64,
-    /// Mean value (for context, not actual data)
+    /// Mean value (statistical aggregate, not actual data)
     pub mean: f64,
-    /// Standard deviation (for context)
+    /// Standard deviation (statistical aggregate, not actual data)
     pub std_dev: f64,
 }
 
@@ -358,6 +364,17 @@ mod tests {
     #[test]
     fn test_threshold_violation_critical_severity() {
         let violation = ThresholdViolation::new("completeness", 0.95, 0.70);
+        assert_eq!(violation.severity, ViolationSeverity::Critical);
+    }
+
+    #[test]
+    fn test_threshold_violation_boundary_severity() {
+        // Exactly at 80% of threshold boundary - should be Warning, not Critical
+        let violation = ThresholdViolation::new("completeness", 0.95, 0.76);
+        assert_eq!(violation.severity, ViolationSeverity::Warning);
+
+        // Just below 80% - should be Critical
+        let violation = ThresholdViolation::new("completeness", 0.95, 0.759);
         assert_eq!(violation.severity, ViolationSeverity::Critical);
     }
 
