@@ -310,6 +310,19 @@ bench:
     @{{ mise_exec }} cargo bench --features postgresql,sqlite,encryption,compression
 
 # =============================================================================
+# RELEASE
+# =============================================================================
+
+# Validate GoReleaser config and lint release workflow
+release-check:
+    @{{ mise_exec }} goreleaser check
+    @{{ mise_exec }} actionlint .github/workflows/release.yml
+
+# Local release dry-run (builds all targets, creates archives, skips publishing)
+release-snapshot:
+    @{{ mise_exec }} goreleaser release --snapshot --clean
+
+# =============================================================================
 # PACKAGING AND DEPLOYMENT
 # =============================================================================
 

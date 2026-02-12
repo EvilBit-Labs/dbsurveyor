@@ -27,6 +27,7 @@ The project follows a Rust workspace structure with clear separation of concerns
 │   └── dependabot.yml         # Dependency management
 ├── project_specs/             # Project specifications
 ├── justfile                   # Task runner configuration
+├── .goreleaser.yaml           # GoReleaser release configuration
 ├── Cargo.toml                 # Workspace configuration
 ├── cargo-deny.toml            # Security policy
 └── AGENTS.md                  # This file
@@ -46,6 +47,7 @@ The preferred technology stack is consistent across the project:
 | **Encryption**    | AES-GCM with random nonce                 | For secure data at rest                          |
 | **Testing**       | Built-in test framework + testcontainers  | For unit and integration testing                 |
 | **CI/CD**         | GitHub Actions                            | For automated testing, linting, and releases     |
+| **Release**       | GoReleaser with Rust builder              | Cross-compilation via `cargo zigbuild`           |
 | **Tooling**       | `cargo` for deps, `just` for task running | `cargo clippy -- -D warnings` for quality        |
 
 ## 4. Coding Standards and Conventions
@@ -186,6 +188,10 @@ just security-full           # Full security validation suite
 just build                   # Build release version
 just build-minimal           # Build minimal airgap-compatible version
 just package-airgap          # Create airgap deployment package
+
+# Release
+just release-check           # Validate GoReleaser config and lint release workflow
+just release-snapshot        # Local release dry-run (builds all targets, skips publishing)
 ```
 
 ### Testing Strategy
@@ -203,6 +209,18 @@ just package-airgap          # Create airgap deployment package
 - Test Coverage CI uses `--fail-under-lines 80` threshold; failures may be pre-existing
 - Large rebases (80+ commits) may fail on GitHub with "This branch can't be rebased"
   - Workaround: Temporarily enable merge commits via API, merge, then disable
+
+### Release Pipeline
+
+Releases use **GoReleaser** with the native Rust builder (`builder: rust`) and `cargo zigbuild` for cross-compilation. Configuration lives in `.goreleaser.yaml`; the workflow is `.github/workflows/release.yml`.
+
+- **Trigger**: Push a semver tag (`v0.1.0`, `v1.0.0-rc.1`) via `cargo release`
+- **Cross-compilation**: All 6 targets built from a single `ubuntu-latest` runner using `cargo zigbuild`
+- **Windows target**: `x86_64-pc-windows-gnu` (not MSVC; `cargo zigbuild` does not support MSVC)
+- **Homebrew**: Published as a Cask to `EvilBit-Labs/homebrew-tap` (requires `HOMEBREW_TAP_TOKEN` secret)
+- **Archives**: `.tar.gz` for Unix, `.zip` for Windows, both containing `dbsurveyor` and `dbsurveyor-collect`
+- **GoReleaser `prebuilt` builder is Pro-only** -- always use `builder: rust` for OSS GoReleaser
+- **Reference config**: `../opnDossier/.goreleaser.yaml` (Go project, same org conventions)
 
 ## 10. Architecture Patterns
 
