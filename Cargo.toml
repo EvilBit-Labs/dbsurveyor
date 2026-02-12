@@ -104,11 +104,6 @@ opt-level = 3
 debug = true           # Full debug info for security auditing
 overflow-checks = true # Runtime integer overflow detection
 
-# The profile that 'dist' will build with
-[profile.dist]
-inherits = "release"
-lto = "thin"
-
 [workspace.metadata.release]
 shared-version = true
 tag-name = "v{{version}}"
