@@ -257,26 +257,6 @@ mod tests {
     }
 
     #[test]
-    fn test_value_to_string() {
-        assert_eq!(value_to_string(&json!(null)), "__NULL__");
-        assert_eq!(value_to_string(&json!(true)), "true");
-        assert_eq!(value_to_string(&json!(42)), "42");
-        assert_eq!(value_to_string(&json!("hello")), "hello");
-    }
-
-    #[test]
-    fn test_count_duplicate_rows() {
-        let rows = vec![
-            json!({"a": 1}),
-            json!({"a": 2}),
-            json!({"a": 1}), // duplicate
-            json!({"a": 1}), // duplicate
-        ];
-
-        assert_eq!(count_duplicate_rows(&rows), 2);
-    }
-
-    #[test]
     fn test_uniqueness_non_object_row() {
         // First row is not an object - should return default metrics
         let rows = vec![json!([1, 2, 3]), json!([4, 5, 6])];

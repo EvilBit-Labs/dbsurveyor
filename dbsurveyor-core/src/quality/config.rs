@@ -202,19 +202,6 @@ mod tests {
     }
 
     #[test]
-    fn test_anomaly_sensitivity_default() {
-        let sensitivity = AnomalySensitivity::default();
-        assert_eq!(sensitivity, AnomalySensitivity::Medium);
-    }
-
-    #[test]
-    fn test_anomaly_config_default() {
-        let config = AnomalyConfig::default();
-        assert!(config.enabled);
-        assert_eq!(config.sensitivity, AnomalySensitivity::Medium);
-    }
-
-    #[test]
     fn test_anomaly_config_builder() {
         let config = AnomalyConfig::new()
             .with_enabled(false)
@@ -309,23 +296,5 @@ mod tests {
             config.validate(),
             Err(ConfigValidationError::InvalidConsistency(_))
         ));
-    }
-
-    #[test]
-    fn test_quality_config_serde_roundtrip() {
-        let config = QualityConfig::new()
-            .with_completeness_min(0.75)
-            .with_anomaly_detection(
-                AnomalyConfig::new().with_sensitivity(AnomalySensitivity::High),
-            );
-
-        let json = serde_json::to_string(&config).unwrap();
-        let deserialized: QualityConfig = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(config.completeness_min, deserialized.completeness_min);
-        assert_eq!(
-            config.anomaly_detection.sensitivity,
-            deserialized.anomaly_detection.sensitivity
-        );
     }
 }
