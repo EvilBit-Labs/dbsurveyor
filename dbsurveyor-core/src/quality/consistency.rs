@@ -71,8 +71,12 @@ impl FormatPattern {
         match self {
             FormatPattern::Email => value.contains('@') && value.contains('.'),
             FormatPattern::Uuid => {
+                // Validate 8-4-4-4-12 segment layout
                 value.len() == 36
-                    && value.chars().filter(|c| *c == '-').count() == 4
+                    && value.as_bytes().get(8) == Some(&b'-')
+                    && value.as_bytes().get(13) == Some(&b'-')
+                    && value.as_bytes().get(18) == Some(&b'-')
+                    && value.as_bytes().get(23) == Some(&b'-')
                     && value.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
             }
             FormatPattern::IsoDate => {

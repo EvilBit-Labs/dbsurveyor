@@ -101,7 +101,11 @@ fn extract_numeric(value: &serde_json::Value) -> Option<f64> {
     }
 }
 
-/// Calculates mean and standard deviation for a set of values.
+/// Calculates mean and population standard deviation for a set of values.
+///
+/// Uses population standard deviation (divides by n, not n-1). For quality
+/// analysis on sampled data this is acceptable -- the bias is minimal and
+/// tends to be slightly conservative in outlier detection.
 fn calculate_statistics(values: &[f64]) -> (f64, f64) {
     if values.is_empty() {
         return (0.0, 0.0);
