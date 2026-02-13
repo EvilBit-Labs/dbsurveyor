@@ -82,11 +82,19 @@ pub fn analyze_anomalies(sample: &TableSample, sensitivity: AnomalySensitivity) 
     }
 }
 
-/// Extracts a numeric value from a JSON value.
+/// Extracts a finite numeric value from a JSON value.
+///
+/// Only finite values are accepted. String representations of non-finite
+/// numbers such as "NaN" or "inf" are rejected to avoid poisoning
+/// statistical calculations with non-finite values.
 fn extract_numeric(value: &serde_json::Value) -> Option<f64> {
-    match value {
+    let numeric = match value {
         serde_json::Value::Number(n) => n.as_f64(),
         serde_json::Value::String(s) => s.parse::<f64>().ok(),
+        _ => None,
+    };
+    match numeric {
+        Some(v) if v.is_finite() => Some(v),
         _ => None,
     }
 }
@@ -326,6 +334,25 @@ mod tests {
         let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
 
         assert!(metrics.outlier_count > 0);
+    }
+
+    #[test]
+    fn test_anomaly_non_finite_values_rejected() {
+        // NaN and Infinity strings should be rejected, not poison statistics
+        let rows = vec![
+            json!({"value": 10}),
+            json!({"value": 10}),
+            json!({"value": 10}),
+            json!({"value": "NaN"}),
+            json!({"value": "inf"}),
+            json!({"value": "-inf"}),
+            json!({"value": "Infinity"}),
+        ];
+
+        let metrics = analyze_anomalies(&create_sample(rows), AnomalySensitivity::Medium);
+
+        // Should not detect outliers -- the three finite values are identical
+        assert_eq!(metrics.outlier_count, 0);
     }
 
     #[test]

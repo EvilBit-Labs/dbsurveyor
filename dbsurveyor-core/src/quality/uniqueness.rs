@@ -28,10 +28,12 @@ pub fn analyze_uniqueness(sample: &TableSample) -> UniquenessMetrics {
         let mut duplicate_count: u64 = 0;
 
         for row in &sample.rows {
-            if let Some(value) = row.as_object().and_then(|obj| obj.get(column_name)) {
-                // Convert value to string for comparison
-                // Nulls are treated as a single value
-                let value_str = value_to_string(value);
+            if let Some(obj) = row.as_object() {
+                // Missing keys are treated the same as explicit nulls
+                let value_str = match obj.get(column_name) {
+                    Some(value) => value_to_string(value),
+                    None => value_to_string(&serde_json::Value::Null),
+                };
 
                 if seen_values.contains(&value_str) {
                     duplicate_count += 1;
@@ -81,23 +83,34 @@ pub fn analyze_uniqueness(sample: &TableSample) -> UniquenessMetrics {
 }
 
 /// Converts a JSON value to a comparable string representation.
+///
+/// Each value is prefixed with its JSON type to prevent cross-type
+/// collisions (e.g., numeric `1` vs string `"1"`).
 fn value_to_string(value: &serde_json::Value) -> String {
     match value {
-        serde_json::Value::Null => "__NULL__".to_string(),
-        serde_json::Value::Bool(b) => b.to_string(),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Array(a) => serde_json::to_string(a).unwrap_or_else(|e| {
-            tracing::trace!("Failed to serialize array for uniqueness comparison: {}", e);
-            "__SERIALIZE_ERROR__".to_string()
-        }),
-        serde_json::Value::Object(o) => serde_json::to_string(o).unwrap_or_else(|e| {
-            tracing::trace!(
-                "Failed to serialize object for uniqueness comparison: {}",
-                e
-            );
-            "__SERIALIZE_ERROR__".to_string()
-        }),
+        serde_json::Value::Null => "null:__NULL__".to_string(),
+        serde_json::Value::Bool(b) => format!("bool:{b}"),
+        serde_json::Value::Number(n) => format!("num:{n}"),
+        serde_json::Value::String(s) => format!("str:{s}"),
+        serde_json::Value::Array(a) => {
+            let serialized = serde_json::to_string(a).unwrap_or_else(|e| {
+                tracing::trace!("Failed to serialize array for uniqueness comparison: {}", e);
+                "__SERIALIZE_ERROR__".to_string()
+            });
+            format!("arr:{serialized}")
+        }
+        serde_json::Value::Object(o) => {
+            // Canonicalize key ordering via BTreeMap for stable comparison
+            let sorted: BTreeMap<_, _> = o.iter().collect();
+            let serialized = serde_json::to_string(&sorted).unwrap_or_else(|e| {
+                tracing::trace!(
+                    "Failed to serialize object for uniqueness comparison: {}",
+                    e
+                );
+                "__SERIALIZE_ERROR__".to_string()
+            });
+            format!("obj:{serialized}")
+        }
     }
 }
 
@@ -241,18 +254,16 @@ mod tests {
 
     #[test]
     fn test_uniqueness_mixed_types() {
-        // Different JSON types with different string representations are unique
-        // Note: json!(1) and json!("1") both convert to "1", so would be duplicates
-        // Here we use values that have distinct string representations
+        // Different JSON types are distinct even if string representations match
         let rows = vec![
-            json!({"value": 42}),
-            json!({"value": "hello"}),
+            json!({"value": 1}),
+            json!({"value": "1"}),
             json!({"value": true}),
         ];
 
         let metrics = analyze_uniqueness(&create_sample(rows));
 
-        // All values are unique (42, "hello", and "true" are different strings)
+        // All values are unique: num:1, str:1, bool:true are distinct
         assert!(metrics.duplicate_columns.is_empty());
     }
 
@@ -335,5 +346,41 @@ mod tests {
         assert!((metrics.score - 1.0).abs() < 0.001);
         assert!(metrics.duplicate_columns.is_empty());
         assert_eq!(metrics.duplicate_row_count, 0);
+    }
+
+    #[test]
+    fn test_duplicate_rows_different_key_order() {
+        // Rows with identical key-value pairs but different insertion order
+        // should be detected as duplicates
+        let row_a = serde_json::from_str::<serde_json::Value>(r#"{"a":1,"b":2}"#).unwrap();
+        let row_b = serde_json::from_str::<serde_json::Value>(r#"{"b":2,"a":1}"#).unwrap();
+        let row_c = json!({"a": 1, "b": 3}); // different value
+
+        let rows = vec![row_a, row_b, row_c];
+        let metrics = analyze_uniqueness(&create_sample(rows));
+
+        assert_eq!(metrics.duplicate_row_count, 1);
+    }
+
+    #[test]
+    fn test_uniqueness_missing_key_treated_as_null() {
+        // Missing key should be treated the same as explicit null
+        let rows = vec![
+            json!({"id": 1, "email": null}),
+            json!({"id": 2}), // email key missing -- treated as null
+            json!({"id": 3, "email": "test@example.com"}),
+        ];
+
+        let metrics = analyze_uniqueness(&create_sample(rows));
+
+        let email_col = metrics
+            .duplicate_columns
+            .iter()
+            .find(|c| c.column_name == "email");
+        assert!(
+            email_col.is_some(),
+            "missing key should count as duplicate null"
+        );
+        assert_eq!(email_col.unwrap().duplicate_count, 1);
     }
 }
