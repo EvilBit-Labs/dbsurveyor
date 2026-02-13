@@ -59,7 +59,7 @@ base64 = "0.22.1"
 zstd = "0.13.3"
 
 # Template engine
-askama = { version = "0.15.3", features = ["serde_json"] }
+askama = { version = "0.15.4", features = ["serde_json"] }
 
 # Testing
 testcontainers-modules = { version = "0.14.0", features = ["postgres", "mysql", "blocking"] }
