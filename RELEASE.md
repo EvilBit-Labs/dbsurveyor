@@ -2,9 +2,9 @@
 
 ## Overview
 
-Releases are built by [GoReleaser](https://goreleaser.com/) using prebuilt Rust
-binaries. The pipeline is defined in `.github/workflows/release.yml` and
-configured by `.goreleaser.yaml`.
+Releases are built by [GoReleaser](https://goreleaser.com/) using `cargo zigbuild`
+for cross-compilation from source. The pipeline is defined in
+`.github/workflows/release.yml` and configured by `.goreleaser.yaml`.
 
 ## Triggering a Release
 
@@ -19,12 +19,11 @@ pattern `v<major>.<minor>.<patch>`. The workflow starts automatically.
 
 ## What the Pipeline Does
 
-1. **Build** -- a matrix job compiles both binaries (`dbsurveyor` and
-   `dbsurveyor-collect`) for every target platform.
+1. **Build** -- a single job on `ubuntu-latest` cross-compiles both binaries
+   (`dbsurveyor` and `dbsurveyor-collect`) for all six target platforms via
+   GoReleaser's native Rust builder and `cargo zigbuild`.
 2. **Release** -- GoReleaser packages archives, generates SHA-256 checksums,
-   creates the GitHub Release, and pushes a Homebrew formula.
-3. **Attestation** -- GitHub build provenance attestations are generated for
-   all artifacts.
+   creates the GitHub Release, and pushes a Homebrew cask.
 
 ## Supported Platforms
 
@@ -44,8 +43,7 @@ All targets are cross-compiled from `ubuntu-latest` using `cargo zigbuild`:
 - **Archives** -- `.tar.gz` (Unix), `.zip` (Windows), each containing both
   binaries plus LICENSE and README
 - **Checksums** -- `checksums.txt` with SHA-256 hashes
-- **Homebrew formula** -- published to `EvilBit-Labs/homebrew-tap`
-- **GitHub attestations** -- SLSA build provenance
+- **Homebrew cask** -- published to `EvilBit-Labs/homebrew-tap`
 
 ## Homebrew Installation
 
@@ -80,7 +78,7 @@ brew install EvilBit-Labs/tap/dbsurveyor
 
 | Issue | Resolution |
 |-------|------------|
-| Build fails for a single target | Check the matrix job logs; `cross` targets need Docker |
-| GoReleaser fails with path error | Verify artifact layout matches `.goreleaser.yaml` prebuilt paths |
+| Build fails for a single target | Check the job logs; verify `cargo zigbuild` and the Zig toolchain for that target are correctly configured |
+| GoReleaser fails with path error | Verify `.goreleaser.yaml` build targets and flags match the installed Rust targets |
 | Homebrew push fails | Confirm `HOMEBREW_TAP_TOKEN` secret has write access to the tap repo |
 | Prerelease not marked | Tags with `-rc.N`, `-beta.N`, etc. are auto-detected by GoReleaser |

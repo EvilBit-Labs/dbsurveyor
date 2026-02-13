@@ -281,6 +281,11 @@ fn parse_quality_thresholds(thresholds: &[String]) -> QualityThresholds {
             } else {
                 warn!("Invalid threshold value for {}: {}", metric, value);
             }
+        } else {
+            warn!(
+                "Invalid quality threshold format '{}', expected 'metric:value'",
+                threshold
+            );
         }
     }
 
