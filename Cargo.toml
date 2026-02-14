@@ -32,14 +32,14 @@ futures = "0.3.31"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
 thiserror = "2.0.18"
-anyhow = "1.0.100"
+anyhow = "1.0.101"
 async-trait = "0.1.89"
 url = "2.5.8"
-uuid = { version = "1.20.0", features = ["v4", "serde"] }
+uuid = { version = "1.21.0", features = ["v4", "serde"] }
 chrono = { version = "0.4.43", features = ["serde"] }
 
 # CLI dependencies
-clap = { version = "4.5.55", features = ["derive", "env"] }
+clap = { version = "4.5.58", features = ["derive", "env"] }
 
 # Database dependencies (feature-gated)
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid", "migrate"] }
@@ -51,7 +51,7 @@ aes-gcm = "0.10.3"
 argon2 = "0.5.3"
 password-hash = "0.5.0"
 zeroize = { version = "1.8.2", features = ["derive"] }
-rand = "0.9.2"
+rand = "0.10.0"
 rpassword = "7.4.0"
 base64 = "0.22.1"
 
@@ -63,7 +63,7 @@ askama = { version = "0.15.4", features = ["serde_json"] }
 
 # Testing
 testcontainers-modules = { version = "0.14.0", features = ["postgres", "mysql", "blocking"] }
-criterion = "0.8.1"
+criterion = "0.8.2"
 
 # Internal workspace dependencies
 dbsurveyor-core = { path = "dbsurveyor-core" }
