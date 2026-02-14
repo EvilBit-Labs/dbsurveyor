@@ -47,6 +47,10 @@ backend = "cargo:cargo-nextest"
 version = "0.17.0"
 backend = "cargo:cargo-outdated"
 
+[[tools."cargo:cargo-zigbuild"]]
+version = "0.19.8"
+backend = "cargo:cargo-zigbuild"
+
 [[tools."cargo:mdbook"]]
 version = "0.5.2"
 backend = "cargo:mdbook"
@@ -140,3 +144,7 @@ backend = "core:python"
 [[tools.rust]]
 version = "1.93.1"
 backend = "core:rust"
+
+[[tools.zig]]
+version = "0.13.0"
+backend = "core:zig"
