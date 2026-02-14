@@ -11,12 +11,6 @@ keywords.workspace = true
 categories.workspace = true
 description = "Database schema documentation and analysis tool"
 
-[package.metadata.wix]
-upgrade-guid = "49E4D9FD-4303-4783-9AB7-8CE03406AD32"
-path-guid = "CF033D41-08C9-41CE-9264-31B5A792C7AC"
-license = false
-eula = false
-
 [[bin]]
 name = "dbsurveyor"
 path = "src/main.rs"

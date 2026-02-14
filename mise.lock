@@ -1,0 +1,150 @@
+[[tools.actionlint]]
+version = "1.7.10"
+backend = "aqua:rhysd/actionlint"
+"platforms.linux-x64" = { checksum = "sha256:f4c76b71db5755a713e6055cbb0857ed07e103e028bda117817660ebadb4386f", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.10/actionlint_1.7.10_linux_amd64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:004ca87b367b37f4d75c55ab6cf80f9b8c043adbfbd440f31c604d417939c442", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.10/actionlint_1.7.10_darwin_arm64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:283467f9d6202a8cb8c00ad8dd0ee4e685b71fb86a6a56c68fcbb9ae8ed91237", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.10/actionlint_1.7.10_windows_amd64.zip"}
+
+[[tools.cargo-binstall]]
+version = "1.17.5"
+backend = "aqua:cargo-bins/cargo-binstall"
+"platforms.linux-x64" = { checksum = "sha256:c0f247726165afc445076a9d58cf3795512b6e5787ae469297a39b8c9e30a51f", url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.17.5/cargo-binstall-x86_64-unknown-linux-musl.tgz"}
+"platforms.macos-arm64" = { checksum = "sha256:896e75a79773a11ad651649dce449a223ddd1dc718e687301988b46ee26fe58f", url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.17.5/cargo-binstall-aarch64-apple-darwin.zip"}
+"platforms.windows-x64" = { checksum = "sha256:501697fe946b691d215600d144b53b696cc6fb03f3e1773f582b375672c26be6", url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.17.5/cargo-binstall-x86_64-pc-windows-msvc.zip"}
+
+[[tools.cargo-insta]]
+version = "1.46.3"
+backend = "aqua:mitsuhiko/insta"
+"platforms.linux-x64" = { checksum = "sha256:c738c47f8d7e834a0277dddb9410a1f7369d37818738fc6a380f22904a83f6e4", url = "https://github.com/mitsuhiko/insta/releases/download/1.46.3/cargo-insta-x86_64-unknown-linux-musl.tar.xz"}
+"platforms.macos-arm64" = { checksum = "sha256:1e620252db7964d876da6b4956872ad84d099ee281753ac7c850ae24413947df", url = "https://github.com/mitsuhiko/insta/releases/download/1.46.3/cargo-insta-aarch64-apple-darwin.tar.xz"}
+"platforms.windows-x64" = { checksum = "sha256:fa0cd6810e393392cf347decacd8a710de9ac95b6747a753f037c46b649209aa", url = "https://github.com/mitsuhiko/insta/releases/download/1.46.3/cargo-insta-x86_64-pc-windows-msvc.zip"}
+
+[[tools."cargo:cargo-audit"]]
+version = "0.22.1"
+backend = "cargo:cargo-audit"
+
+[[tools."cargo:cargo-auditable"]]
+version = "0.7.2"
+backend = "cargo:cargo-auditable"
+
+[[tools."cargo:cargo-cyclonedx"]]
+version = "0.5.7"
+backend = "cargo:cargo-cyclonedx"
+
+[[tools."cargo:cargo-deny"]]
+version = "0.19.0"
+backend = "cargo:cargo-deny"
+
+[[tools."cargo:cargo-llvm-cov"]]
+version = "0.8.4"
+backend = "cargo:cargo-llvm-cov"
+
+[[tools."cargo:cargo-nextest"]]
+version = "0.9.127"
+backend = "cargo:cargo-nextest"
+
+[[tools."cargo:cargo-outdated"]]
+version = "0.17.0"
+backend = "cargo:cargo-outdated"
+
+[[tools."cargo:cargo-zigbuild"]]
+version = "0.19.8"
+backend = "cargo:cargo-zigbuild"
+
+[[tools."cargo:mdbook"]]
+version = "0.5.2"
+backend = "cargo:mdbook"
+
+[[tools."cargo:mdbook-admonish"]]
+version = "1.20.0"
+backend = "cargo:mdbook-admonish"
+
+[[tools."cargo:mdbook-alerts"]]
+version = "0.8.0"
+backend = "cargo:mdbook-alerts"
+
+[[tools."cargo:mdbook-i18n-helpers"]]
+version = "0.4.0"
+backend = "cargo:mdbook-i18n-helpers"
+
+[[tools."cargo:mdbook-linkcheck"]]
+version = "0.7.7"
+backend = "cargo:mdbook-linkcheck"
+
+[[tools."cargo:mdbook-mermaid"]]
+version = "0.17.0"
+backend = "cargo:mdbook-mermaid"
+
+[[tools."cargo:mdbook-open-on-gh"]]
+version = "3.0.0"
+backend = "cargo:mdbook-open-on-gh"
+
+[[tools."cargo:mdbook-tabs"]]
+version = "0.3.4"
+backend = "cargo:mdbook-tabs"
+
+[[tools."cargo:mdbook-toc"]]
+version = "0.15.3"
+backend = "cargo:mdbook-toc"
+
+[[tools.goreleaser]]
+version = "2.13.3"
+backend = "aqua:goreleaser/goreleaser"
+"platforms.linux-x64" = { checksum = "sha256:4b66f2f78f78561330350651ade557b70328664718490f37834749073af21d20", url = "https://github.com/goreleaser/goreleaser/releases/download/v2.13.3/goreleaser_Linux_x86_64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:5516c37779efb3935d5b213cda3b0b9025ae94ddbcb51df6919acbcdef4194b0", url = "https://github.com/goreleaser/goreleaser/releases/download/v2.13.3/goreleaser_Darwin_all.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:c5586c4ed749ca358ad61ed73ee4b8039cfa68daae8c23e69fb086d549dfb31d", url = "https://github.com/goreleaser/goreleaser/releases/download/v2.13.3/goreleaser_Windows_x86_64.zip"}
+
+[[tools.just]]
+version = "1.46.0"
+backend = "aqua:casey/just"
+"platforms.linux-x64" = { checksum = "sha256:79966e6e353f535ee7d1c6221641bcc8e3381c55b0d0a6dc6e54b34f9db36eaa", url = "https://github.com/casey/just/releases/download/1.46.0/just-1.46.0-x86_64-unknown-linux-musl.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:438eaf6468a115aa7db93e501cc7e3272f453f6b7083be3863adfab546b23358", url = "https://github.com/casey/just/releases/download/1.46.0/just-1.46.0-aarch64-apple-darwin.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:f0acf3f8ccbcf360b481baae9cae4c921774c89d5d932012481d3e0bda78ab39", url = "https://github.com/casey/just/releases/download/1.46.0/just-1.46.0-x86_64-pc-windows-msvc.zip"}
+
+[[tools.lychee]]
+version = "0.23.0"
+backend = "aqua:lycheeverse/lychee"
+"platforms.linux-x64" = { checksum = "sha256:5538440d2c69a45a0a09983271e5dee0c2fe7137d8035d25b2632e10a66a090a", url = "https://github.com/lycheeverse/lychee/releases/download/lychee-v0.23.0/lychee-x86_64-unknown-linux-musl.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:4c8034900e11083b68ac6f6582c377ff1f704e268991999e09d717973e493e7f", url = "https://github.com/lycheeverse/lychee/releases/download/lychee-v0.23.0/lychee-arm64-macos.dmg"}
+"platforms.windows-x64" = { checksum = "sha256:0fda7ff0a60c0250939fc25361c2d4e6e7853c31c996733fdd5a1dd760bcb824", url = "https://github.com/lycheeverse/lychee/releases/download/lychee-v0.23.0/lychee-x86_64-windows.exe"}
+
+[[tools.markdownlint-cli2]]
+version = "0.20.0"
+backend = "npm:markdownlint-cli2"
+
+[[tools.node]]
+version = "25.6.1"
+backend = "core:node"
+"platforms.linux-x64" = { checksum = "sha256:3809fdbfd54829bad363b9db8e96ca3600509e2ff20ede74181cfc1ca8451ce3", url = "https://nodejs.org/dist/v25.6.1/node-v25.6.1-linux-x64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:a80cb252d170a4730f78f5950cf19a46106f156e5886e5c1cc8c5602aea60243", url = "https://nodejs.org/dist/v25.6.1/node-v25.6.1-darwin-arm64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:0ae2300cdf44c399b5b351edbefb3534d1342a6fabd64302ca8c8e2fb86b0445", url = "https://nodejs.org/dist/v25.6.1/node-v25.6.1-win-x64.zip"}
+
+[[tools."pipx:mdformat"]]
+version = "0.7.21"
+backend = "pipx:mdformat"
+
+[tools."pipx:mdformat".options]
+uvx_args = "--with mdformat-gfm --with mdformat-frontmatter --with mdformat-footnote --with mdformat-simple-breaks --with mdformat-gfm-alerts --with mdformat-toc --with mdformat-wikilink --with mdformat-tables"
+
+[[tools.pre-commit]]
+version = "4.5.1"
+backend = "aqua:pre-commit/pre-commit"
+"platforms.linux-x64" = { checksum = "sha256:19d00ba35cbf9c04dc3736cd8bb641e8633f3eddd4cedde71809574ae68a2cd1", url = "https://github.com/pre-commit/pre-commit/releases/download/v4.5.1/pre-commit-4.5.1.pyz"}
+"platforms.macos-arm64" = { checksum = "sha256:19d00ba35cbf9c04dc3736cd8bb641e8633f3eddd4cedde71809574ae68a2cd1", url = "https://github.com/pre-commit/pre-commit/releases/download/v4.5.1/pre-commit-4.5.1.pyz"}
+"platforms.windows-x64" = { checksum = "sha256:19d00ba35cbf9c04dc3736cd8bb641e8633f3eddd4cedde71809574ae68a2cd1", url = "https://github.com/pre-commit/pre-commit/releases/download/v4.5.1/pre-commit-4.5.1.pyz"}
+
+[[tools.prettier]]
+version = "3.8.1"
+backend = "npm:prettier"
+
+[[tools.python]]
+version = "3.14.3"
+backend = "core:python"
+
+[[tools.rust]]
+version = "1.93.1"
+backend = "core:rust"
+
+[[tools.zig]]
+version = "0.13.0"
+backend = "core:zig"
