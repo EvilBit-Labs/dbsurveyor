@@ -55,6 +55,8 @@ sha256sum -c dbsurveyor_<VERSION>_checksums.txt
 
 ```bash
 cosign verify-blob \
+  --certificate-identity-regexp="https://github.com/EvilBit-Labs/dbsurveyor/.*" \
+  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
   --certificate dbsurveyor_<VERSION>_checksums.txt.pem \
   --signature dbsurveyor_<VERSION>_checksums.txt.sig \
   dbsurveyor_<VERSION>_checksums.txt
@@ -88,9 +90,10 @@ RHEL/Fedora:
 sudo rpm -i dbsurveyor-<VERSION>.x86_64.rpm
 ```
 
-Alpine:
+Alpine (package is not signed with an Alpine key -- verify the checksum first):
 
 ```bash
+sha256sum -c dbsurveyor_<VERSION>_checksums.txt
 sudo apk add --allow-untrusted dbsurveyor-<VERSION>.apk
 ```
 

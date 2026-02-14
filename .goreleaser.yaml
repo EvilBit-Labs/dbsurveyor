@@ -28,6 +28,7 @@ builds:
     flags:
       - --release
       - --locked
+      - --all-features
       - -p=dbsurveyor
     targets:
       - x86_64-unknown-linux-gnu
@@ -46,6 +47,7 @@ builds:
     flags:
       - --release
       - --locked
+      - --all-features
       - -p=dbsurveyor-collect
     targets:
       - x86_64-unknown-linux-gnu
@@ -187,6 +189,8 @@ release:
     ### Verify Signatures
     ```bash
     cosign verify-blob \
+      --certificate-identity-regexp="https://github.com/EvilBit-Labs/dbsurveyor/.*" \
+      --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
       --certificate dbsurveyor_{{ .Version }}_checksums.txt.pem \
       --signature dbsurveyor_{{ .Version }}_checksums.txt.sig \
       dbsurveyor_{{ .Version }}_checksums.txt
