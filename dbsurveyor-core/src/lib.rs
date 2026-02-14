@@ -32,8 +32,8 @@ pub use adapters::{
 pub use error::{DbSurveyorError, Result};
 pub use models::{
     AccessLevel, CollectionMode, CollectionStatus, Column, DatabaseInfo, DatabaseSchema,
-    DatabaseServerSchema, DatabaseType, OrderingStrategy, SamplingStrategy, ServerInfo,
-    SortDirection, Table, TableSample, UnifiedDataType,
+    DatabaseServerSchema, DatabaseType, FORMAT_VERSION, OrderingStrategy, SamplingStrategy,
+    ServerInfo, SortDirection, Table, TableSample, UnifiedDataType,
 };
 pub use quality::{
     AnomalyConfig, AnomalySensitivity, QualityAnalyzer, QualityConfig, TableQualityMetrics,

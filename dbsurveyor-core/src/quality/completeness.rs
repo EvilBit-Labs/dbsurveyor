@@ -17,25 +17,15 @@ use super::models::{ColumnCompleteness, CompletenessMetrics};
 /// exclusively in subsequent rows will not be analyzed. This is acceptable for
 /// quality analysis on sampled data with consistent schemas.
 pub fn analyze_completeness(sample: &TableSample) -> CompletenessMetrics {
-    if sample.rows.is_empty() {
-        return CompletenessMetrics::default();
-    }
+    let column_names = match sample.column_names() {
+        Some(names) => names,
+        None => return CompletenessMetrics::default(),
+    };
 
     let total_rows = sample.rows.len() as u64;
     let mut column_metrics: Vec<ColumnCompleteness> = Vec::new();
     let mut total_nulls: u64 = 0;
     let mut total_empty: u64 = 0;
-
-    // Get column names from first row
-    let column_names: Vec<String> = if let Some(first_row) = sample.rows.first() {
-        if let Some(obj) = first_row.as_object() {
-            obj.keys().cloned().collect()
-        } else {
-            return CompletenessMetrics::default();
-        }
-    } else {
-        return CompletenessMetrics::default();
-    };
 
     // Analyze each column
     for column_name in &column_names {

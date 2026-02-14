@@ -172,7 +172,7 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
     );
 
     Ok(DatabaseSchema {
-        format_version: "1.0".to_string(),
+        format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
         views: collected_views,
@@ -755,9 +755,9 @@ impl PostgresAdapter {
                     let sort_order = if index_definition.contains(&format!("{} DESC", col_name))
                         || index_definition.contains(&format!("\"{}\" DESC", col_name))
                     {
-                        Some(SortOrder::Descending)
+                        Some(SortDirection::Descending)
                     } else {
-                        Some(SortOrder::Ascending)
+                        Some(SortDirection::Ascending)
                     };
                     IndexColumn {
                         name: col_name.to_string(),

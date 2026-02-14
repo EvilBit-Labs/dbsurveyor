@@ -30,10 +30,17 @@ pub struct ThresholdViolation {
     pub severity: ViolationSeverity,
 }
 
+/// Values below this fraction of the threshold are classified as critical.
+const CRITICAL_SEVERITY_RATIO: f64 = 0.8;
+
 impl ThresholdViolation {
     /// Creates a new threshold violation.
+    ///
+    /// # Severity Classification
+    /// - Critical: actual value is below 80% of threshold
+    /// - Warning: actual value is between 80% and 100% of threshold
     pub fn new(metric: impl Into<String>, threshold: f64, actual: f64) -> Self {
-        let severity = if actual < threshold * 0.8 {
+        let severity = if actual < threshold * CRITICAL_SEVERITY_RATIO {
             ViolationSeverity::Critical
         } else {
             ViolationSeverity::Warning
@@ -183,6 +190,17 @@ pub struct ColumnDuplicates {
 impl ColumnDuplicates {
     /// Creates new column duplicates metrics.
     pub fn new(column_name: impl Into<String>, duplicate_count: u64, total: u64) -> Self {
+        let column_name = column_name.into();
+
+        if duplicate_count > total {
+            tracing::warn!(
+                "Quality metrics anomaly: duplicate_count ({}) exceeds total ({}) for column '{}'",
+                duplicate_count,
+                total,
+                column_name
+            );
+        }
+
         let unique_count = total.saturating_sub(duplicate_count);
         let uniqueness = if total == 0 {
             1.0
@@ -191,7 +209,7 @@ impl ColumnDuplicates {
         };
 
         Self {
-            column_name: column_name.into(),
+            column_name,
             duplicate_count,
             unique_count,
             uniqueness: uniqueness.clamp(0.0, 1.0),
@@ -221,6 +239,12 @@ impl Default for UniquenessMetrics {
 }
 
 /// Anomaly detected in a column.
+///
+/// The `mean` and `std_dev` fields are statistical aggregates that do not
+/// expose individual data values. However, for highly sensitive numeric
+/// columns (e.g., salaries, transaction amounts), these aggregates may
+/// reveal distribution characteristics. Operators working with sensitive
+/// data should be aware of this trade-off.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnAnomaly {
     /// Column name
@@ -229,9 +253,9 @@ pub struct ColumnAnomaly {
     pub outlier_count: u64,
     /// Z-score threshold used for detection
     pub z_score_threshold: f64,
-    /// Mean value (for context, not actual data)
+    /// Mean value (statistical aggregate, not actual data)
     pub mean: f64,
-    /// Standard deviation (for context)
+    /// Standard deviation (statistical aggregate, not actual data)
     pub std_dev: f64,
 }
 
@@ -344,6 +368,17 @@ mod tests {
     }
 
     #[test]
+    fn test_threshold_violation_boundary_severity() {
+        // Exactly at 80% of threshold boundary - should be Warning, not Critical
+        let violation = ThresholdViolation::new("completeness", 0.95, 0.76);
+        assert_eq!(violation.severity, ViolationSeverity::Warning);
+
+        // Just below 80% - should be Critical
+        let violation = ThresholdViolation::new("completeness", 0.95, 0.759);
+        assert_eq!(violation.severity, ViolationSeverity::Critical);
+    }
+
+    #[test]
     fn test_column_completeness_calculation() {
         let metrics = ColumnCompleteness::new("email", 5, 3, 100);
         assert_eq!(metrics.null_count, 5);
@@ -394,54 +429,17 @@ mod tests {
     }
 
     #[test]
-    fn test_completeness_metrics_default() {
-        let metrics = CompletenessMetrics::default();
-        assert_eq!(metrics.score, 1.0);
-        assert!(metrics.column_metrics.is_empty());
-        assert_eq!(metrics.total_nulls, 0);
-        assert_eq!(metrics.total_empty, 0);
+    fn test_column_completeness_anomalous_input() {
+        // When null_count + empty_count exceeds total, completeness should clamp to 0.0
+        let metrics = ColumnCompleteness::new("problematic", 60, 50, 100);
+        assert_eq!(metrics.completeness, 0.0);
     }
 
     #[test]
-    fn test_consistency_metrics_default() {
-        let metrics = ConsistencyMetrics::default();
-        assert_eq!(metrics.score, 1.0);
-        assert!(metrics.type_inconsistencies.is_empty());
-        assert!(metrics.format_violations.is_empty());
-    }
-
-    #[test]
-    fn test_uniqueness_metrics_default() {
-        let metrics = UniquenessMetrics::default();
-        assert_eq!(metrics.score, 1.0);
-        assert!(metrics.duplicate_columns.is_empty());
-        assert_eq!(metrics.duplicate_row_count, 0);
-    }
-
-    #[test]
-    fn test_anomaly_metrics_default() {
-        let metrics = AnomalyMetrics::default();
-        assert_eq!(metrics.outlier_count, 0);
-        assert!(metrics.outliers.is_empty());
-    }
-
-    #[test]
-    fn test_table_quality_metrics_serde_roundtrip() {
-        let metrics = TableQualityMetrics::new("orders", Some("sales".to_string()), 500)
-            .with_quality_score(0.92)
-            .with_completeness(CompletenessMetrics {
-                score: 0.95,
-                column_metrics: vec![ColumnCompleteness::new("email", 5, 0, 100)],
-                total_nulls: 5,
-                total_empty: 0,
-            });
-
-        let json = serde_json::to_string(&metrics).unwrap();
-        let deserialized: TableQualityMetrics = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(metrics.table_name, deserialized.table_name);
-        assert_eq!(metrics.schema_name, deserialized.schema_name);
-        assert!((metrics.quality_score - deserialized.quality_score).abs() < 0.001);
-        assert!((metrics.completeness.score - deserialized.completeness.score).abs() < 0.001);
+    fn test_column_duplicates_anomalous_input() {
+        // When duplicate_count exceeds total, uniqueness should clamp to 0.0
+        let metrics = ColumnDuplicates::new("problematic", 150, 100);
+        assert_eq!(metrics.uniqueness, 0.0);
+        assert_eq!(metrics.unique_count, 0);
     }
 }

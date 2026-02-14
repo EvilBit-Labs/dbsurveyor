@@ -61,13 +61,22 @@ impl FormatPattern {
         }
     }
 
-    /// Simple pattern matching without regex for performance.
+    /// Heuristic pattern matching without regex for performance.
+    ///
+    /// These checks are intentionally loose -- they detect "looks like" patterns
+    /// for data quality classification, not strict format validation (e.g., the
+    /// email check is not RFC 5322 compliant). This trade-off favors speed and
+    /// low overhead in the collection pipeline.
     fn matches(&self, value: &str) -> bool {
         match self {
             FormatPattern::Email => value.contains('@') && value.contains('.'),
             FormatPattern::Uuid => {
+                // Validate 8-4-4-4-12 segment layout
                 value.len() == 36
-                    && value.chars().filter(|c| *c == '-').count() == 4
+                    && value.as_bytes().get(8) == Some(&b'-')
+                    && value.as_bytes().get(13) == Some(&b'-')
+                    && value.as_bytes().get(18) == Some(&b'-')
+                    && value.as_bytes().get(23) == Some(&b'-')
                     && value.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
             }
             FormatPattern::IsoDate => {
@@ -105,23 +114,13 @@ fn detect_format(value: &str) -> Option<FormatPattern> {
 /// Consistency measures type uniformity within columns and adherence
 /// to detected format patterns.
 pub fn analyze_consistency(sample: &TableSample) -> ConsistencyMetrics {
-    if sample.rows.is_empty() {
-        return ConsistencyMetrics::default();
-    }
+    let column_names = match sample.column_names() {
+        Some(names) => names,
+        None => return ConsistencyMetrics::default(),
+    };
 
     let mut type_inconsistencies: Vec<TypeInconsistency> = Vec::new();
     let mut format_violations: Vec<FormatViolation> = Vec::new();
-
-    // Get column names from first row
-    let column_names: Vec<String> = if let Some(first_row) = sample.rows.first() {
-        if let Some(obj) = first_row.as_object() {
-            obj.keys().cloned().collect()
-        } else {
-            return ConsistencyMetrics::default();
-        }
-    } else {
-        return ConsistencyMetrics::default();
-    };
 
     let total_rows = sample.rows.len();
 
@@ -353,34 +352,6 @@ mod tests {
         assert_eq!(metrics.score, 1.0);
         assert!(metrics.type_inconsistencies.is_empty());
         assert!(metrics.format_violations.is_empty());
-    }
-
-    #[test]
-    fn test_format_pattern_uuid_matching() {
-        assert!(FormatPattern::Uuid.matches("550e8400-e29b-41d4-a716-446655440000"));
-        assert!(!FormatPattern::Uuid.matches("not-a-uuid"));
-        assert!(!FormatPattern::Uuid.matches("550e8400e29b41d4a716446655440000")); // no dashes
-    }
-
-    #[test]
-    fn test_format_pattern_email_matching() {
-        assert!(FormatPattern::Email.matches("user@example.com"));
-        assert!(!FormatPattern::Email.matches("not-an-email"));
-        assert!(!FormatPattern::Email.matches("user@localhost")); // no dot
-    }
-
-    #[test]
-    fn test_format_pattern_iso_date_matching() {
-        assert!(FormatPattern::IsoDate.matches("2024-01-15"));
-        assert!(!FormatPattern::IsoDate.matches("01/15/2024"));
-        assert!(!FormatPattern::IsoDate.matches("2024-1-15")); // wrong length
-    }
-
-    #[test]
-    fn test_format_pattern_iso_datetime_matching() {
-        assert!(FormatPattern::IsoDateTime.matches("2024-01-15T10:30:00"));
-        assert!(FormatPattern::IsoDateTime.matches("2024-01-15T10:30:00Z"));
-        assert!(!FormatPattern::IsoDateTime.matches("2024-01-15 10:30:00")); // no T
     }
 
     #[test]

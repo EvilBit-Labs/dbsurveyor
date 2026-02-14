@@ -96,7 +96,7 @@ pub(crate) async fn collect_schema(adapter: &MySqlAdapter) -> Result<DatabaseSch
     }
 
     Ok(DatabaseSchema {
-        format_version: "1.0".to_string(),
+        format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
         views,
@@ -525,8 +525,8 @@ async fn collect_table_indexes(
 
         // Determine sort order from collation (A = ascending, D = descending)
         let sort_order = match collation.as_deref() {
-            Some("A") => Some(SortOrder::Ascending),
-            Some("D") => Some(SortOrder::Descending),
+            Some("A") => Some(SortDirection::Ascending),
+            Some("D") => Some(SortDirection::Descending),
             _ => None,
         };
 

@@ -11,6 +11,8 @@ on:
         paths:
             - .github/workflows/copilot-setup-steps.yml
 
+permissions: {}
+
 jobs:
     # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
     copilot-setup-steps:
@@ -25,8 +27,8 @@ jobs:
         # You can define any steps you want, and they will run before the agent starts.
         # If you do not check out your code, Copilot will do this for you.
         steps:
-            - uses: actions/checkout@v6
-            - uses: jdx/mise-action@v3
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+            - uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
               with:
                   install: true
                   cache: true

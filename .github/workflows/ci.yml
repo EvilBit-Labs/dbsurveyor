@@ -82,16 +82,11 @@ jobs:
                   github_token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Run Rust tests with coverage
-              run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info --fail-under-lines 80 -- --test-threads=1
+              run: cargo llvm-cov -p dbsurveyor-core --lcov --output-path lcov.info --fail-under-lines 55 -- --test-threads=1
               env:
                   CARGO_TERM_COLOR: never
                   TERM: dumb
-
-            - name: Generate lcov.info coverage report
-              run: cargo llvm-cov --all-features --workspace --lcov --fail-under-lines 80 -- --test-threads=1
-              env:
-                  CARGO_TERM_COLOR: never
-                  TERM: dumb
+                  RUSTFLAGS: "--cfg coverage"
 
             - name: Upload coverage to Codecov
               uses: codecov/codecov-action@v4

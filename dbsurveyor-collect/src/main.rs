@@ -249,8 +249,15 @@ async fn test_connection(database_url: &str) -> Result<()> {
     Ok(())
 }
 
+/// Parsed quality threshold values from CLI arguments.
+struct QualityThresholds {
+    completeness: Option<f64>,
+    uniqueness: Option<f64>,
+    consistency: Option<f64>,
+}
+
 /// Parses quality thresholds from CLI arguments.
-fn parse_quality_thresholds(thresholds: &[String]) -> (Option<f64>, Option<f64>, Option<f64>) {
+fn parse_quality_thresholds(thresholds: &[String]) -> QualityThresholds {
     let mut completeness = None;
     let mut uniqueness = None;
     let mut consistency = None;
@@ -274,10 +281,19 @@ fn parse_quality_thresholds(thresholds: &[String]) -> (Option<f64>, Option<f64>,
             } else {
                 warn!("Invalid threshold value for {}: {}", metric, value);
             }
+        } else {
+            warn!(
+                "Invalid quality threshold format '{}', expected 'metric:value'",
+                threshold
+            );
         }
     }
 
-    (completeness, uniqueness, consistency)
+    QualityThresholds {
+        completeness,
+        uniqueness,
+        consistency,
+    }
 }
 
 /// Collects database schema and saves to file
@@ -313,18 +329,17 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
             );
 
             // Build quality config
-            let (completeness, uniqueness, consistency) =
-                parse_quality_thresholds(&cli.quality_threshold);
+            let thresholds = parse_quality_thresholds(&cli.quality_threshold);
 
             let mut config = QualityConfig::new();
 
-            if let Some(c) = completeness {
+            if let Some(c) = thresholds.completeness {
                 config = config.with_completeness_min(c);
             }
-            if let Some(u) = uniqueness {
+            if let Some(u) = thresholds.uniqueness {
                 config = config.with_uniqueness_min(u);
             }
-            if let Some(c) = consistency {
+            if let Some(c) = thresholds.consistency {
                 config = config.with_consistency_min(c);
             }
 
@@ -392,18 +407,17 @@ async fn save_schema(
     output_path: &PathBuf,
     cli: &Cli,
 ) -> Result<()> {
-    // Serialize to JSON
-    let json_data = serde_json::to_string_pretty(schema).map_err(|e| {
+    // Convert to Value for validation, then serialize to string once
+    let json_value = serde_json::to_value(schema).map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON serialization", e)
-    })?;
-
-    // Validate output against JSON Schema before saving
-    let json_value: serde_json::Value = serde_json::from_str(&json_data).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON parsing for validation", e)
     })?;
 
     dbsurveyor_core::validate_schema_output(&json_value).map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::collection_failed("Schema validation failed", e)
+    })?;
+
+    let json_data = serde_json::to_string_pretty(&json_value).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON formatting", e)
     })?;
 
     info!("✓ Output validation passed");

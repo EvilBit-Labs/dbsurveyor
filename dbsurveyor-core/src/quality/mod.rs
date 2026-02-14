@@ -31,7 +31,7 @@ mod uniqueness;
 
 // Re-export public API
 pub use analyzer::QualityAnalyzer;
-pub use config::{AnomalyConfig, AnomalySensitivity, QualityConfig};
+pub use config::{AnomalyConfig, AnomalySensitivity, ConfigValidationError, QualityConfig};
 pub use models::{
     AnomalyMetrics, ColumnAnomaly, ColumnCompleteness, ColumnDuplicates, CompletenessMetrics,
     ConsistencyMetrics, FormatViolation, TableQualityMetrics, ThresholdViolation,

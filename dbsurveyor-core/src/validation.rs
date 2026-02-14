@@ -67,7 +67,7 @@ pub enum ValidationError {
 }
 
 /// Supported format versions for backward compatibility
-const SUPPORTED_VERSIONS: &[&str] = &["1.0"];
+const SUPPORTED_VERSIONS: &[&str] = &[crate::models::FORMAT_VERSION];
 
 /// Embedded JSON Schema for v1.0 format validation
 const SCHEMA_V1_0: &str = r##"{
