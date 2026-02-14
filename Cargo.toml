@@ -43,7 +43,7 @@ clap = { version = "4.5.58", features = ["derive", "env"] }
 
 # Database dependencies (feature-gated)
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid", "migrate"] }
-tiberius = { version = "0.12.3", features = ["tds73", "sql-browser-tokio", "bigdecimal", "time", "chrono"] }
+tiberius = { version = "0.12.3", default-features = false, features = ["tds73", "sql-browser-tokio", "bigdecimal", "time", "chrono", "rustls"] }
 mongodb = "3.5.1"
 
 # Security dependencies

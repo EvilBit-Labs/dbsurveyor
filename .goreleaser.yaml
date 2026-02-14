@@ -3,8 +3,12 @@
 #
 # GoReleaser v2 configuration for DBSurveyor
 #
-# Builds two Rust binaries (dbsurveyor, dbsurveyor-collect) using
-# cargo-zigbuild for cross-compilation.
+# Builds multiple variants of dbsurveyor-collect, each with a different
+# database driver feature set, plus a single dbsurveyor postprocessor.
+# Uses cargo-zigbuild for cross-compilation.
+#
+# Variants: all, postgresql, mysql, sqlite, mongodb, mssql
+# Each single-DB variant includes compression + encryption support.
 #
 # Reference: https://goreleaser.com/customization/builds/rust/
 
@@ -17,9 +21,22 @@ before:
     - cargo fetch --locked
 
 # ---------------------------------------------------------------------------
+# Targets (shared across all builds)
+# ---------------------------------------------------------------------------
+# x86_64-unknown-linux-gnu    Linux x86_64
+# aarch64-unknown-linux-gnu   Linux ARM64
+# x86_64-unknown-linux-musl   Linux x86_64 (static/Alpine)
+# x86_64-apple-darwin         macOS Intel
+# aarch64-apple-darwin         macOS Apple Silicon
+# x86_64-pc-windows-gnu       Windows x86_64
+
+# ---------------------------------------------------------------------------
 # Builds
 # ---------------------------------------------------------------------------
 builds:
+  # -------------------------------------------------------------------------
+  # Postprocessor (single build, all features)
+  # -------------------------------------------------------------------------
   - id: dbsurveyor
     builder: rust
     dir: .
@@ -39,7 +56,10 @@ builds:
       - x86_64-pc-windows-gnu
     mod_timestamp: "{{ .CommitTimestamp }}"
 
-  - id: dbsurveyor-collect
+  # -------------------------------------------------------------------------
+  # Collector: all features (all database drivers)
+  # -------------------------------------------------------------------------
+  - id: collect-all
     builder: rust
     dir: .
     binary: dbsurveyor-collect
@@ -58,18 +78,269 @@ builds:
       - x86_64-pc-windows-gnu
     mod_timestamp: "{{ .CommitTimestamp }}"
 
+  # -------------------------------------------------------------------------
+  # Collector: PostgreSQL only
+  # -------------------------------------------------------------------------
+  - id: collect-postgresql
+    builder: rust
+    dir: .
+    binary: dbsurveyor-collect
+    command: zigbuild
+    flags:
+      - --release
+      - --locked
+      - --no-default-features
+      - --features=postgresql,compression,encryption
+      - -p=dbsurveyor-collect
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-unknown-linux-musl
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # Collector: MySQL only
+  # -------------------------------------------------------------------------
+  - id: collect-mysql
+    builder: rust
+    dir: .
+    binary: dbsurveyor-collect
+    command: zigbuild
+    flags:
+      - --release
+      - --locked
+      - --no-default-features
+      - --features=mysql,compression,encryption
+      - -p=dbsurveyor-collect
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-unknown-linux-musl
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # Collector: SQLite only
+  # -------------------------------------------------------------------------
+  - id: collect-sqlite
+    builder: rust
+    dir: .
+    binary: dbsurveyor-collect
+    command: zigbuild
+    flags:
+      - --release
+      - --locked
+      - --no-default-features
+      - --features=sqlite,compression,encryption
+      - -p=dbsurveyor-collect
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-unknown-linux-musl
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # Collector: MongoDB only
+  # -------------------------------------------------------------------------
+  - id: collect-mongodb
+    builder: rust
+    dir: .
+    binary: dbsurveyor-collect
+    command: zigbuild
+    flags:
+      - --release
+      - --locked
+      - --no-default-features
+      - --features=mongodb,compression,encryption
+      - -p=dbsurveyor-collect
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-unknown-linux-musl
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # Collector: MSSQL only
+  # -------------------------------------------------------------------------
+  - id: collect-mssql
+    builder: rust
+    dir: .
+    binary: dbsurveyor-collect
+    command: zigbuild
+    flags:
+      - --release
+      - --locked
+      - --no-default-features
+      - --features=mssql,compression,encryption
+      - -p=dbsurveyor-collect
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-unknown-linux-musl
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
 # ---------------------------------------------------------------------------
 # Archives
+#
+# Each variant bundles the dbsurveyor postprocessor with the variant-specific
+# dbsurveyor-collect binary. Archive naming: dbsurveyor_<variant>_<Os>_<Arch>
 # ---------------------------------------------------------------------------
 archives:
-  - id: default
+  # -------------------------------------------------------------------------
+  # All-features variant (primary)
+  # -------------------------------------------------------------------------
+  - id: archive-all
     ids:
       - dbsurveyor
-      - dbsurveyor-collect
+      - collect-all
     formats:
       - tar.gz
     name_template: >-
-      {{ .ProjectName }}_
+      {{ .ProjectName }}_all_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE*
+      - README.md
+    builds_info:
+      mtime: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # PostgreSQL variant
+  # -------------------------------------------------------------------------
+  - id: archive-postgresql
+    ids:
+      - dbsurveyor
+      - collect-postgresql
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_postgresql_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE*
+      - README.md
+    builds_info:
+      mtime: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # MySQL variant
+  # -------------------------------------------------------------------------
+  - id: archive-mysql
+    ids:
+      - dbsurveyor
+      - collect-mysql
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_mysql_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE*
+      - README.md
+    builds_info:
+      mtime: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # SQLite variant
+  # -------------------------------------------------------------------------
+  - id: archive-sqlite
+    ids:
+      - dbsurveyor
+      - collect-sqlite
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_sqlite_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE*
+      - README.md
+    builds_info:
+      mtime: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # MongoDB variant
+  # -------------------------------------------------------------------------
+  - id: archive-mongodb
+    ids:
+      - dbsurveyor
+      - collect-mongodb
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_mongodb_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE*
+      - README.md
+    builds_info:
+      mtime: "{{ .CommitTimestamp }}"
+
+  # -------------------------------------------------------------------------
+  # MSSQL variant
+  # -------------------------------------------------------------------------
+  - id: archive-mssql
+    ids:
+      - dbsurveyor
+      - collect-mssql
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_mssql_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
@@ -126,13 +397,17 @@ signs:
     artifacts: checksum
 
 # ---------------------------------------------------------------------------
-# Linux Packages
+# Linux Packages (all-features only)
 # ---------------------------------------------------------------------------
 nfpms:
-  - file_name_template: "{{ .ConventionalFileName }}"
+  - id: nfpm-all
+    ids:
+      - dbsurveyor
+      - collect-all
+    file_name_template: "{{ .ConventionalFileName }}"
     maintainer: UncleSp1d3r
     homepage: https://evilbitlabs.io/dbsurveyor
-    description: Secure database schema documentation and analysis tool
+    description: Secure database schema documentation and analysis tool (all database drivers)
     license: Apache-2.0
     formats:
       - deb
@@ -141,17 +416,19 @@ nfpms:
     bindir: /usr/bin
 
 # ---------------------------------------------------------------------------
-# Homebrew Cask
+# Homebrew Cask (all-features only)
 # ---------------------------------------------------------------------------
 homebrew_casks:
   - name: dbsurveyor
+    ids:
+      - archive-all
     repository:
       owner: EvilBit-Labs
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Casks
     homepage: https://evilbitlabs.io/dbsurveyor
-    description: Secure database schema documentation and analysis tool
+    description: Secure database schema documentation and analysis tool (all database drivers)
     binaries:
       - dbsurveyor
       - dbsurveyor-collect
@@ -171,15 +448,31 @@ release:
   footer: |
     **Full Changelog**: https://github.com/EvilBit-Labs/dbsurveyor/compare/{{ .PreviousTag }}...{{ .Tag }}
 
+    ## Release Variants
+
+    Each variant includes the `dbsurveyor` postprocessor and a `dbsurveyor-collect`
+    binary built with the specified database driver. All variants include compression
+    and encryption support.
+
+    | Variant | Database Drivers |
+    |---------|-----------------|
+    | `all` | PostgreSQL, MySQL, SQLite, MongoDB, MSSQL |
+    | `postgresql` | PostgreSQL only |
+    | `mysql` | MySQL only |
+    | `sqlite` | SQLite only |
+    | `mongodb` | MongoDB only |
+    | `mssql` | MSSQL only |
+
     ## Installation
 
     ### Homebrew (macOS / Linux)
     ```bash
     brew install EvilBit-Labs/tap/dbsurveyor
     ```
+    Installs the **all** variant with every database driver.
 
     ### Download Binary
-    Download the appropriate archive for your platform from the assets below.
+    Download the appropriate archive for your platform and database from the assets below.
 
     ### Verify Checksums
     ```bash
