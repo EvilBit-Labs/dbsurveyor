@@ -1,58 +1,75 @@
+# Release workflow for DBSurveyor
+#
+# Triggered by pushing a semver tag (e.g. v0.1.0).
+# Builds 7 Rust binaries (1 postprocessor + 6 collector variants) across 6
+# targets (42 total) using GoReleaser with cargo-zigbuild, Cosign for keyless
+# signing, and Syft for SBOM generation.
+
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+    push:
+        tags:
+            - "v*.*.*"
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+    contents: write
+    id-token: write # Required for Cosign OIDC keyless signing
 
 env:
-  CARGO_TERM_COLOR: always
+    CARGO_TERM_COLOR: always
 
 jobs:
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0
+    release:
+        name: Release
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                  fetch-depth: 0
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
-        with:
-          toolchain: "1.91.0"
-          targets: >-
-            x86_64-unknown-linux-gnu,
-            aarch64-unknown-linux-gnu,
-            x86_64-unknown-linux-musl,
-            x86_64-apple-darwin,
-            aarch64-apple-darwin,
-            x86_64-pc-windows-gnu
+            - name: Free disk space
+              uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+              with:
+                  tool-cache: false
+                  android: true
+                  dotnet: true
+                  haskell: true
+                  large-packages: false
+                  swap-storage: false
 
-      - name: Install cross-compilation dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 musl-tools
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+              with:
+                  toolchain: "1.93.1"
 
-      - name: Install Zig
-        uses: mlugg/setup-zig@53fc45b17fe98b52f92ee5ea08ff48a85a3e7eb7 # v1
-        with:
-          version: 0.13.0
+            # cargo-zigbuild handles cross-compilation toolchains (including musl and
+            # mingw); explicit target/toolchain installation is not required.
+            - name: Install Zig
+              uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+              with:
+                  version: "0.13.0"
 
-      - name: Install cargo-zigbuild
-        run: cargo install cargo-zigbuild --version 0.19.8 --locked
+            - name: Install cargo-zigbuild
+              run: cargo install --locked cargo-zigbuild --version 0.19.8
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+            - name: Install Cosign
+              uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
+
+            - name: Install Syft
+              uses: anchore/sbom-action/download-syft@17ae1740179002c89186b61233e0f892c3118b11 # v0
+
+            - name: Verify release tools
+              run: |
+                  cosign version
+                  syft version
+
+            - name: Run GoReleaser
+              uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+              with:
+                  distribution: goreleaser
+                  version: "~> v2"
+                  args: release --clean
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
