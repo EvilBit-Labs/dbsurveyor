@@ -1,0 +1,197 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+#
+# GoReleaser v2 configuration for DBSurveyor
+#
+# Builds two Rust binaries (dbsurveyor, dbsurveyor-collect) using
+# cargo-zigbuild for cross-compilation.
+#
+# Reference: https://goreleaser.com/customization/builds/rust/
+
+version: 2
+
+project_name: dbsurveyor
+
+before:
+  hooks:
+    - cargo fetch --locked
+
+# ---------------------------------------------------------------------------
+# Builds
+# ---------------------------------------------------------------------------
+builds:
+  - id: dbsurveyor
+    builder: rust
+    dir: .
+    binary: dbsurveyor
+    command: zigbuild
+    flags:
+      - --release
+      - --locked
+      - -p=dbsurveyor
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-unknown-linux-musl
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  - id: dbsurveyor-collect
+    builder: rust
+    dir: .
+    binary: dbsurveyor-collect
+    command: zigbuild
+    flags:
+      - --release
+      - --locked
+      - -p=dbsurveyor-collect
+    targets:
+      - x86_64-unknown-linux-gnu
+      - aarch64-unknown-linux-gnu
+      - x86_64-unknown-linux-musl
+      - x86_64-apple-darwin
+      - aarch64-apple-darwin
+      - x86_64-pc-windows-gnu
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+# ---------------------------------------------------------------------------
+# Archives
+# ---------------------------------------------------------------------------
+archives:
+  - id: default
+    ids:
+      - dbsurveyor
+      - dbsurveyor-collect
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE*
+      - README.md
+    builds_info:
+      mtime: "{{ .CommitTimestamp }}"
+
+# ---------------------------------------------------------------------------
+# Checksums
+# ---------------------------------------------------------------------------
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+# ---------------------------------------------------------------------------
+# Changelog
+# ---------------------------------------------------------------------------
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^style:"
+
+# ---------------------------------------------------------------------------
+# SBOM (Software Bill of Materials)
+# ---------------------------------------------------------------------------
+sboms:
+  - artifacts: archive
+
+# ---------------------------------------------------------------------------
+# Signing (Cosign keyless)
+# ---------------------------------------------------------------------------
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+
+# ---------------------------------------------------------------------------
+# Linux Packages
+# ---------------------------------------------------------------------------
+nfpms:
+  - file_name_template: "{{ .ConventionalFileName }}"
+    maintainer: UncleSp1d3r
+    homepage: https://evilbitlabs.io/dbsurveyor
+    description: Secure database schema documentation and analysis tool
+    license: Apache-2.0
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+
+# ---------------------------------------------------------------------------
+# Homebrew Cask
+# ---------------------------------------------------------------------------
+homebrew_casks:
+  - name: dbsurveyor
+    repository:
+      owner: EvilBit-Labs
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://evilbitlabs.io/dbsurveyor
+    description: Secure database schema documentation and analysis tool
+    binaries:
+      - dbsurveyor
+      - dbsurveyor-collect
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore(brew): update {{ .ProjectName }} cask to {{ .Tag }}"
+
+# ---------------------------------------------------------------------------
+# Release
+# ---------------------------------------------------------------------------
+release:
+  github:
+    owner: EvilBit-Labs
+    name: dbsurveyor
+  prerelease: auto
+  footer: |
+    **Full Changelog**: https://github.com/EvilBit-Labs/dbsurveyor/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ## Installation
+
+    ### Homebrew (macOS / Linux)
+    ```bash
+    brew install EvilBit-Labs/tap/dbsurveyor
+    ```
+
+    ### Download Binary
+    Download the appropriate archive for your platform from the assets below.
+
+    ### Verify Checksums
+    ```bash
+    sha256sum -c dbsurveyor_{{ .Version }}_checksums.txt
+    ```
+
+    ### Verify Signatures
+    ```bash
+    cosign verify-blob \
+      --certificate dbsurveyor_{{ .Version }}_checksums.txt.pem \
+      --signature dbsurveyor_{{ .Version }}_checksums.txt.sig \
+      dbsurveyor_{{ .Version }}_checksums.txt
+    ```
+
+# Source tarball (disabled -- use git clone instead)
+source:
+  enabled: false
