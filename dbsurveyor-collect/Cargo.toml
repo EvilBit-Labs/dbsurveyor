@@ -11,12 +11,6 @@ keywords.workspace = true
 categories.workspace = true
 description = "Database schema collection tool for DBSurveyor"
 
-[package.metadata.wix]
-upgrade-guid = "A036A9AB-C29A-470C-BBA5-D5509FE43937"
-path-guid = "400B3B0E-6E92-40E5-88C5-9DF3AC3C7A3A"
-license = false
-eula = false
-
 [[bin]]
 name = "dbsurveyor-collect"
 path = "src/main.rs"
