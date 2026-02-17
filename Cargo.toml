@@ -32,7 +32,7 @@ futures = "0.3.31"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
 thiserror = "2.0.18"
-anyhow = "1.0.100"
+anyhow = "1.0.101"
 async-trait = "0.1.89"
 url = "2.5.8"
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
