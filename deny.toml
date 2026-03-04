@@ -2,12 +2,14 @@
 # See: https://embarkstudios.github.io/cargo-deny/
 
 [graph]
+# Must match GoReleaser targets in .goreleaser.yaml
 targets = [
     "aarch64-apple-darwin",
     "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
     "x86_64-unknown-linux-musl",
-    "x86_64-pc-windows-msvc",
+    "x86_64-pc-windows-gnu",
 ]
 all-features = true
 exclude-dev = false
