@@ -104,21 +104,9 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn sample_table(
         &self,
         table_ref: TableRef<'_>,
-        _config: &super::SamplingConfig,
+        config: &super::SamplingConfig,
     ) -> Result<TableSample> {
-        Ok(TableSample {
-            table_name: table_ref.table_name.to_owned(),
-            schema_name: table_ref.schema_name.map(str::to_owned),
-            rows: Vec::new(),
-            sample_size: 0,
-            total_rows: None,
-            sampling_strategy: SamplingStrategy::None,
-            collected_at: chrono::Utc::now(),
-            warnings: Vec::new(),
-            sample_status: Some(SampleStatus::Skipped {
-                reason: "not yet implemented".to_string(),
-            }),
-        })
+        sampling::sample_table(&self.pool, table_ref.table_name, config).await
     }
 
     fn database_type(&self) -> DatabaseType {

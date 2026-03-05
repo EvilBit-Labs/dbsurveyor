@@ -100,22 +100,12 @@ macro_rules! define_placeholder_adapter {
 
             async fn sample_table(
                 &self,
-                table_ref: $crate::adapters::TableRef<'_>,
+                _table_ref: $crate::adapters::TableRef<'_>,
                 _config: &$crate::adapters::SamplingConfig,
             ) -> $crate::Result<$crate::models::TableSample> {
-                Ok($crate::models::TableSample {
-                    table_name: table_ref.table_name.to_owned(),
-                    schema_name: table_ref.schema_name.map(str::to_owned),
-                    rows: Vec::new(),
-                    sample_size: 0,
-                    total_rows: None,
-                    sampling_strategy: $crate::models::SamplingStrategy::None,
-                    collected_at: chrono::Utc::now(),
-                    warnings: Vec::new(),
-                    sample_status: Some($crate::models::SampleStatus::Skipped {
-                        reason: "not yet implemented".to_string(),
-                    }),
-                })
+                Err($crate::error::DbSurveyorError::configuration(
+                    concat!($display_name, " adapter not yet implemented"),
+                ))
             }
 
             fn connection_config(&self) -> $crate::adapters::ConnectionConfig {

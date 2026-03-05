@@ -295,6 +295,14 @@ async fn detect_auto_increment_column(
     Ok(None)
 }
 
+/// Escapes a SQL identifier for use in double-quoted PostgreSQL identifiers.
+///
+/// PostgreSQL escapes embedded double quotes by doubling them.
+/// E.g., `my"table` becomes `"my""table"`.
+fn escape_identifier(ident: &str) -> String {
+    ident.replace('"', "\"\"")
+}
+
 /// Generate an ORDER BY clause for the given ordering strategy.
 ///
 /// # Arguments
@@ -320,18 +328,18 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
         OrderingStrategy::PrimaryKey { columns } => {
             let cols: Vec<String> = columns
                 .iter()
-                .map(|c| format!("\"{}\" {}", c, direction))
+                .map(|c| format!("\"{}\" {}", escape_identifier(c), direction))
                 .collect();
             format!("ORDER BY {}", cols.join(", "))
         }
         OrderingStrategy::Timestamp { column, .. } => {
-            format!("ORDER BY \"{}\" {}", column, direction)
+            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
         }
         OrderingStrategy::AutoIncrement { column } => {
-            format!("ORDER BY \"{}\" {}", column, direction)
+            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
         }
         OrderingStrategy::SystemRowId { column } => {
-            format!("ORDER BY \"{}\" {}", column, direction)
+            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
         }
         OrderingStrategy::Unordered => {
             // For unordered tables, use RANDOM() for fair sampling
@@ -349,7 +357,8 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
 /// # Arguments
 ///
 /// * `pool` - PostgreSQL connection pool
-/// * `schema` - Schema name (e.g., "public")
+/// * `schema` - Optional schema name (e.g., `Some("public")`). When `None`, catalog
+///   lookups default to `"public"` and the FROM clause uses an unqualified table name.
 /// * `table` - Table name
 /// * `config` - Sampling configuration including sample size and throttle settings
 ///
@@ -373,7 +382,7 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
 ///     .with_sample_size(10)
 ///     .with_throttle_ms(100);
 ///
-/// let sample = sample_table(&pool, "public", "users", &config).await?;
+/// let sample = sample_table(&pool, Some("public"), "users", &config).await?;
 /// println!("Sampled {} rows out of ~{}", sample.rows.len(), sample.total_rows.unwrap_or(0));
 /// ```
 pub async fn sample_table(
@@ -394,9 +403,22 @@ pub async fn sample_table(
         tokio::time::sleep(delay).await;
     }
 
-    // For ordering detection, default to "public" when schema is None since
-    // pg system catalogs require a schema for lookups
-    let detection_schema = schema.unwrap_or("public");
+    // Ordering detection queries filter by schema name in pg_namespace,
+    // so default to "public" when no schema is specified.
+    let detection_schema = match schema {
+        Some(s) => s,
+        None => {
+            tracing::warn!(
+                "No schema specified for table '{}'; defaulting to 'public' for ordering detection",
+                table
+            );
+            warnings.push(format!(
+                "Schema not specified for '{}'; defaulted to 'public' for ordering detection",
+                table
+            ));
+            "public"
+        }
+    };
     let strategy = detect_ordering_strategy(pool, detection_schema, table).await?;
 
     // Determine sampling strategy and add warnings for unordered tables
@@ -422,7 +444,6 @@ pub async fn sample_table(
     };
 
     // Get total row count estimate from pg_class (fast approximate count)
-    // Uses detection_schema for the catalog lookup
     let count_query = r#"
         SELECT reltuples::bigint AS estimated_count
         FROM pg_class c
@@ -445,10 +466,15 @@ pub async fn sample_table(
     // Build sample query with ordering
     let order_clause = generate_order_by_clause(&strategy, true); // DESC for most recent
 
-    // Build FROM clause: schema-qualified when schema is present, table-only otherwise
+    // Build FROM clause: schema-qualified when schema is present, table-only otherwise.
+    // Identifiers are escaped to prevent SQL injection from embedded quotes.
     let from_clause = match schema {
-        Some(s) => format!(r#""{}"."{}" t"#, s, table),
-        None => format!(r#""{}" t"#, table),
+        Some(s) => format!(
+            r#""{}"."{}" t"#,
+            escape_identifier(s),
+            escape_identifier(table)
+        ),
+        None => format!(r#""{}" t"#, escape_identifier(table)),
     };
 
     let sample_query = format!(
@@ -569,5 +595,22 @@ mod tests {
 
         let clause = generate_order_by_clause(&strategy, true);
         assert_eq!(clause, "ORDER BY \"user-id\" DESC, \"table\" DESC");
+    }
+
+    #[test]
+    fn test_escape_identifier() {
+        assert_eq!(escape_identifier("normal"), "normal");
+        assert_eq!(escape_identifier("has space"), "has space");
+        assert_eq!(escape_identifier(r#"has"quote"#), r#"has""quote"#);
+        assert_eq!(escape_identifier(r#""""#), r#""""""#);
+    }
+
+    #[test]
+    fn test_generate_order_by_clause_embedded_quotes() {
+        let strategy = OrderingStrategy::PrimaryKey {
+            columns: vec![r#"my"col"#.to_string()],
+        };
+        let clause = generate_order_by_clause(&strategy, true);
+        assert_eq!(clause, r#"ORDER BY "my""col" DESC"#);
     }
 }

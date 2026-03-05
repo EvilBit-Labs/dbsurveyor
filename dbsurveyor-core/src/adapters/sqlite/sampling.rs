@@ -243,17 +243,30 @@ async fn detect_rowid(
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
     // Try to query rowid to check if it exists
-    let test_query = format!(
-        "SELECT rowid FROM \"{}\" LIMIT 1",
-        table.replace('"', "\"\"")
-    );
+    let test_query = format!("SELECT rowid FROM \"{}\" LIMIT 1", escape_identifier(table));
 
     match sqlx::query(&test_query).fetch_optional(pool).await {
         Ok(_) => Ok(Some(OrderingStrategy::SystemRowId {
             column: "rowid".to_string(),
         })),
-        Err(_) => Ok(None), // Table might be WITHOUT ROWID
+        Err(e) => {
+            // WITHOUT ROWID tables will fail with a specific error.
+            // Log other errors so they are visible for debugging.
+            tracing::debug!(
+                "ROWID detection failed for table '{}' (may be WITHOUT ROWID): {}",
+                table,
+                e
+            );
+            Ok(None)
+        }
     }
+}
+
+/// Escapes a SQL identifier for use in double-quoted SQLite identifiers.
+///
+/// SQLite escapes embedded double quotes by doubling them.
+fn escape_identifier(ident: &str) -> String {
+    ident.replace('"', "\"\"")
 }
 
 /// Generate an ORDER BY clause for the given ordering strategy (SQLite syntax).
@@ -264,15 +277,15 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
         OrderingStrategy::PrimaryKey { columns } => {
             let cols: Vec<String> = columns
                 .iter()
-                .map(|c| format!("\"{}\" {}", c.replace('"', "\"\""), direction))
+                .map(|c| format!("\"{}\" {}", escape_identifier(c), direction))
                 .collect();
             format!("ORDER BY {}", cols.join(", "))
         }
         OrderingStrategy::Timestamp { column, .. } => {
-            format!("ORDER BY \"{}\" {}", column.replace('"', "\"\""), direction)
+            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
         }
         OrderingStrategy::AutoIncrement { column } => {
-            format!("ORDER BY \"{}\" {}", column.replace('"', "\"\""), direction)
+            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
         }
         OrderingStrategy::SystemRowId { column } => {
             format!("ORDER BY {} {}", column, direction)
@@ -303,11 +316,11 @@ pub async fn sample_table(
     // Generate ORDER BY clause
     let order_by = generate_order_by_clause(&strategy, true);
 
-    // Build and execute the sample query
-    // Use double quotes for SQLite identifier quoting
+    // Build and execute the sample query.
+    // Identifiers are escaped to prevent SQL injection from embedded quotes.
     let query = format!(
         "SELECT * FROM \"{}\" {} LIMIT ?",
-        table.replace('"', "\"\""),
+        escape_identifier(table),
         order_by
     );
 
@@ -330,22 +343,38 @@ pub async fn sample_table(
     }
 
     // Get total row count
-    let count_query = format!("SELECT COUNT(*) FROM \"{}\"", table.replace('"', "\"\""));
-    let total_rows: i64 = sqlx::query_scalar(&count_query)
-        .fetch_one(pool)
-        .await
-        .unwrap_or(0);
+    let count_query = format!("SELECT COUNT(*) FROM \"{}\"", escape_identifier(table));
+    let total_rows: Option<i64> = match sqlx::query_scalar(&count_query).fetch_one(pool).await {
+        Ok(count) => Some(count),
+        Err(e) => {
+            tracing::warn!(
+                "Failed to get row count for table '{}': {}. \
+                 total_rows will be reported as unknown.",
+                table,
+                e
+            );
+            warnings.push(format!(
+                "Could not determine total row count for '{}': {}",
+                table, e
+            ));
+            None
+        }
+    };
 
-    // Add warning if no reliable ordering found
-    if matches!(strategy, OrderingStrategy::Unordered) {
-        warnings.push(format!(
-            "No reliable ordering found for table '{}', using random sampling",
-            table
-        ));
-    }
-
-    let sampling_strategy = SamplingStrategy::MostRecent {
-        limit: config.sample_size,
+    // Determine sampling strategy based on ordering
+    let sampling_strategy = match &strategy {
+        OrderingStrategy::Unordered => {
+            warnings.push(format!(
+                "No reliable ordering found for table '{}', using random sampling",
+                table
+            ));
+            SamplingStrategy::Random {
+                limit: config.sample_size,
+            }
+        }
+        _ => SamplingStrategy::MostRecent {
+            limit: config.sample_size,
+        },
     };
 
     Ok(TableSample {
@@ -353,7 +382,7 @@ pub async fn sample_table(
         schema_name: None,
         rows: json_rows,
         sample_size: rows.len() as u32,
-        total_rows: Some(total_rows as u64),
+        total_rows: total_rows.map(|t| t.max(0) as u64),
         sampling_strategy,
         collected_at: chrono::Utc::now(),
         warnings,

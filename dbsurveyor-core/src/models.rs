@@ -359,12 +359,15 @@ pub enum SortDirection {
     Descending,
 }
 
-/// Status of a sampling operation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Status of a sampling operation.
+///
+/// Stored as `Option<SampleStatus>` on [`TableSample`] -- `None` indicates
+/// that status tracking was not used (e.g., legacy data without this field).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SampleStatus {
     /// Sampling completed successfully
     Complete,
-    /// Sampling partially completed with a reduced limit
+    /// Sampling partially completed with a reduced limit (not yet emitted by any adapter)
     PartialRetry { original_limit: u32 },
     /// Sampling was skipped
     Skipped { reason: String },
@@ -381,7 +384,7 @@ pub struct TableSample {
     pub sampling_strategy: SamplingStrategy,
     pub collected_at: chrono::DateTime<chrono::Utc>,
     pub warnings: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sample_status: Option<SampleStatus>,
 }
 

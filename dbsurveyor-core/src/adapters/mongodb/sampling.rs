@@ -182,7 +182,18 @@ pub async fn sample_collection(
     let coll = db.collection::<Document>(collection);
 
     // Get estimated document count
-    let estimated_count = coll.estimated_document_count().await.ok();
+    let estimated_count = match coll.estimated_document_count().await {
+        Ok(count) => Some(count),
+        Err(e) => {
+            tracing::debug!(
+                "Could not estimate document count for '{}.{}': {}",
+                database,
+                collection,
+                e
+            );
+            None
+        }
+    };
 
     let documents: Vec<Document> = if use_random {
         // Use $sample aggregation for random sampling
@@ -312,9 +323,15 @@ async fn sample_random(
 /// Converts a BSON document to a JSON value.
 ///
 /// This handles special BSON types like ObjectId, DateTime, etc.
+/// Logs a warning and returns Null if serialization fails.
 fn bson_doc_to_json(doc: &Document) -> JsonValue {
-    // Use the built-in BSON to JSON conversion
-    serde_json::to_value(doc).unwrap_or(JsonValue::Null)
+    match serde_json::to_value(doc) {
+        Ok(value) => value,
+        Err(e) => {
+            tracing::warn!("Failed to convert BSON document to JSON: {}", e);
+            JsonValue::Null
+        }
+    }
 }
 
 #[cfg(test)]

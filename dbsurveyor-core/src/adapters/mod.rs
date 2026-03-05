@@ -41,11 +41,21 @@ pub enum AdapterFeature {
     ReadOnlyMode,
 }
 
-/// Reference to a table, used for trait-level sampling.
-#[derive(Debug, Clone)]
+/// Identifies a table by optional schema and name, used as input to
+/// [`DatabaseAdapter::sample_table`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableRef<'a> {
     pub schema_name: Option<&'a str>,
     pub table_name: &'a str,
+}
+
+impl<'a> std::fmt::Display for TableRef<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.schema_name {
+            Some(s) => write!(f, "{}.{}", s, self.table_name),
+            None => write!(f, "{}", self.table_name),
+        }
+    }
 }
 
 /// Main trait for database adapters with object-safe design.
@@ -97,6 +107,14 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Returns
     /// A `TableSample` with rows, metadata, and status information.
+    ///
+    /// # Security
+    /// - Uses read-only queries only
+    /// - Respects query timeout and throttle settings from config
+    ///
+    /// # Errors
+    /// Returns error if the table does not exist, access is denied,
+    /// or a query timeout occurs.
     async fn sample_table(
         &self,
         table_ref: TableRef<'_>,
