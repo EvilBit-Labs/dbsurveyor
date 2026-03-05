@@ -1,0 +1,14 @@
+# cargo-audit configuration for DBSurveyor
+# See: https://rustsec.org/
+
+[advisories]
+ignore = [
+    # RSA timing attack (Marvin Attack) - no upstream fix available
+    # Transitive dep via sqlx-mysql. MySQL is not enabled by default.
+    # Review: check for upstream fix periodically
+    "RUSTSEC-2023-0071",
+
+    # rustls-pemfile unmaintained - transitive dep via tiberius (SQL Server adapter)
+    # No alternative available until tiberius updates
+    "RUSTSEC-2025-0134",
+]
