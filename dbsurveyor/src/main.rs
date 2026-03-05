@@ -87,7 +87,11 @@ pub struct Cli {
     pub redact_mode: RedactionMode,
 
     /// Disable data redaction
-    #[arg(long, help = "Disable all data redaction (show original sample data)")]
+    #[arg(
+        long,
+        conflicts_with = "redact_mode",
+        help = "Disable all data redaction (show original sample data)"
+    )]
     pub no_redact: bool,
 }
 
@@ -432,7 +436,7 @@ async fn generate_documentation(
         OutputFormat::Mermaid => generate_mermaid(&schema, &output_file).await,
     }?;
 
-    info!("✓ Documentation generated: {}", output_file.display());
+    info!("[OK]Documentation generated: {}", output_file.display());
     println!("Documentation generated: {}", output_file.display());
 
     Ok(())
@@ -590,7 +594,7 @@ async fn generate_sql(
 async fn validate_schema(input_path: &PathBuf) -> Result<()> {
     let schema = load_schema(input_path).await?;
 
-    println!("✓ Schema file is valid");
+    println!("[OK]Schema file is valid");
     println!("Format version: {}", schema.format_version);
     println!("Database: {}", schema.database_info.name);
     println!("Objects: {}", schema.object_count());

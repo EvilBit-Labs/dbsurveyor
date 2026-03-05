@@ -98,6 +98,16 @@ macro_rules! define_placeholder_adapter {
                 )
             }
 
+            async fn sample_table(
+                &self,
+                _table_ref: $crate::adapters::TableRef<'_>,
+                _config: &$crate::adapters::SamplingConfig,
+            ) -> $crate::Result<$crate::models::TableSample> {
+                Err($crate::error::DbSurveyorError::configuration(
+                    concat!($display_name, " adapter not yet implemented"),
+                ))
+            }
+
             fn connection_config(&self) -> $crate::adapters::ConnectionConfig {
                 self.config.clone()
             }

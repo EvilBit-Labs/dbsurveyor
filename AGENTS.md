@@ -237,6 +237,25 @@ Releases use **GoReleaser** with the native Rust builder (`builder: rust`) and `
 - Example: If converting `adapters.rs` to `adapters/mod.rs`, remove `adapters.rs`
 - When resolving Cargo.lock conflicts during rebase, regenerate with `cargo generate-lockfile`
 
+### DatabaseAdapter Trait Sampling
+
+- `DatabaseAdapter::sample_table(TableRef<'_>, &SamplingConfig) -> Result<TableSample>` is the trait-level entry point
+- `TableRef<'a>` holds `schema_name: Option<&'a str>` and `table_name: &'a str`
+- PostgreSQL delegates to `sampling::sample_table()` (full implementation with `SampleStatus::Complete`)
+- MySQL, SQLite, and MongoDB adapters delegate to their real `sampling::sample_table()` implementations (returning `SampleStatus::Complete`)
+- Placeholder adapters return an error (adapter not implemented)
+- `SampleStatus` enum: `Complete`, `PartialRetry { original_limit }`, `Skipped { reason }`
+- `TableSample.sample_status` is `Option<SampleStatus>` with `#[serde(skip_serializing_if = "Option::is_none")]` for v1.0 backward compat
+
+### CLI Binary Architecture
+
+- Both CLI binaries (`dbsurveyor`, `dbsurveyor-collect`) are thin wrappers over `dbsurveyor-core`
+- No non-ASCII characters in source code (no emoji, checkmarks, or unicode bullets)
+- Clap derive API with `#[command(flatten)]` for shared `GlobalArgs`
+- Use `conflicts_with` for mutually exclusive flags
+- `dbsurveyor-collect` supports `DATABASE_URL` env var; `dbsurveyor` does not yet
+- `list_supported_databases()` uses compile-time `#[cfg(feature)]` gates to show only enabled backends
+
 ## 11. Common Commands and Workflows
 
 ### Development Commands

@@ -157,6 +157,7 @@ mod tests {
             sampling_strategy: SamplingStrategy::MostRecent { limit: 10 },
             collected_at: chrono::Utc::now(),
             warnings: vec![],
+            sample_status: None,
         }
     }
 

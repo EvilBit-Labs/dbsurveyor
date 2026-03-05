@@ -178,6 +178,7 @@ To add support for a new database:
    impl DatabaseAdapter for NewDbAdapter {
        async fn test_connection(&self) -> Result<()> { ... }
        async fn collect_schema(&self) -> Result<DatabaseSchema> { ... }
+       async fn sample_table(&self, table_ref: TableRef<'_>, config: &SamplingConfig) -> Result<TableSample> { ... }
        fn database_type(&self) -> DatabaseType { ... }
        fn supports_feature(&self, feature: AdapterFeature) -> bool { ... }
        fn connection_config(&self) -> ConnectionConfig { ... }
@@ -221,12 +222,53 @@ To add support for a new database:
 All database adapters must:
 
 - **Implement `DatabaseAdapter` trait** completely
+  - `test_connection()`: Verify database connectivity
+  - `collect_schema()`: Collect full database schema information
+  - `sample_table()`: Sample data from a specific table
+  - `database_type()`: Return the database type
+  - `supports_feature()`: Indicate supported features
+  - `connection_config()`: Provide connection configuration
 - **Use read-only operations** only (SELECT, DESCRIBE, SHOW)
 - **Handle connection timeouts** (default: 30 seconds)
 - **Sanitize credentials** in all error messages
 - **Support connection pooling** where applicable
 - **Include comprehensive tests** with testcontainers
 - **Document database-specific features** and limitations
+
+#### The `sample_table()` Method
+
+The `sample_table()` method performs per-table sampling for a specific table:
+
+```rust
+async fn sample_table(
+    &self,
+    table_ref: TableRef<'_>,
+    config: &SamplingConfig,
+) -> Result<TableSample>;
+```
+
+**Parameters:**
+- `table_ref`: A `TableRef` containing the table name and optional schema name
+- `config`: A `SamplingConfig` with sampling parameters (sample size, throttle, etc.)
+
+**Returns:** A `TableSample` that includes:
+- Sampled rows as JSON values
+- Sample metadata (size, total rows, strategy used)
+- Collection timestamp and any warnings
+- `sample_status`: An optional field indicating the sampling outcome
+
+**Sample Status Values:**
+- `Some(SampleStatus::Complete)`: Sampling completed successfully
+- `Some(SampleStatus::PartialRetry { original_limit })`: Sampling partially completed with a reduced limit
+- `Some(SampleStatus::Skipped { reason })`: Sampling was skipped (e.g., not implemented)
+- `None`: For backward compatibility with existing data
+
+**Implementation Notes:**
+- The `TableRef` struct wraps the table name and optional schema for the method signature
+- Implementations should populate `sample_status` with `SampleStatus::Complete` on successful sampling
+- If sampling is not implemented, return `SampleStatus::Skipped` with an appropriate reason
+- The method supports optional schema qualification (e.g., `public.users` vs `users`)
+
 
 ### Testing Database Adapters
 

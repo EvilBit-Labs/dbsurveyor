@@ -20,7 +20,7 @@ pub mod type_mapping;
 #[cfg(test)]
 mod tests;
 
-use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter};
+use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter, TableRef};
 use crate::Result;
 use crate::models::*;
 use async_trait::async_trait;
@@ -90,6 +90,22 @@ impl DatabaseAdapter for MySqlAdapter {
 
     async fn collect_schema(&self) -> Result<DatabaseSchema> {
         schema_collection::collect_schema(self).await
+    }
+
+    async fn sample_table(
+        &self,
+        table_ref: TableRef<'_>,
+        config: &super::SamplingConfig,
+    ) -> Result<TableSample> {
+        let db_name = match table_ref.schema_name {
+            Some(s) => s.to_string(),
+            None => self.config.database.clone().ok_or_else(|| {
+                crate::error::DbSurveyorError::configuration(
+                    "MySQL sample_table requires a database name via schema_name or connection config",
+                )
+            })?,
+        };
+        sampling::sample_table(&self.pool, &db_name, table_ref.table_name, config).await
     }
 
     fn database_type(&self) -> DatabaseType {

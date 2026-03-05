@@ -240,7 +240,7 @@ async fn test_connection(database_url: &str) -> Result<()> {
         e
     })?;
 
-    info!("✓ Connection test successful");
+    info!("[OK]Connection test successful");
     println!(
         "Connection to {} database successful",
         adapter.database_type()
@@ -315,7 +315,7 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
         e
     })?;
 
-    info!("✓ Schema collection completed");
+    info!("[OK]Schema collection completed");
     info!("Found {} tables", schema.tables.len());
     info!("Found {} views", schema.views.len());
     info!("Found {} indexes", schema.indexes.len());
@@ -371,11 +371,11 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
 
             if violations_count > 0 {
                 info!(
-                    "✓ Quality analysis completed with {} violations",
+                    "[OK]Quality analysis completed with {} violations",
                     violations_count
                 );
             } else {
-                info!("✓ Quality analysis completed - all thresholds met");
+                info!("[OK]Quality analysis completed - all thresholds met");
             }
         } else {
             info!("Quality analysis skipped - no samples available");
@@ -385,7 +385,7 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
     // Save to file
     save_schema(&schema, output_path, cli).await?;
 
-    info!("✓ Schema saved to {}", output_path.display());
+    info!("[OK]Schema saved to {}", output_path.display());
     println!("Schema collection completed successfully");
     println!("Output: {}", output_path.display());
     println!("Tables: {}", schema.tables.len());
@@ -420,7 +420,7 @@ async fn save_schema(
         dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON formatting", e)
     })?;
 
-    info!("✓ Output validation passed");
+    info!("[OK]Output validation passed");
 
     if cli.encrypt {
         #[cfg(feature = "encryption")]
@@ -619,8 +619,8 @@ fn list_supported_databases() {
 
     println!();
     println!("Security Features:");
-    println!("  • Read-only database operations");
-    println!("  • Credential sanitization in logs");
-    println!("  • Optional AES-GCM encryption");
-    println!("  • Offline operation after connection");
+    println!("  -Read-only database operations");
+    println!("  -Credential sanitization in logs");
+    println!("  -Optional AES-GCM encryption");
+    println!("  -Offline operation after connection");
 }

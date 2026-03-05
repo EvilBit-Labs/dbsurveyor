@@ -13,7 +13,7 @@
 
 use crate::adapters::config::SamplingConfig;
 use crate::error::DbSurveyorError;
-use crate::models::{OrderingStrategy, SamplingStrategy, SortDirection, TableSample};
+use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use serde_json::Value as JsonValue;
 use sqlx::{MySqlPool, Row};
 use std::time::Duration;
@@ -239,6 +239,14 @@ async fn detect_auto_increment_column(
     Ok(None)
 }
 
+/// Escapes a SQL identifier for use in backtick-quoted MySQL identifiers.
+///
+/// MySQL escapes embedded backticks by doubling them.
+/// E.g., `` my`table `` becomes `` `my``table` ``.
+fn escape_identifier(ident: &str) -> String {
+    ident.replace('`', "``")
+}
+
 /// Generate an ORDER BY clause for the given ordering strategy (MySQL syntax).
 pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -> String {
     let direction = if descending { "DESC" } else { "ASC" };
@@ -247,18 +255,18 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
         OrderingStrategy::PrimaryKey { columns } => {
             let cols: Vec<String> = columns
                 .iter()
-                .map(|c| format!("`{}` {}", c, direction))
+                .map(|c| format!("`{}` {}", escape_identifier(c), direction))
                 .collect();
             format!("ORDER BY {}", cols.join(", "))
         }
         OrderingStrategy::Timestamp { column, .. } => {
-            format!("ORDER BY `{}` {}", column, direction)
+            format!("ORDER BY `{}` {}", escape_identifier(column), direction)
         }
         OrderingStrategy::AutoIncrement { column } => {
-            format!("ORDER BY `{}` {}", column, direction)
+            format!("ORDER BY `{}` {}", escape_identifier(column), direction)
         }
         OrderingStrategy::SystemRowId { column } => {
-            format!("ORDER BY `{}` {}", column, direction)
+            format!("ORDER BY `{}` {}", escape_identifier(column), direction)
         }
         OrderingStrategy::Unordered => {
             // For unordered tables, use RAND() for fair sampling
@@ -288,11 +296,13 @@ pub async fn sample_table(
     // Generate ORDER BY clause
     let order_by = generate_order_by_clause(&strategy, true);
 
-    // Build and execute the sample query
-    // Use backticks for MySQL identifier quoting
+    // Build and execute the sample query.
+    // Identifiers are escaped to prevent SQL injection from embedded backticks.
     let query = format!(
         "SELECT * FROM `{}`.`{}` {} LIMIT ?",
-        db_name, table, order_by
+        escape_identifier(db_name),
+        escape_identifier(table),
+        order_by
     );
 
     let rows = sqlx::query(&query)
@@ -314,22 +324,43 @@ pub async fn sample_table(
     }
 
     // Get total row count
-    let count_query = format!("SELECT COUNT(*) FROM `{}`.`{}`", db_name, table);
-    let total_rows: i64 = sqlx::query_scalar(&count_query)
-        .fetch_one(pool)
-        .await
-        .unwrap_or(0);
+    let count_query = format!(
+        "SELECT COUNT(*) FROM `{}`.`{}`",
+        escape_identifier(db_name),
+        escape_identifier(table)
+    );
+    let total_rows: Option<i64> = match sqlx::query_scalar(&count_query).fetch_one(pool).await {
+        Ok(count) => Some(count),
+        Err(e) => {
+            tracing::warn!(
+                "Failed to get row count for table '{}.{}': {}. \
+                 total_rows will be reported as unknown.",
+                db_name,
+                table,
+                e
+            );
+            warnings.push(format!(
+                "Could not determine total row count for '{}.{}': {}",
+                db_name, table, e
+            ));
+            None
+        }
+    };
 
-    // Add warning if no reliable ordering found
-    if matches!(strategy, OrderingStrategy::Unordered) {
-        warnings.push(format!(
-            "No reliable ordering found for table '{}', using random sampling",
-            table
-        ));
-    }
-
-    let sampling_strategy = SamplingStrategy::MostRecent {
-        limit: config.sample_size,
+    // Determine sampling strategy based on ordering
+    let sampling_strategy = match &strategy {
+        OrderingStrategy::Unordered => {
+            warnings.push(format!(
+                "No reliable ordering found for table '{}', using random sampling",
+                table
+            ));
+            SamplingStrategy::Random {
+                limit: config.sample_size,
+            }
+        }
+        _ => SamplingStrategy::MostRecent {
+            limit: config.sample_size,
+        },
     };
 
     Ok(TableSample {
@@ -337,10 +368,11 @@ pub async fn sample_table(
         schema_name: Some(db_name.to_string()),
         rows: json_rows,
         sample_size: rows.len() as u32,
-        total_rows: Some(total_rows as u64),
+        total_rows: total_rows.map(|t| t.max(0) as u64),
         sampling_strategy,
         collected_at: chrono::Utc::now(),
         warnings,
+        sample_status: Some(SampleStatus::Complete),
     })
 }
 
@@ -452,5 +484,21 @@ mod tests {
         let strategy = OrderingStrategy::Unordered;
         let clause = generate_order_by_clause(&strategy, true);
         assert_eq!(clause, "ORDER BY RAND()");
+    }
+
+    #[test]
+    fn test_escape_identifier() {
+        assert_eq!(escape_identifier("normal"), "normal");
+        assert_eq!(escape_identifier("has`backtick"), "has``backtick");
+        assert_eq!(escape_identifier("```"), "``````");
+    }
+
+    #[test]
+    fn test_generate_order_by_embedded_backticks() {
+        let strategy = OrderingStrategy::PrimaryKey {
+            columns: vec!["my`col".to_string()],
+        };
+        let clause = generate_order_by_clause(&strategy, true);
+        assert_eq!(clause, "ORDER BY `my``col` DESC");
     }
 }

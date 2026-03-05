@@ -10,7 +10,10 @@
 //! - `placeholder`: Placeholder adapter macro for unimplemented databases
 //! - Database-specific modules (postgres, mysql, sqlite, mongodb, mssql)
 
-use crate::{Result, models::DatabaseSchema};
+use crate::{
+    Result,
+    models::{DatabaseSchema, TableSample},
+};
 use async_trait::async_trait;
 
 // Configuration module
@@ -36,6 +39,23 @@ pub enum AdapterFeature {
     QueryTimeout,
     /// Read-only connection enforcement
     ReadOnlyMode,
+}
+
+/// Identifies a table by optional schema and name, used as input to
+/// [`DatabaseAdapter::sample_table`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TableRef<'a> {
+    pub schema_name: Option<&'a str>,
+    pub table_name: &'a str,
+}
+
+impl<'a> std::fmt::Display for TableRef<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.schema_name {
+            Some(s) => write!(f, "{}.{}", s, self.table_name),
+            None => write!(f, "{}", self.table_name),
+        }
+    }
 }
 
 /// Main trait for database adapters with object-safe design.
@@ -78,6 +98,28 @@ pub trait DatabaseAdapter: Send + Sync {
     /// - Insufficient privileges for schema access
     /// - Database-specific errors occur
     async fn collect_schema(&self) -> Result<DatabaseSchema>;
+
+    /// Samples data from a single table.
+    ///
+    /// # Arguments
+    /// * `table_ref` - Reference identifying the table (schema + name)
+    /// * `config` - Sampling configuration (sample size, throttle, etc.)
+    ///
+    /// # Returns
+    /// A `TableSample` with rows, metadata, and status information.
+    ///
+    /// # Security
+    /// - Uses read-only queries only
+    /// - Respects query timeout and throttle settings from config
+    ///
+    /// # Errors
+    /// Returns error if the table does not exist, access is denied,
+    /// or a query timeout occurs.
+    async fn sample_table(
+        &self,
+        table_ref: TableRef<'_>,
+        config: &SamplingConfig,
+    ) -> Result<TableSample>;
 
     /// Returns the database type this adapter handles.
     fn database_type(&self) -> crate::models::DatabaseType;

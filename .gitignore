@@ -102,9 +102,6 @@ node_modules/
 
 # Ephemeral files
 public/
-
-.claude.local.md
-
-# GoReleaser
-dist/
+/.claude.local.md
+/dist
 .intentionally-empty-file.o

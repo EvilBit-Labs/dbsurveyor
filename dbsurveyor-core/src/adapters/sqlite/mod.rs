@@ -25,7 +25,7 @@ pub mod type_mapping;
 #[cfg(test)]
 mod tests;
 
-use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter};
+use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter, TableRef};
 use crate::Result;
 use crate::models::*;
 use async_trait::async_trait;
@@ -99,6 +99,14 @@ impl DatabaseAdapter for SqliteAdapter {
 
     async fn collect_schema(&self) -> Result<DatabaseSchema> {
         schema_collection::collect_schema(self).await
+    }
+
+    async fn sample_table(
+        &self,
+        table_ref: TableRef<'_>,
+        config: &super::SamplingConfig,
+    ) -> Result<TableSample> {
+        sampling::sample_table(&self.pool, table_ref.table_name, config).await
     }
 
     fn database_type(&self) -> DatabaseType {

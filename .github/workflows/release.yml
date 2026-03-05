@@ -14,7 +14,8 @@ on:
 
 permissions:
     contents: write
-    id-token: write # Required for Cosign OIDC keyless signing
+    id-token: write
+    attestations: write
 
 env:
     CARGO_TERM_COLOR: always
@@ -24,48 +25,34 @@ jobs:
         name: Release
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: actions/checkout@v6
               with:
                   fetch-depth: 0
-
-            - name: Free disk space
-              uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+            - uses: jdx/mise-action@v3
               with:
-                  tool-cache: false
-                  android: true
-                  dotnet: true
-                  haskell: true
-                  large-packages: false
-                  swap-storage: false
+                  install: true
+                  cache: true
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install Rust toolchain
               uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
               with:
                   toolchain: "1.93.1"
+                  targets: >-
+                      x86_64-unknown-linux-gnu,
+                      aarch64-unknown-linux-gnu,
+                      x86_64-unknown-linux-musl,
+                      x86_64-apple-darwin,
+                      aarch64-apple-darwin,
+                      x86_64-pc-windows-gnu
 
-            # cargo-zigbuild handles cross-compilation toolchains (including musl and
-            # mingw); explicit target/toolchain installation is not required.
-            - name: Install Zig
-              uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
-              with:
-                  version: "0.13.0"
-
-            - name: Install cargo-zigbuild
-              run: cargo install --locked cargo-zigbuild --version 0.19.8
-
-            - name: Install Cosign
-              uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
-
-            - name: Install Syft
-              uses: anchore/sbom-action/download-syft@17ae1740179002c89186b61233e0f892c3118b11 # v0
-
-            - name: Verify release tools
+            - name: Install cross-compilation dependencies
               run: |
-                  cosign version
-                  syft version
+                  sudo apt-get update
+                  sudo apt-get install -y gcc-mingw-w64-x86-64 musl-tools
 
             - name: Run GoReleaser
-              uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+              uses: goreleaser/goreleaser-action@v7
               with:
                   distribution: goreleaser
                   version: "~> v2"

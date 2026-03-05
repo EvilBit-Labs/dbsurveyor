@@ -30,7 +30,7 @@ mod views;
 #[cfg(test)]
 mod tests;
 
-use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter};
+use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter, TableRef};
 use crate::{Result, models::*};
 use async_trait::async_trait;
 use sqlx::PgPool;
@@ -111,6 +111,20 @@ impl DatabaseAdapter for PostgresAdapter {
 
     async fn collect_schema(&self) -> Result<DatabaseSchema> {
         schema_collection::collect_schema(self).await
+    }
+
+    async fn sample_table(
+        &self,
+        table_ref: TableRef<'_>,
+        config: &super::SamplingConfig,
+    ) -> Result<TableSample> {
+        sampling::sample_table(
+            &self.pool,
+            table_ref.schema_name,
+            table_ref.table_name,
+            config,
+        )
+        .await
     }
 
     fn database_type(&self) -> DatabaseType {
@@ -231,7 +245,7 @@ impl PostgresAdapter {
         table: &str,
         config: &super::SamplingConfig,
     ) -> Result<crate::models::TableSample> {
-        sampling::sample_table(&self.pool, schema, table, config).await
+        sampling::sample_table(&self.pool, Some(schema), table, config).await
     }
 }
 

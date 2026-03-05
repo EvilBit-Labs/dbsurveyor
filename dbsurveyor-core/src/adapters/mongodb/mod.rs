@@ -28,7 +28,7 @@ pub mod type_mapping;
 #[cfg(test)]
 mod tests;
 
-use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter, SamplingConfig};
+use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter, SamplingConfig, TableRef};
 use crate::Result;
 use crate::models::*;
 use async_trait::async_trait;
@@ -80,6 +80,19 @@ impl DatabaseAdapter for MongoAdapter {
 
     async fn collect_schema(&self) -> Result<DatabaseSchema> {
         self.collect_schema_internal().await
+    }
+
+    async fn sample_table(
+        &self,
+        table_ref: TableRef<'_>,
+        config: &SamplingConfig,
+    ) -> Result<TableSample> {
+        let database = table_ref.schema_name.ok_or_else(|| {
+            crate::error::DbSurveyorError::configuration(
+                "MongoDB sample_table requires schema_name to be set to the database name",
+            )
+        })?;
+        sampling::sample_collection(&self.client, database, table_ref.table_name, config).await
     }
 
     fn database_type(&self) -> DatabaseType {
