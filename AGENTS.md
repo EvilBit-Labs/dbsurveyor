@@ -236,6 +236,7 @@ Releases use **GoReleaser** with the native Rust builder (`builder: rust`) and `
 - When refactoring a file to a directory module, delete the original `.rs` file
 - Example: If converting `adapters.rs` to `adapters/mod.rs`, remove `adapters.rs`
 - When resolving Cargo.lock conflicts during rebase, regenerate with `cargo generate-lockfile`
+- Advisory ignores are configured in both `deny.toml` (for `cargo deny`) and `.cargo/audit.toml` (for `cargo audit`) -- keep them in sync
 
 ### DatabaseAdapter Trait Sampling
 
