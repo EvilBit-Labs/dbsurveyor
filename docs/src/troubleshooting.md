@@ -330,6 +330,55 @@ dbsurveyor --format mermaid schema.json
 # Copy content to https://mermaid.live/ for testing
 ```
 
+### Output Formatting and Progress Indicators
+
+**Symptoms**: Progress spinners or colored output causing problems, garbled output with escape codes, missing progress indicators
+
+#### Disabling Colors and Progress Spinners
+
+For CI/CD pipelines, automation scripts, or non-interactive environments where colored output or progress spinners may cause issues:
+
+```bash
+# Disable ANSI color codes and progress spinners
+export NO_COLOR=1
+dbsurveyor-collect postgres://localhost/db
+dbsurveyor --format markdown schema.json
+
+# Alternative: Use TERM=dumb
+TERM=dumb dbsurveyor-collect postgres://localhost/db
+TERM=dumb dbsurveyor --format json schema.json
+
+# For CI environments (typically set automatically)
+export NO_COLOR=1
+export TERM=dumb
+dbsurveyor-collect postgres://localhost/db > collection.log
+```
+
+**Common scenarios:**
+
+- **CI/CD pipelines**: Set `NO_COLOR=1` to prevent ANSI escape codes in logs
+- **Log files**: Progress spinners are automatically hidden when output is redirected
+- **Automated scripts**: Use `TERM=dumb` for consistent non-interactive behavior
+- **Windows systems**: Some terminals may display escape codes incorrectly
+
+#### Troubleshooting Progress Indicators
+
+```bash
+# Check if output is going to a TTY
+# Progress spinners only show when stdout is a terminal
+test -t 1 && echo "TTY detected" || echo "Not a TTY"
+
+# Force spinner to be hidden (for debugging)
+export NO_COLOR=1
+dbsurveyor --format html schema.json
+
+# Check environment variables
+echo "NO_COLOR=${NO_COLOR:-not set}"
+echo "TERM=${TERM:-not set}"
+```
+
+**Note**: The tool automatically detects when output is piped or redirected and hides progress indicators. Setting `NO_COLOR` or `TERM=dumb` ensures consistent behavior across all environments.
+
 ## Performance Issues
 
 ### Slow Collection
