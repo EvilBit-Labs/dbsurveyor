@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- Rust 1.87+ (MSRV)
+- Rust 1.93.1+ (MSRV)
 - Git
 
 ### Clone and Build

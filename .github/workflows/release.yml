@@ -1,3 +1,10 @@
+# Release workflow for DBSurveyor
+#
+# Triggered by pushing a semver tag (e.g. v0.1.0).
+# Builds 7 Rust binaries (1 postprocessor + 6 collector variants) across 6
+# targets (42 total) using GoReleaser with cargo-zigbuild, Cosign for keyless
+# signing, and Syft for SBOM generation.
+
 name: Release
 
 on:

@@ -214,7 +214,7 @@ just release-snapshot        # Local release dry-run (builds all targets, skips 
 
 Releases use **GoReleaser** with the native Rust builder (`builder: rust`) and `cargo zigbuild` for cross-compilation. Configuration lives in `.goreleaser.yaml`; the workflow is `.github/workflows/release.yml`.
 
-- **Trigger**: Push a semver tag (`v0.1.0`, `v1.0.0-rc.1`) via `cargo release`
+- **Trigger**: Push a semver tag (`v0.1.0`, `v1.0.0-rc.1`) via `git tag` + `git push`
 - **Cross-compilation**: All 6 targets built from a single `ubuntu-latest` runner using `cargo zigbuild`
 - **Windows target**: `x86_64-pc-windows-gnu` (not MSVC; `cargo zigbuild` does not support MSVC)
 - **Homebrew**: Published as a Cask to `EvilBit-Labs/homebrew-tap` (requires `HOMEBREW_TAP_TOKEN` secret)
