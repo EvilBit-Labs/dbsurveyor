@@ -18,9 +18,9 @@ postgresql = ["sqlx", "sqlx/postgres"]
 mysql = ["sqlx", "sqlx/mysql"]
 sqlite = ["sqlx", "sqlx/sqlite"]
 mongodb = ["dep:mongodb"]
-mssql = ["dep:tiberius"]
+mssql = []
 # Optional features
-compression = ["dep:zstd"]
+compression = []
 encryption = ["dep:aes-gcm", "dep:argon2", "dep:password-hash"]
 
 [dependencies]
@@ -30,7 +30,6 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
 url = { workspace = true }
-uuid = { workspace = true }
 chrono = { workspace = true }
 zeroize = { workspace = true }
 tracing = { workspace = true }
@@ -39,7 +38,6 @@ futures = { workspace = true }
 
 # Database dependencies (feature-gated)
 sqlx = { workspace = true, optional = true, default-features = false }
-tiberius = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
 
 # Async runtime (required for rate limiting in sampling)
@@ -49,12 +47,8 @@ tokio = { workspace = true }
 aes-gcm = { workspace = true, optional = true }
 argon2 = { workspace = true, optional = true }
 password-hash = { version = "0.5", optional = true }
-rand = { workspace = true }
 # base64 is used for both encryption and SQLite BLOB encoding
 base64 = { workspace = true }
-
-# Compression (feature-gated)
-zstd = { workspace = true, optional = true }
 
 # JSON Schema validation
 jsonschema = { version = "0.41.0", default-features = false }

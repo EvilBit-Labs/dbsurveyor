@@ -283,18 +283,18 @@ fn print_completions(shell: clap_complete::Shell) -> Result<()> {
 
     let mut buf = Vec::new();
     clap_complete::generate(shell, &mut Cli::command(), "dbsurveyor", &mut buf);
-    std::io::stdout().write_all(&buf).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::Io {
+    std::io::stdout()
+        .write_all(&buf)
+        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
             context: "Failed to write shell completions to stdout".to_string(),
             source: e,
-        }
-    })?;
-    std::io::stdout().flush().map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::Io {
+        })?;
+    std::io::stdout()
+        .flush()
+        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
             context: "Failed to flush stdout after writing completions".to_string(),
             source: e,
-        }
-    })?;
+        })?;
     Ok(())
 }
 

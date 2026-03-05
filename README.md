@@ -20,7 +20,7 @@ DBSurveyor is a secure, offline-first database analysis and documentation toolch
 
 ### Installation
 
-**Pre-built binaries** are available on the [Releases][releases] page for Linux, macOS, and Windows.
+**Pre-built binaries** are available on the [Releases] page for Linux, macOS, and Windows.
 
 **Homebrew** (macOS/Linux):
 
@@ -106,13 +106,13 @@ dbsurveyor validate schema.dbsurveyor.json
 
 ## Database Support
 
-| Engine     | Status      | Connection Format                          |
-|------------|-------------|--------------------------------------------|
-| PostgreSQL | Supported   | `postgres://user:pass@host:5432/db`        |
-| SQLite     | Supported   | `sqlite:///path/to/database.db`            |
-| MySQL      | In Progress | `mysql://user:pass@host:3306/db`           |
-| MongoDB    | In Progress | `mongodb://user:pass@host:27017/db`        |
-| SQL Server | Planned     | `mssql://user:pass@host:1433/db`           |
+| Engine     | Status      | Connection Format                   |
+| ---------- | ----------- | ----------------------------------- |
+| PostgreSQL | Supported   | `postgres://user:pass@host:5432/db` |
+| SQLite     | Supported   | `sqlite:///path/to/database.db`     |
+| MySQL      | In Progress | `mysql://user:pass@host:3306/db`    |
+| MongoDB    | In Progress | `mongodb://user:pass@host:27017/db` |
+| SQL Server | Planned     | `mssql://user:pass@host:1433/db`    |
 
 PostgreSQL and SQLite are enabled by default. Other engines are feature-gated and can be enabled at build time (e.g., `cargo build --features mysql`).
 
@@ -161,24 +161,25 @@ Contributions are welcome. Please open an issue to discuss proposed changes befo
 Licensed under the [Apache License, Version 2.0](LICENSE).
 
 <!-- Badge images -->
-[license-badge]: https://img.shields.io/github/license/EvilBit-Labs/dbsurveyor?style=flat-square
-[sponsors-badge]: https://img.shields.io/github/sponsors/EvilBit-Labs?style=flat-square
-[ci-badge]: https://img.shields.io/github/actions/workflow/status/EvilBit-Labs/dbsurveyor/ci.yml?style=flat-square&label=CI
-[deps-badge]: https://deps.rs/repo/github/EvilBit-Labs/dbsurveyor/status.svg?style=flat-square
-[codecov-badge]: https://img.shields.io/codecov/c/github/EvilBit-Labs/dbsurveyor?style=flat-square
-[issues-badge]: https://img.shields.io/github/issues/EvilBit-Labs/dbsurveyor?style=flat-square
-[commits-badge]: https://img.shields.io/github/last-commit/EvilBit-Labs/dbsurveyor?style=flat-square
-[scorecard-badge]: https://img.shields.io/ossf-scorecard/github.com/EvilBit-Labs/dbsurveyor?style=flat-square
-[bestpractices-badge]: https://www.bestpractices.dev/projects/9872/badge
 
 <!-- Badge links -->
-[license]: https://github.com/EvilBit-Labs/dbsurveyor/blob/main/LICENSE
-[sponsors]: https://github.com/sponsors/EvilBit-Labs
-[ci]: https://github.com/EvilBit-Labs/dbsurveyor/actions/workflows/ci.yml
-[deps]: https://deps.rs/repo/github/EvilBit-Labs/dbsurveyor
-[codecov]: https://codecov.io/gh/EvilBit-Labs/dbsurveyor
-[issues]: https://github.com/EvilBit-Labs/dbsurveyor/issues
-[commits]: https://github.com/EvilBit-Labs/dbsurveyor/commits/main
-[scorecard]: https://scorecard.dev/viewer/?uri=github.com/EvilBit-Labs/dbsurveyor
+
 [bestpractices]: https://www.bestpractices.dev/projects/9872
+[bestpractices-badge]: https://www.bestpractices.dev/projects/9872/badge
+[ci]: https://github.com/EvilBit-Labs/dbsurveyor/actions/workflows/ci.yml
+[ci-badge]: https://img.shields.io/github/actions/workflow/status/EvilBit-Labs/dbsurveyor/ci.yml?style=flat-square&label=CI
+[codecov]: https://codecov.io/gh/EvilBit-Labs/dbsurveyor
+[codecov-badge]: https://img.shields.io/codecov/c/github/EvilBit-Labs/dbsurveyor?style=flat-square
+[commits]: https://github.com/EvilBit-Labs/dbsurveyor/commits/main
+[commits-badge]: https://img.shields.io/github/last-commit/EvilBit-Labs/dbsurveyor?style=flat-square
+[deps]: https://deps.rs/repo/github/EvilBit-Labs/dbsurveyor
+[deps-badge]: https://deps.rs/repo/github/EvilBit-Labs/dbsurveyor/status.svg?style=flat-square
+[issues]: https://github.com/EvilBit-Labs/dbsurveyor/issues
+[issues-badge]: https://img.shields.io/github/issues/EvilBit-Labs/dbsurveyor?style=flat-square
+[license]: https://github.com/EvilBit-Labs/dbsurveyor/blob/main/LICENSE
+[license-badge]: https://img.shields.io/github/license/EvilBit-Labs/dbsurveyor?style=flat-square
 [releases]: https://github.com/EvilBit-Labs/dbsurveyor/releases
+[scorecard]: https://scorecard.dev/viewer/?uri=github.com/EvilBit-Labs/dbsurveyor
+[scorecard-badge]: https://img.shields.io/ossf-scorecard/github.com/EvilBit-Labs/dbsurveyor?style=flat-square
+[sponsors]: https://github.com/sponsors/EvilBit-Labs
+[sponsors-badge]: https://img.shields.io/github/sponsors/EvilBit-Labs?style=flat-square
