@@ -311,17 +311,74 @@ Optional data samples provide insight into actual data:
       "total_rows": 50000,
       "sampling_strategy": {"MostRecent": {"limit": 10}},
       "collected_at": "2024-01-15T10:30:00Z",
-      "warnings": ["Large table - limited sample collected"]
+      "warnings": ["Large table - limited sample collected"],
+      "sample_status": "Complete"
     }
   ]
 }
 ```
 
-**Sampling Strategies**:
+### Table Sample Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `table_name` | String | Yes | Name of the sampled table |
+| `schema_name` | String | No | Schema/database name (null for databases without schemas) |
+| `rows` | Array | Yes | Array of sampled row data as JSON objects |
+| `sample_size` | Integer | Yes | Number of rows actually sampled |
+| `total_rows` | Integer | No | Estimated total row count in the table |
+| `sampling_strategy` | Object/String | Yes | Strategy used for sampling (see below) |
+| `collected_at` | String | Yes | ISO 8601 timestamp of when sample was collected |
+| `warnings` | Array | Yes | Array of warning messages (empty if no warnings) |
+| `sample_status` | String/Object | No | Status of the sampling operation (see below) |
+
+### Sampling Strategies
 
 - **`{"MostRecent": {"limit": 10}}`**: Latest N rows
 - **`{"Random": {"limit": 100}}`**: Random sample of N rows
 - **`"None"`**: No sampling performed
+
+### Sample Status
+
+The optional `sample_status` field tracks the outcome of the sampling operation. This field is backward-compatible and will be omitted when not set.
+
+**Status Values**:
+
+- **`"Complete"`**: Sampling completed successfully
+- **`{"PartialRetry": {"original_limit": 100}}`**: Sampling partially completed with a reduced limit due to constraints or errors
+- **`{"Skipped": {"reason": "Not implemented for this database"}}`**: Sampling was skipped with an explanation
+
+**Example with Complete Status**:
+
+```json
+{
+  "table_name": "orders",
+  "schema_name": "public",
+  "rows": [...],
+  "sample_size": 100,
+  "sampling_strategy": {"MostRecent": {"limit": 100}},
+  "collected_at": "2024-01-15T10:30:00Z",
+  "warnings": [],
+  "sample_status": "Complete"
+}
+```
+
+**Example with Skipped Status**:
+
+```json
+{
+  "table_name": "large_archive",
+  "schema_name": null,
+  "rows": [],
+  "sample_size": 0,
+  "sampling_strategy": "None",
+  "collected_at": "2024-01-15T10:30:00Z",
+  "warnings": [],
+  "sample_status": {"Skipped": {"reason": "Table exceeds size threshold"}}
+}
+```
+
+**Backward Compatibility Note**: The `sample_status` field is optional and omitted when not explicitly set. Older schema files without this field remain fully compatible.
 
 ## Multi-Database Collections
 
