@@ -104,3 +104,4 @@ node_modules/
 public/
 /.claude.local.md
 /dist
+.intentionally-empty-file.o
