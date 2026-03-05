@@ -579,19 +579,41 @@ graph TD
 
 ### Binary Variants
 
+DBSurveyor produces multiple binary variants to support different database environments. GoReleaser v2 builds 7 distinct binaries:
+
+- **`dbsurveyor`** - Documentation postprocessor (all features)
+- **`dbsurveyor-collect`** - Data collection tool with variants:
+  - `all` - PostgreSQL, MySQL, SQLite, MongoDB, MSSQL
+  - `postgresql` - PostgreSQL only
+  - `mysql` - MySQL only
+  - `sqlite` - SQLite only
+  - `mongodb` - MongoDB only
+  - `mssql` - MSSQL only
+
+Each variant is built with specific feature flags:
+
 ```bash
-# Default build (PostgreSQL + SQLite)
-cargo build --release
+# All features (default release artifacts)
+cargo zigbuild --release --all-features -p=dbsurveyor-collect
 
-# Minimal build (SQLite only)
-cargo build --release --no-default-features --features sqlite
+# PostgreSQL-only variant
+cargo zigbuild --release --no-default-features \
+  --features=postgresql,compression,encryption -p=dbsurveyor-collect
 
-# Full build (all databases)
-cargo build --release --all-features
-
-# Security-focused build
-cargo build --release --features postgresql,sqlite,encryption,compression
+# SQLite-only variant
+cargo zigbuild --release --no-default-features \
+  --features=sqlite,compression,encryption -p=dbsurveyor-collect
 ```
+
+**Artifact Naming**: Release artifacts follow the pattern:
+```
+dbsurveyor_{variant}_{OS}_{arch}.{tar.gz|zip}
+```
+
+Examples:
+- `dbsurveyor_all_Linux_x86_64.tar.gz`
+- `dbsurveyor_postgresql_Darwin_x86_64.tar.gz`
+- `dbsurveyor_sqlite_Windows_x86_64.zip`
 
 ## Deployment Architecture
 
@@ -611,18 +633,51 @@ graph LR
 
 ### CI/CD Integration
 
-```yaml
-# GitHub Actions workflow
-- name: Build and Test
-  run: |
-    cargo build --all-features
-    cargo test --all-features
-    just security-full
+DBSurveyor uses GoReleaser v2 with cargo-zigbuild for cross-compilation:
 
-- name: Generate Documentation
-  run: |
-    dbsurveyor-collect postgres://${{ secrets.DB_URL }}
-    dbsurveyor --format html schema.dbsurveyor.json
+```yaml
+# GitHub Actions release workflow
+- name: Install Rust toolchain
+  uses: dtolnay/rust-toolchain@stable
+  with:
+    toolchain: "1.93.1"
+
+- name: Install Zig
+  uses: mlugg/setup-zig@v2
+  with:
+    version: "0.13.0"
+
+- name: Install cargo-zigbuild
+  run: cargo install --locked cargo-zigbuild --version 0.19.8
+
+- name: Install Cosign
+  uses: sigstore/cosign-installer@v3
+
+- name: Install Syft
+  uses: anchore/sbom-action/download-syft@v0
+
+- name: Run GoReleaser
+  uses: goreleaser/goreleaser-action@v6
+  with:
+    distribution: goreleaser
+    version: "~> v2"
+    args: release --clean
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 ```
+
+**Cross-Compilation Targets** (6 platforms):
+- `x86_64-unknown-linux-gnu` - Linux x86_64 (glibc)
+- `aarch64-unknown-linux-gnu` - Linux ARM64 (glibc)
+- `x86_64-unknown-linux-musl` - Linux x86_64 (musl/Alpine)
+- `x86_64-apple-darwin` - macOS Intel
+- `aarch64-apple-darwin` - macOS Apple Silicon
+- `x86_64-pc-windows-gnu` - Windows x86_64
+
+**Security Features**:
+- **Cosign Keyless Signing**: Checksums are signed using GitHub OIDC identity
+- **Syft SBOM Generation**: Software Bill of Materials for all archives
+- **Reproducible Builds**: Consistent timestamps via `{{ .CommitTimestamp }}`
 
 This architecture ensures DBSurveyor maintains its security-first principles while providing flexibility, performance, and maintainability across all supported platforms and use cases.
