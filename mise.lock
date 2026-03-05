@@ -106,6 +106,21 @@ backend = "cargo:mdbook-tabs"
 version = "0.15.3"
 backend = "cargo:mdbook-toc"
 
+[[tools.cosign]]
+version = "3.0.5"
+backend = "aqua:sigstore/cosign"
+"platforms.linux-arm64" = { checksum = "sha256:d098f3168ae4b3aa70b4ca78947329b953272b487727d1722cb3cb098a1a20ab", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-linux-arm64"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:d098f3168ae4b3aa70b4ca78947329b953272b487727d1722cb3cb098a1a20ab", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-linux-arm64"}
+"platforms.linux-x64" = { checksum = "sha256:db15cc99e6e4837daabab023742aaddc3841ce57f193d11b7c3e06c8003642b2", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-linux-amd64"}
+"platforms.linux-x64-baseline" = { checksum = "sha256:db15cc99e6e4837daabab023742aaddc3841ce57f193d11b7c3e06c8003642b2", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-linux-amd64"}
+"platforms.linux-x64-musl" = { checksum = "sha256:db15cc99e6e4837daabab023742aaddc3841ce57f193d11b7c3e06c8003642b2", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-linux-amd64"}
+"platforms.linux-x64-musl-baseline" = { checksum = "sha256:db15cc99e6e4837daabab023742aaddc3841ce57f193d11b7c3e06c8003642b2", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-linux-amd64"}
+"platforms.macos-arm64" = { checksum = "sha256:4888c898e2901521a6bd4cf4f0383c9465588a6a46ecd2465ad34faf13f09eb7", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-darwin-arm64"}
+"platforms.macos-x64" = { checksum = "sha256:e032c44d3f7c247bbb2966b41239f88ffba002497a4516358d327ad5693c386f", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-darwin-amd64"}
+"platforms.macos-x64-baseline" = { checksum = "sha256:e032c44d3f7c247bbb2966b41239f88ffba002497a4516358d327ad5693c386f", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-darwin-amd64"}
+"platforms.windows-x64" = { checksum = "sha256:44e9e44202b67ddfaaf5ea1234f5a265417960c4ae98c5b57c35bc40ba9dd714", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-windows-amd64.exe"}
+"platforms.windows-x64-baseline" = { checksum = "sha256:44e9e44202b67ddfaaf5ea1234f5a265417960c4ae98c5b57c35bc40ba9dd714", url = "https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-windows-amd64.exe"}
+
 [[tools.goreleaser]]
 version = "2.14.1"
 backend = "aqua:goreleaser/goreleaser"
@@ -163,6 +178,21 @@ backend = "aqua:ossf/scorecard"
 "platforms.macos-arm64" = { checksum = "sha256:2c672695a27d35537dd4054f690f31fa1d6a72b0957598f45181296487f537f4", url = "https://github.com/ossf/scorecard/releases/download/v5.4.0/scorecard_5.4.0_darwin_arm64.tar.gz"}
 "platforms.macos-x64" = { checksum = "sha256:2abfec13b8eecc9b730e3782c9b3a9544d31ae861ce21ea7fe6a369d887d7c89", url = "https://github.com/ossf/scorecard/releases/download/v5.4.0/scorecard_5.4.0_darwin_amd64.tar.gz"}
 "platforms.windows-x64" = { checksum = "sha256:f7d0ece0dde703e4baa5f96e9b6ed33e6e786138c90db8de2c4943f24015b9ff", url = "https://github.com/ossf/scorecard/releases/download/v5.4.0/scorecard_5.4.0_windows_amd64.tar.gz"}
+
+[[tools.syft]]
+version = "1.42.1"
+backend = "aqua:anchore/syft"
+"platforms.linux-arm64" = { checksum = "sha256:dfc9ac5fffa8fea95b4f84b427e200dbb2bd9bd0bbf2760d1a9369715b60a91d", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_linux_arm64.tar.gz"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:dfc9ac5fffa8fea95b4f84b427e200dbb2bd9bd0bbf2760d1a9369715b60a91d", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_linux_arm64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:989ded4e772810f93de6ccdc4512f79a6dabb5fb2dd2a9ffc72a80c955e6125a", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_linux_amd64.tar.gz"}
+"platforms.linux-x64-baseline" = { checksum = "sha256:989ded4e772810f93de6ccdc4512f79a6dabb5fb2dd2a9ffc72a80c955e6125a", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_linux_amd64.tar.gz"}
+"platforms.linux-x64-musl" = { checksum = "sha256:989ded4e772810f93de6ccdc4512f79a6dabb5fb2dd2a9ffc72a80c955e6125a", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_linux_amd64.tar.gz"}
+"platforms.linux-x64-musl-baseline" = { checksum = "sha256:989ded4e772810f93de6ccdc4512f79a6dabb5fb2dd2a9ffc72a80c955e6125a", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_linux_amd64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:b83cdcbd1b4c55505abd359c25c5903d94b99be47e6f98572bf96927b7b47e45", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_darwin_arm64.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:1e52e39d24a4eaec94329e0f3283c448e2ee8f79dc03e5f1e405d324b7ae4e1c", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_darwin_amd64.tar.gz"}
+"platforms.macos-x64-baseline" = { checksum = "sha256:1e52e39d24a4eaec94329e0f3283c448e2ee8f79dc03e5f1e405d324b7ae4e1c", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_darwin_amd64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:9eb2c582af26b2e8dcbb6f63494e6bc7739821e1d8d29b7096224218ff26c892", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_windows_amd64.zip"}
+"platforms.windows-x64-baseline" = { checksum = "sha256:9eb2c582af26b2e8dcbb6f63494e6bc7739821e1d8d29b7096224218ff26c892", url = "https://github.com/anchore/syft/releases/download/v1.42.1/syft_1.42.1_windows_amd64.zip"}
 
 [[tools.zig]]
 version = "0.15.2"

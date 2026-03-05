@@ -32,6 +32,8 @@ markdownlint-cli2           = "0.21.0"
 "cargo:mdbook-alerts"       = "0.8.0"
 scorecard                   = "5.4.0"
 bun                         = "latest"
+syft                        = "latest"
+cosign                      = "latest"
 
 # Many of these settings are defaults, but we are explicit in case they change in the future and to make it clear to users what is enabled.
 [settings]
