@@ -173,8 +173,8 @@ encryption = false
 # Data redaction settings
 mode = "balanced"
 custom_patterns = [
-    { pattern = "(?i)(api[_-]?key)", replacement = "[API_KEY]" },
-    { pattern = "(?i)(token)", replacement = "[TOKEN]" },
+  { pattern = "(?i)(api[_-]?key)", replacement = "[API_KEY]" },
+  { pattern = "(?i)(token)", replacement = "[TOKEN]" },
 ]
 
 [security]

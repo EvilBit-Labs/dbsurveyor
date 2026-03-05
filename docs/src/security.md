@@ -112,7 +112,7 @@ DBSurveyor includes comprehensive security tests to verify all guarantees.
 fn test_no_credentials_in_output() {
     let schema = collect_schema("postgres://user:secret@localhost/db").await?;
     let json = serde_json::to_string(&schema)?;
-    
+
     // Verify no sensitive data is present
     assert!(!json.contains("secret"));
     assert!(!json.contains("user:secret"));
@@ -128,7 +128,7 @@ fn test_nonce_uniqueness() {
     let data = b"test schema data";
     let encrypted1 = encrypt_data(data, "password")?;
     let encrypted2 = encrypt_data(data, "password")?;
-    
+
     // Same data should produce different ciphertext (random nonce)
     assert_ne!(encrypted1.nonce, encrypted2.nonce);
     assert_ne!(encrypted1.ciphertext, encrypted2.ciphertext);
@@ -142,7 +142,7 @@ fn test_nonce_uniqueness() {
 fn test_airgap_compatibility() {
     // Simulate airgap environment
     let schema = load_schema("fixtures/sample_schema.json")?;
-    
+
     // All processing should work offline
     let documentation = generate_documentation(&schema, OutputFormat::Markdown)?;
     assert!(!documentation.is_empty());

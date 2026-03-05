@@ -312,11 +312,11 @@ done
 
 ```yaml
 # GitHub Actions example
-- name: Generate Database Documentation
-  run: |
-    dbsurveyor-collect postgres://${{ secrets.DB_URL }}
-    dbsurveyor --format html --output docs/database.html schema.dbsurveyor.json
-    dbsurveyor --format markdown --output docs/DATABASE.md schema.dbsurveyor.json
+  - name: Generate Database Documentation
+    run: |
+      dbsurveyor-collect postgres://${{ secrets.DB_URL }}
+      dbsurveyor --format html --output docs/database.html schema.dbsurveyor.json
+      dbsurveyor --format markdown --output docs/DATABASE.md schema.dbsurveyor.json
 ```
 
 ### Documentation Website

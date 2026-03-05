@@ -160,17 +160,22 @@ FLUSH PRIVILEGES;
 
 ```javascript
 // Check current user
-db.runCommand({connectionStatus: 1})
+db.runCommand({
+    connectionStatus: 1
+})
 
 // Check permissions
 use mydb
-db.runCommand({usersInfo: "dbsurveyor_user"})
+db.runCommand({
+    usersInfo: "dbsurveyor_user"
+})
 
 // Grant read permissions
 use admin
-db.grantRolesToUser("dbsurveyor_user", [
-  { role: "read", db: "mydb" }
-])
+db.grantRolesToUser("dbsurveyor_user", [{
+    role: "read",
+    db: "mydb"
+}])
 ```
 
 ## Collection Issues

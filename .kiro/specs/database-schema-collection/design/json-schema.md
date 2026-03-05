@@ -25,7 +25,11 @@ The complete JSON Schema is defined in `dbsurveyor-schema-v1.0.json` and validat
   "title": "DBSurveyor Database Schema Collection Format",
   "description": "Comprehensive database schema representation with security guarantees",
   "type": "object",
-  "required": ["format_version", "database_info", "collection_metadata"],
+  "required": [
+    "format_version",
+    "database_info",
+    "collection_metadata"
+  ],
   "additionalProperties": false
 }
 ```
@@ -39,60 +43,86 @@ The root object representing a complete database schema collection:
 ```json
 {
   "type": "object",
-  "required": ["format_version", "database_info", "collection_metadata"],
+  "required": [
+    "format_version",
+    "database_info",
+    "collection_metadata"
+  ],
   "properties": {
     "format_version": {
       "type": "string",
       "pattern": "^1\\.0$",
       "description": "Schema format version for compatibility checking"
     },
-    "database_info": { "$ref": "#/$defs/DatabaseInfo" },
+    "database_info": {
+      "$ref": "#/$defs/DatabaseInfo"
+    },
     "tables": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Table" },
+      "items": {
+        "$ref": "#/$defs/Table"
+      },
       "default": []
     },
     "views": {
-      "type": "array", 
-      "items": { "$ref": "#/$defs/View" },
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/View"
+      },
       "default": []
     },
     "indexes": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Index" },
+      "items": {
+        "$ref": "#/$defs/Index"
+      },
       "default": []
     },
     "constraints": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Constraint" },
+      "items": {
+        "$ref": "#/$defs/Constraint"
+      },
       "default": []
     },
     "procedures": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Procedure" },
+      "items": {
+        "$ref": "#/$defs/Procedure"
+      },
       "default": []
     },
     "functions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Procedure" },
+      "items": {
+        "$ref": "#/$defs/Procedure"
+      },
       "default": []
     },
     "triggers": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Trigger" },
+      "items": {
+        "$ref": "#/$defs/Trigger"
+      },
       "default": []
     },
     "custom_types": {
       "type": "array",
-      "items": { "$ref": "#/$defs/CustomType" },
+      "items": {
+        "$ref": "#/$defs/CustomType"
+      },
       "default": []
     },
     "samples": {
       "type": "array",
-      "items": { "$ref": "#/$defs/TableSample" },
+      "items": {
+        "$ref": "#/$defs/TableSample"
+      },
       "description": "Optional data samples from tables"
     },
-    "collection_metadata": { "$ref": "#/$defs/CollectionMetadata" }
+    "collection_metadata": {
+      "$ref": "#/$defs/CollectionMetadata"
+    }
   }
 }
 ```
@@ -104,7 +134,11 @@ Database-level information and collection status:
 ```json
 {
   "type": "object",
-  "required": ["name", "access_level", "collection_status"],
+  "required": [
+    "name",
+    "access_level",
+    "collection_status"
+  ],
   "properties": {
     "name": {
       "type": "string",
@@ -129,7 +163,7 @@ Database-level information and collection status:
       "description": "Database character encoding"
     },
     "collation": {
-      "type": "string", 
+      "type": "string",
       "maxLength": 100,
       "description": "Database collation"
     },
@@ -143,8 +177,12 @@ Database-level information and collection status:
       "default": false,
       "description": "Whether this is a system database"
     },
-    "access_level": { "$ref": "#/$defs/AccessLevel" },
-    "collection_status": { "$ref": "#/$defs/CollectionStatus" }
+    "access_level": {
+      "$ref": "#/$defs/AccessLevel"
+    },
+    "collection_status": {
+      "$ref": "#/$defs/CollectionStatus"
+    }
   }
 }
 ```
@@ -156,7 +194,10 @@ Complete table representation with columns, constraints, and relationships:
 ```json
 {
   "type": "object",
-  "required": ["name", "columns"],
+  "required": [
+    "name",
+    "columns"
+  ],
   "properties": {
     "name": {
       "type": "string",
@@ -172,22 +213,32 @@ Complete table representation with columns, constraints, and relationships:
     "columns": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/Column" }
+      "items": {
+        "$ref": "#/$defs/Column"
+      }
     },
-    "primary_key": { "$ref": "#/$defs/PrimaryKey" },
+    "primary_key": {
+      "$ref": "#/$defs/PrimaryKey"
+    },
     "foreign_keys": {
       "type": "array",
-      "items": { "$ref": "#/$defs/ForeignKey" },
+      "items": {
+        "$ref": "#/$defs/ForeignKey"
+      },
       "default": []
     },
     "indexes": {
-      "type": "array", 
-      "items": { "$ref": "#/$defs/Index" },
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Index"
+      },
       "default": []
     },
     "constraints": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Constraint" },
+      "items": {
+        "$ref": "#/$defs/Constraint"
+      },
       "default": []
     },
     "comment": {
@@ -209,7 +260,12 @@ Column metadata with unified data type mapping:
 ```json
 {
   "type": "object",
-  "required": ["name", "data_type", "is_nullable", "ordinal_position"],
+  "required": [
+    "name",
+    "data_type",
+    "is_nullable",
+    "ordinal_position"
+  ],
   "properties": {
     "name": {
       "type": "string",
@@ -217,10 +273,20 @@ Column metadata with unified data type mapping:
       "maxLength": 255,
       "pattern": "^[^\\x00-\\x1F\\x7F]*$"
     },
-    "data_type": { "$ref": "#/$defs/UnifiedDataType" },
-    "is_nullable": { "type": "boolean" },
-    "is_primary_key": { "type": "boolean", "default": false },
-    "is_auto_increment": { "type": "boolean", "default": false },
+    "data_type": {
+      "$ref": "#/$defs/UnifiedDataType"
+    },
+    "is_nullable": {
+      "type": "boolean"
+    },
+    "is_primary_key": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_auto_increment": {
+      "type": "boolean",
+      "default": false
+    },
     "default_value": {
       "type": "string",
       "maxLength": 500
@@ -247,7 +313,9 @@ Cross-database type mapping with validation:
   "oneOf": [
     {
       "type": "object",
-      "required": ["String"],
+      "required": [
+        "String"
+      ],
       "properties": {
         "String": {
           "type": "object",
@@ -262,25 +330,40 @@ Cross-database type mapping with validation:
       }
     },
     {
-      "type": "object", 
-      "required": ["Integer"],
+      "type": "object",
+      "required": [
+        "Integer"
+      ],
       "properties": {
         "Integer": {
           "type": "object",
-          "required": ["bits", "signed"],
+          "required": [
+            "bits",
+            "signed"
+          ],
           "properties": {
             "bits": {
               "type": "integer",
-              "enum": [8, 16, 32, 64, 128]
+              "enum": [
+                8,
+                16,
+                32,
+                64,
+                128
+              ]
             },
-            "signed": { "type": "boolean" }
+            "signed": {
+              "type": "boolean"
+            }
           }
         }
       }
     },
     {
       "type": "object",
-      "required": ["Float"],
+      "required": [
+        "Float"
+      ],
       "properties": {
         "Float": {
           "type": "object",
@@ -294,37 +377,55 @@ Cross-database type mapping with validation:
         }
       }
     },
-    { "const": "Boolean" },
+    {
+      "const": "Boolean"
+    },
     {
       "type": "object",
-      "required": ["DateTime"],
+      "required": [
+        "DateTime"
+      ],
       "properties": {
         "DateTime": {
           "type": "object",
-          "required": ["with_timezone"],
+          "required": [
+            "with_timezone"
+          ],
           "properties": {
-            "with_timezone": { "type": "boolean" }
+            "with_timezone": {
+              "type": "boolean"
+            }
           }
         }
       }
     },
-    { "const": "Date" },
+    {
+      "const": "Date"
+    },
     {
       "type": "object",
-      "required": ["Time"],
+      "required": [
+        "Time"
+      ],
       "properties": {
         "Time": {
           "type": "object",
-          "required": ["with_timezone"],
+          "required": [
+            "with_timezone"
+          ],
           "properties": {
-            "with_timezone": { "type": "boolean" }
+            "with_timezone": {
+              "type": "boolean"
+            }
           }
         }
       }
     },
     {
       "type": "object",
-      "required": ["Binary"],
+      "required": [
+        "Binary"
+      ],
       "properties": {
         "Binary": {
           "type": "object",
@@ -337,28 +438,42 @@ Cross-database type mapping with validation:
         }
       }
     },
-    { "const": "Json" },
-    { "const": "Uuid" },
+    {
+      "const": "Json"
+    },
+    {
+      "const": "Uuid"
+    },
     {
       "type": "object",
-      "required": ["Array"],
+      "required": [
+        "Array"
+      ],
       "properties": {
         "Array": {
           "type": "object",
-          "required": ["element_type"],
+          "required": [
+            "element_type"
+          ],
           "properties": {
-            "element_type": { "$ref": "#/$defs/UnifiedDataType" }
+            "element_type": {
+              "$ref": "#/$defs/UnifiedDataType"
+            }
           }
         }
       }
     },
     {
       "type": "object",
-      "required": ["Custom"],
+      "required": [
+        "Custom"
+      ],
       "properties": {
         "Custom": {
           "type": "object",
-          "required": ["type_name"],
+          "required": [
+            "type_name"
+          ],
           "properties": {
             "type_name": {
               "type": "string",
@@ -382,7 +497,11 @@ Comprehensive foreign key relationship validation:
 ```json
 {
   "type": "object",
-  "required": ["columns", "referenced_table", "referenced_columns"],
+  "required": [
+    "columns",
+    "referenced_table",
+    "referenced_columns"
+  ],
   "properties": {
     "name": {
       "type": "string",
@@ -415,24 +534,36 @@ Comprehensive foreign key relationship validation:
         "maxLength": 255
       }
     },
-    "on_delete": { "$ref": "#/$defs/ReferentialAction" },
-    "on_update": { "$ref": "#/$defs/ReferentialAction" }
+    "on_delete": {
+      "$ref": "#/$defs/ReferentialAction"
+    },
+    "on_update": {
+      "$ref": "#/$defs/ReferentialAction"
+    }
   },
   "allOf": [
     {
       "description": "Foreign key columns and referenced columns must have same count",
       "if": {
         "properties": {
-          "columns": { "type": "array" },
-          "referenced_columns": { "type": "array" }
+          "columns": {
+            "type": "array"
+          },
+          "referenced_columns": {
+            "type": "array"
+          }
         }
       },
       "then": {
         "properties": {
           "columns": {
             "type": "array",
-            "minItems": { "$data": "1/referenced_columns/length" },
-            "maxItems": { "$data": "1/referenced_columns/length" }
+            "minItems": {
+              "$data": "1/referenced_columns/length"
+            },
+            "maxItems": {
+              "$data": "1/referenced_columns/length"
+            }
           }
         }
       }
@@ -448,7 +579,11 @@ Index structure with column ordering and uniqueness:
 ```json
 {
   "type": "object",
-  "required": ["name", "table_name", "columns"],
+  "required": [
+    "name",
+    "table_name",
+    "columns"
+  ],
   "properties": {
     "name": {
       "type": "string",
@@ -467,14 +602,16 @@ Index structure with column ordering and uniqueness:
     "columns": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/IndexColumn" }
+      "items": {
+        "$ref": "#/$defs/IndexColumn"
+      }
     },
     "is_unique": {
       "type": "boolean",
       "default": false
     },
     "is_primary": {
-      "type": "boolean", 
+      "type": "boolean",
       "default": false
     },
     "index_type": {
@@ -540,18 +677,29 @@ Server-level schema for multi-database collection:
 ```json
 {
   "type": "object",
-  "required": ["format_version", "server_info", "databases", "collection_metadata"],
+  "required": [
+    "format_version",
+    "server_info",
+    "databases",
+    "collection_metadata"
+  ],
   "properties": {
     "format_version": {
       "type": "string",
       "pattern": "^1\\.0$"
     },
-    "server_info": { "$ref": "#/$defs/ServerInfo" },
+    "server_info": {
+      "$ref": "#/$defs/ServerInfo"
+    },
     "databases": {
       "type": "array",
-      "items": { "$ref": "#/$defs/DatabaseSchema" }
+      "items": {
+        "$ref": "#/$defs/DatabaseSchema"
+      }
     },
-    "collection_metadata": { "$ref": "#/$defs/CollectionMetadata" }
+    "collection_metadata": {
+      "$ref": "#/$defs/CollectionMetadata"
+    }
   }
 }
 ```
@@ -563,9 +711,19 @@ Server-level metadata and collection statistics:
 ```json
 {
   "type": "object",
-  "required": ["server_type", "version", "host", "total_databases", "collected_databases", "connection_user", "collection_mode"],
+  "required": [
+    "server_type",
+    "version",
+    "host",
+    "total_databases",
+    "collected_databases",
+    "connection_user",
+    "collection_mode"
+  ],
   "properties": {
-    "server_type": { "$ref": "#/$defs/DatabaseType" },
+    "server_type": {
+      "$ref": "#/$defs/DatabaseType"
+    },
     "version": {
       "type": "string",
       "minLength": 1,
@@ -604,7 +762,9 @@ Server-level metadata and collection statistics:
       "type": "boolean",
       "default": false
     },
-    "collection_mode": { "$ref": "#/$defs/CollectionMode" }
+    "collection_mode": {
+      "$ref": "#/$defs/CollectionMode"
+    }
   }
 }
 ```
@@ -618,7 +778,13 @@ Data sampling with strategy and ordering information:
 ```json
 {
   "type": "object",
-  "required": ["table_name", "rows", "sample_size", "sampling_strategy", "collected_at"],
+  "required": [
+    "table_name",
+    "rows",
+    "sample_size",
+    "sampling_strategy",
+    "collected_at"
+  ],
   "properties": {
     "table_name": {
       "type": "string",
@@ -644,14 +810,18 @@ Data sampling with strategy and ordering information:
       "type": "integer",
       "minimum": 0
     },
-    "sampling_strategy": { "$ref": "#/$defs/SamplingStrategy" },
+    "sampling_strategy": {
+      "$ref": "#/$defs/SamplingStrategy"
+    },
     "collected_at": {
       "type": "string",
       "format": "date-time"
     },
     "warnings": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "default": []
     }
   }
@@ -667,11 +837,15 @@ Sampling strategy enumeration:
   "oneOf": [
     {
       "type": "object",
-      "required": ["MostRecent"],
+      "required": [
+        "MostRecent"
+      ],
       "properties": {
         "MostRecent": {
           "type": "object",
-          "required": ["limit"],
+          "required": [
+            "limit"
+          ],
           "properties": {
             "limit": {
               "type": "integer",
@@ -684,11 +858,15 @@ Sampling strategy enumeration:
     },
     {
       "type": "object",
-      "required": ["Random"],
+      "required": [
+        "Random"
+      ],
       "properties": {
         "Random": {
           "type": "object",
-          "required": ["limit"],
+          "required": [
+            "limit"
+          ],
           "properties": {
             "limit": {
               "type": "integer",
@@ -699,7 +877,9 @@ Sampling strategy enumeration:
         }
       }
     },
-    { "const": "None" }
+    {
+      "const": "None"
+    }
   ]
 }
 ```
@@ -713,7 +893,13 @@ Supported database types:
 ```json
 {
   "type": "string",
-  "enum": ["PostgreSQL", "MySQL", "SQLite", "MongoDB", "SqlServer"]
+  "enum": [
+    "PostgreSQL",
+    "MySQL",
+    "SQLite",
+    "MongoDB",
+    "SqlServer"
+  ]
 }
 ```
 
@@ -724,7 +910,13 @@ Foreign key referential actions:
 ```json
 {
   "type": "string",
-  "enum": ["Cascade", "SetNull", "SetDefault", "Restrict", "NoAction"]
+  "enum": [
+    "Cascade",
+    "SetNull",
+    "SetDefault",
+    "Restrict",
+    "NoAction"
+  ]
 }
 ```
 
@@ -734,8 +926,14 @@ Database constraint types:
 
 ```json
 {
-  "type": "string", 
-  "enum": ["PrimaryKey", "ForeignKey", "Unique", "Check", "NotNull"]
+  "type": "string",
+  "enum": [
+    "PrimaryKey",
+    "ForeignKey",
+    "Unique",
+    "Check",
+    "NotNull"
+  ]
 }
 ```
 
@@ -746,7 +944,11 @@ Database access levels:
 ```json
 {
   "type": "string",
-  "enum": ["Full", "Limited", "None"]
+  "enum": [
+    "Full",
+    "Limited",
+    "None"
+  ]
 }
 ```
 
@@ -757,14 +959,20 @@ Collection status with error handling:
 ```json
 {
   "oneOf": [
-    { "const": "Success" },
+    {
+      "const": "Success"
+    },
     {
       "type": "object",
-      "required": ["Failed"],
+      "required": [
+        "Failed"
+      ],
       "properties": {
         "Failed": {
           "type": "object",
-          "required": ["error"],
+          "required": [
+            "error"
+          ],
           "properties": {
             "error": {
               "type": "string",
@@ -777,11 +985,15 @@ Collection status with error handling:
     },
     {
       "type": "object",
-      "required": ["Skipped"],
+      "required": [
+        "Skipped"
+      ],
       "properties": {
         "Skipped": {
           "type": "object",
-          "required": ["reason"],
+          "required": [
+            "reason"
+          ],
           "properties": {
             "reason": {
               "type": "string",
@@ -845,7 +1057,12 @@ The schema is designed to support future versions through:
       "columns": [
         {
           "name": "id",
-          "data_type": {"Integer": {"bits": 32, "signed": true}},
+          "data_type": {
+            "Integer": {
+              "bits": 32,
+              "signed": true
+            }
+          },
           "is_nullable": false,
           "is_primary_key": true,
           "is_auto_increment": true,
@@ -853,14 +1070,20 @@ The schema is designed to support future versions through:
         },
         {
           "name": "email",
-          "data_type": {"String": {"max_length": 255}},
+          "data_type": {
+            "String": {
+              "max_length": 255
+            }
+          },
           "is_nullable": false,
           "ordinal_position": 2
         }
       ],
       "primary_key": {
         "name": "users_pkey",
-        "columns": ["id"]
+        "columns": [
+          "id"
+        ]
       }
     }
   ],
@@ -931,14 +1154,28 @@ The schema is designed to support future versions through:
       "table_name": "users",
       "schema_name": "public",
       "rows": [
-        {"id": 1001, "email": "user1001@example.com", "created_at": "2024-01-15T09:00:00Z"},
-        {"id": 1002, "email": "user1002@example.com", "created_at": "2024-01-15T09:15:00Z"}
+        {
+          "id": 1001,
+          "email": "user1001@example.com",
+          "created_at": "2024-01-15T09:00:00Z"
+        },
+        {
+          "id": 1002,
+          "email": "user1002@example.com",
+          "created_at": "2024-01-15T09:15:00Z"
+        }
       ],
       "sample_size": 2,
       "total_rows": 50000,
-      "sampling_strategy": {"MostRecent": {"limit": 10}},
+      "sampling_strategy": {
+        "MostRecent": {
+          "limit": 10
+        }
+      },
       "collected_at": "2024-01-15T10:30:00Z",
-      "warnings": ["Large table - limited sample collected"]
+      "warnings": [
+        "Large table - limited sample collected"
+      ]
     }
   ]
 }
@@ -957,7 +1194,7 @@ use serde_json::Value;
 pub fn validate_output(schema_json: &Value, output_json: &Value) -> Result<(), ValidationError> {
     let schema = JSONSchema::compile(schema_json)
         .map_err(|e| ValidationError::SchemaCompilation(e.to_string()))?;
-    
+
     let result = schema.validate(output_json);
     if let Err(errors) = result {
         let error_messages: Vec<String> = errors
@@ -965,7 +1202,7 @@ pub fn validate_output(schema_json: &Value, output_json: &Value) -> Result<(), V
             .collect();
         return Err(ValidationError::ValidationFailed(error_messages));
     }
-    
+
     Ok(())
 }
 ```
@@ -978,13 +1215,13 @@ The postprocessor validates input files against the schema:
 pub fn load_and_validate_schema(file_path: &Path) -> Result<DatabaseSchema, ProcessorError> {
     let content = std::fs::read_to_string(file_path)?;
     let json_value: Value = serde_json::from_str(&content)?;
-    
+
     // Validate against JSON Schema
     validate_output(&SCHEMA_V1_0, &json_value)?;
-    
+
     // Deserialize to strongly-typed structure
     let schema: DatabaseSchema = serde_json::from_value(json_value)?;
-    
+
     Ok(schema)
 }
 ```
@@ -998,10 +1235,10 @@ Detailed validation error reporting with field-level errors:
 pub enum ValidationError {
     #[error("Schema compilation failed: {0}")]
     SchemaCompilation(String),
-    
+
     #[error("Validation failed with errors: {0:?}")]
     ValidationFailed(Vec<String>),
-    
+
     #[error("Unsupported format version: {version}. Supported versions: {supported:?}")]
     UnsupportedVersion {
         version: String,
@@ -1017,7 +1254,7 @@ pub enum ValidationError {
 The schema includes comprehensive patterns to detect and reject credential information:
 
 1. **Field Name Patterns**: Reject fields with names containing credential-related terms
-2. **Connection String Detection**: Prevent serialization of database connection strings  
+2. **Connection String Detection**: Prevent serialization of database connection strings
 3. **Sensitive Data Patterns**: Block common patterns for secrets, tokens, and keys
 4. **Content Validation**: Ensure no credential-like content in string fields
 

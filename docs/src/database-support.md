@@ -268,21 +268,30 @@ dbsurveyor-collect "mongodb://user:pass@host1,host2,host3/mydb?replicaSet=rs0"
 ```javascript
 // Schema inference from documents
 {
-  "_id": ObjectId("..."),
-  "name": "string",
-  "age": "number",
-  "tags": ["array", "of", "strings"],
-  "address": {
-    "street": "string",
-    "city": "string"
-  }
+    "_id": ObjectId("..."),
+    "name": "string",
+    "age": "number",
+    "tags": ["array", "of", "strings"],
+    "address": {
+        "street": "string",
+        "city": "string"
+    }
 }
 
 // Index types
-db.users.createIndex({ "name": 1 })                    // Single field
-db.users.createIndex({ "name": 1, "age": -1 })         // Compound
-db.articles.createIndex({ "title": "text" })           // Text search
-db.locations.createIndex({ "coordinates": "2dsphere" }) // Geospatial
+db.users.createIndex({
+    "name": 1
+}) // Single field
+db.users.createIndex({
+    "name": 1,
+    "age": -1
+}) // Compound
+db.articles.createIndex({
+    "title": "text"
+}) // Text search
+db.locations.createIndex({
+    "coordinates": "2dsphere"
+}) // Geospatial
 ```
 
 ### Current Limitations
@@ -419,12 +428,16 @@ dbsurveyor-collect "sqlite:///path/to/db.sqlite?mode=ro"
 // Create read-only user
 use admin
 db.createUser({
-  user: "dbsurveyor_readonly",
-  pwd: "password",
-  roles: [
-    { role: "read", db: "mydb" },
-    { role: "read", db: "config" }  // For sharding info
-  ]
+    user: "dbsurveyor_readonly",
+    pwd: "password",
+    roles: [{
+            role: "read",
+            db: "mydb"
+        }, {
+            role: "read",
+            db: "config"
+        } // For sharding info
+    ]
 })
 ```
 

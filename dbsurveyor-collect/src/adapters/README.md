@@ -8,8 +8,8 @@ The adapter system provides a trait-based interface (`SchemaCollector`) that ena
 
 ## Supported Databases
 
-| Database   | Feature Flag | Status         | Connection String Example             |
-|------------|--------------|----------------|---------------------------------------|
+| Database   | Feature Flag | Status          | Connection String Example             |
+| ---------- | ------------ | --------------- | ------------------------------------- |
 | PostgreSQL | `postgresql` | ✅ Full Support | `postgresql://user:pass@host:5432/db` |
 | SQLite     | `sqlite`     | ✅ Full Support | `sqlite:///path/to/database.db`       |
 | MongoDB    | `mongodb`    | ✅ Full Support | `mongodb://user:pass@host:27017/db`   |
@@ -299,6 +299,7 @@ async fn safe_operation() -> AdapterResult<()> {
 ```
 
 Common error types:
+
 - `ConnectionFailed` - Connection could not be established (no details leaked)
 - `ConnectionTimeout` - Connection attempt timed out
 - `QueryFailed` - Query execution failed (no query details leaked)
@@ -359,6 +360,7 @@ cargo test --test security_tests credential_security
 ### Large Schemas
 
 For databases with >1000 tables:
+
 - Schema collection may take several minutes
 - Consider increasing timeouts in ConnectionConfig
 - Monitor memory usage during collection
@@ -366,26 +368,30 @@ For databases with >1000 tables:
 ## Security Best Practices
 
 1. **Never Log Connection Strings**
+
    ```rust
    // ❌ WRONG - logs credentials
    println!("Connecting to {}", database_url);
-   
+
    // ✅ CORRECT - use safe description
    println!("Connection: {}", adapter.safe_description());
    ```
 
 2. **Use Environment Variables**
+
    ```bash
    export DATABASE_URL="postgresql://user:pass@host/db"
    ```
 
 3. **Validate Before Collection**
+
    ```rust
    adapter.test_connection().await?;
    let metadata = adapter.collect_metadata().await?;
    ```
 
 4. **Immediate Credential Consumption**
+
    ```rust
    // Connection string immediately consumed during adapter creation
    let adapter = PostgresAdapter::new(&connection_string, config).await?;
@@ -399,6 +405,7 @@ For databases with >1000 tables:
 ```
 Error: ConnectionFailed
 ```
+
 - Verify database is running and accessible
 - Check network connectivity
 - Validate credentials (but don't log them!)
@@ -409,6 +416,7 @@ Error: ConnectionFailed
 ```
 Error: PoolExhausted
 ```
+
 - Increase `max_connections` in ConnectionConfig
 - Check for connection leaks (ensure connections are properly closed)
 - Reduce concurrent operations
@@ -418,6 +426,7 @@ Error: PoolExhausted
 ```
 Error: QueryFailed
 ```
+
 - Increase timeout in ConnectionConfig
 - Check database performance
 - Verify read permissions on tables

@@ -136,7 +136,7 @@ dbsurveyor/
 - **Connection Timeouts**: 30-second default timeouts prevent hanging
 - **Read-Only Operations**: No data modification capabilities
 
-### 2. Credential Security  
+### 2. Credential Security
 
 - **Never Stored**: Credentials parsed and immediately consumed
 - **Memory Zeroing**: Sensitive data cleared from memory after use

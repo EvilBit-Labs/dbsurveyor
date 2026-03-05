@@ -15,15 +15,18 @@ assignees: [unclesp1d3r]
 **This template is for reference only. To report a security vulnerability:**
 
 1. **Use GitHub Security Advisories** (Recommended):
+
    - Go to this repository's **Security** tab
    - Click **"Report a vulnerability"**
    - This creates a private issue visible only to maintainers
 
 2. **Email Security Team**:
+
    - **Email**: <security@evilbitlabs.io>
    - **Subject**: `[SECURITY] DBSurveyor - [Brief Description]`
 
 3. **Consult SECURITY.md**:
+
    - See [SECURITY.md](../../SECURITY.md) for complete reporting instructions
    - Includes response timelines and security guarantees
 
