@@ -1,6 +1,20 @@
 # Installation
 
-## From Source (Recommended)
+## Pre-Built Binaries
+
+Pre-built binaries are available on the [Releases](https://github.com/EvilBit-Labs/dbsurveyor/releases) page for Linux, macOS, and Windows.
+
+Download the appropriate binary for your platform and add it to your PATH.
+
+## Homebrew
+
+For macOS and Linux users with Homebrew:
+
+```bash
+brew install EvilBit-Labs/tap/dbsurveyor
+```
+
+## From Source
 
 ### Prerequisites
 
@@ -10,19 +24,12 @@
 ### Clone and Build
 
 ```bash
-# Clone the repository
 git clone https://github.com/EvilBit-Labs/dbsurveyor.git
 cd dbsurveyor
-
-# Install development tools
-just install
-
-# Build with default features (PostgreSQL + SQLite)
 cargo build --release
-
-# Binaries will be available in target/release/
-ls target/release/dbsurveyor*
 ```
+
+The compiled binaries will be available in `target/release/`.
 
 ### Feature Selection
 
