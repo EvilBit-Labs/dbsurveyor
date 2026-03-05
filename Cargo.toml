@@ -36,7 +36,7 @@ anyhow = "1.0.101"
 async-trait = "0.1.89"
 url = "2.5.8"
 uuid = { version = "1.21.0", features = ["v4", "serde"] }
-chrono = { version = "0.4.43", features = ["serde"] }
+chrono = { version = "0.4.44", features = ["serde"] }
 
 # CLI dependencies
 clap = { version = "4.5.60", features = ["derive", "env"] }
