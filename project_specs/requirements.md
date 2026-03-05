@@ -373,7 +373,7 @@ dbsurveyor html [OPTIONS] --input <FILE>          # Interactive HTML export (Pro
 
 - **Build System**: cargo-dist for cross-platform distribution
 - **Cross-Compilation**: cross or cargo-zigbuild for target platform coverage
-- **MSRV**: Minimum Supported Rust Version 1.77+
+- **MSRV**: Minimum Supported Rust Version 1.93.1+
 - **CI/CD Pipeline**: GitHub Actions with comprehensive security scanning
 - **Quality Gates**:
   - `cargo clippy -- -D warnings` (strict linting enforcement)
