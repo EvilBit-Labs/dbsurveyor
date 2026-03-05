@@ -1,0 +1,82 @@
+pull_request_rules:
+    - name: Auto-approve and merge dependabot PRs
+      conditions:
+          - base = main
+          - author = dependabot[bot]
+          - -draft
+          - label != do-not-merge
+          - -files~=\.github/workflows/release\.yml
+          - check-success = DCO
+          - check-success = quality
+          - check-success = Tests (postgresql)
+          - check-success = Tests (sqlite)
+          - check-success = Tests (mysql)
+          - check-success = Tests (mongodb)
+          - check-success = Tests (mssql)
+          - check-success = Tests (encryption)
+          - check-success = Tests (compression)
+          - check-success = Test Coverage
+      actions:
+          review:
+              type: APPROVE
+              message: Automatically approved by Mergify
+          merge:
+              method: squash
+
+    - name: Auto-approve and merge dosubot PRs
+      conditions:
+          - base = main
+          - author = dosubot[bot]
+          - -draft
+          - label != do-not-merge
+          - check-success = DCO
+          - check-success = quality
+          - check-success = Tests (postgresql)
+          - check-success = Tests (sqlite)
+          - check-success = Tests (mysql)
+          - check-success = Tests (mongodb)
+          - check-success = Tests (mssql)
+          - check-success = Tests (encryption)
+          - check-success = Tests (compression)
+          - check-success = Test Coverage
+      actions:
+          review:
+              type: APPROVE
+              message: Automatically approved by Mergify
+          merge:
+              method: squash
+
+    - name: Keep bot PRs up to date with main
+      conditions:
+          - base = main
+          - -conflict
+          - -draft
+          - or:
+                - author = dependabot[bot]
+                - author = dosubot[bot]
+      actions:
+          update: {}
+
+merge_protections:
+    - name: CI must pass
+      description: >-
+          All CI checks must pass before merging.
+      if:
+          - base = main
+      success_conditions:
+          - check-success = quality
+          - check-success = Tests (postgresql)
+          - check-success = Tests (sqlite)
+          - check-success = Tests (mysql)
+          - check-success = Tests (mongodb)
+          - check-success = Tests (mssql)
+          - check-success = Tests (encryption)
+          - check-success = Tests (compression)
+          - check-success = Test Coverage
+
+    - name: Do not merge outdated PRs
+      description: Make sure PRs are within 3 commits of the base branch before merging
+      if:
+          - base = main
+      success_conditions:
+          - "#commits-behind <= 3"
