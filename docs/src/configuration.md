@@ -23,8 +23,11 @@ export RUST_LOG=info
 # Set log level for specific modules
 export RUST_LOG=dbsurveyor_collect=debug,dbsurveyor_core=trace
 
-# Disable colored output (useful for CI)
-export NO_COLOR=1
+# Disable ANSI color output and progress indicators
+# Follows the no-color.org convention
+# Useful for CI environments, non-TTY contexts, and accessibility
+export NO_COLOR=1            # Any value disables color and progress output
+export TERM=dumb             # Alternative way to disable color/progress output
 
 # Log levels: error, warn, info, debug, trace
 export RUST_LOG=debug
