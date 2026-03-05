@@ -27,19 +27,21 @@ categories = ["command-line-utilities", "database"]
 # Core dependencies
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
-futures = "0.3.31"
+tokio = { version = "1.50.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
+futures = "0.3.32"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
 thiserror = "2.0.18"
-anyhow = "1.0.101"
+anyhow = "1.0.102"
 async-trait = "0.1.89"
 url = "2.5.8"
 uuid = { version = "1.21.0", features = ["v4", "serde"] }
-chrono = { version = "0.4.43", features = ["serde"] }
+chrono = { version = "0.4.44", features = ["serde"] }
 
 # CLI dependencies
-clap = { version = "4.5.58", features = ["derive", "env"] }
+clap = { version = "4.5.60", features = ["derive", "env"] }
+clap_complete = "4.5.66"
+indicatif = "0.18.4"
 
 # Database dependencies (feature-gated)
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "chrono", "uuid", "migrate"] }
@@ -62,7 +64,7 @@ zstd = "0.13.3"
 askama = { version = "0.15.4", features = ["serde_json"] }
 
 # Testing
-testcontainers-modules = { version = "0.14.0", features = ["postgres", "mysql", "blocking"] }
+testcontainers-modules = { version = "0.15.0", features = ["postgres", "mysql", "blocking"] }
 criterion = "0.8.2"
 
 # Internal workspace dependencies

@@ -4,7 +4,17 @@
 
 use crate::Result;
 
+/// Returns true if ANSI color output should be disabled.
+///
+/// Checks for the `NO_COLOR` environment variable (any value) and
+/// `TERM=dumb`, following the <https://no-color.org/> convention.
+fn should_disable_color() -> bool {
+    std::env::var("NO_COLOR").is_ok() || std::env::var("TERM").is_ok_and(|t| t == "dumb")
+}
+
 /// Initializes structured logging based on verbosity level.
+///
+/// Respects `NO_COLOR` and `TERM=dumb` to disable ANSI escape codes.
 ///
 /// # Arguments
 /// * `verbose` - Verbosity level (0=INFO, 1=DEBUG, 2+=TRACE)
@@ -28,12 +38,15 @@ pub fn init_logging(verbose: u8, quiet: bool) -> Result<()> {
         (false, _) => tracing::Level::TRACE,
     };
 
+    let use_ansi = !should_disable_color();
+
     tracing_subscriber::fmt()
         .with_max_level(level)
         .with_target(false)
         .with_thread_ids(false)
         .with_file(false)
         .with_line_number(false)
+        .with_ansi(use_ansi)
         .try_init()
         .map_err(|e| {
             crate::error::DbSurveyorError::configuration(format!(
@@ -49,6 +62,14 @@ pub fn init_logging(verbose: u8, quiet: bool) -> Result<()> {
 mod tests {
     // Note: Logging can only be initialized once per test process,
     // so we skip actual initialization tests here.
+
+    #[test]
+    fn test_should_disable_color_reads_env() {
+        // We cannot safely mutate env vars in Rust 2024 edition without unsafe,
+        // so we just verify the function runs without panicking and returns a bool.
+        // The actual NO_COLOR/TERM logic is trivial (two env var reads).
+        let _result: bool = super::should_disable_color();
+    }
 
     #[test]
     fn test_verbosity_levels() {

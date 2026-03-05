@@ -10,7 +10,7 @@
 //! - Offline operation after database connection
 //! - Optional AES-GCM encryption for outputs
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use dbsurveyor_core::{
     Result,
     adapters::create_adapter,
@@ -146,6 +146,13 @@ pub enum Command {
     Test(TestArgs),
     /// List supported database types
     List,
+    /// Generate shell completions
+    #[command(hide = true)]
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(Args)]
@@ -211,6 +218,10 @@ async fn main() -> Result<()> {
             list_supported_databases();
             Ok(())
         }
+        Some(Command::Completions { shell }) => {
+            print_completions(*shell);
+            Ok(())
+        }
         None => {
             // Default behavior: collect schema if database_url is provided
             if let Some(ref database_url) = cli.database_url {
@@ -222,6 +233,16 @@ async fn main() -> Result<()> {
             }
         }
     }
+}
+
+/// Prints shell completion script to stdout.
+fn print_completions(shell: clap_complete::Shell) {
+    clap_complete::generate(
+        shell,
+        &mut Cli::command(),
+        "dbsurveyor-collect",
+        &mut std::io::stdout(),
+    );
 }
 
 /// Tests database connection without collecting schema
