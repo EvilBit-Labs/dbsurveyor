@@ -59,6 +59,37 @@ The primary output format is a JSON file following the DBSurveyor Schema v1.0 sp
 }
 ```
 
+#### Table Sampling Data
+
+Tables may optionally include a `sampling` field containing sampled row data with metadata:
+
+```json
+{
+  "table_name": "users",
+  "schema_name": "public",
+  "rows": [
+    {"id": 1, "username": "alice", "email": "alice@example.com"},
+    {"id": 2, "username": "bob", "email": "bob@example.com"}
+  ],
+  "sample_size": 2,
+  "total_rows": 1234,
+  "sampling_strategy": {"MostRecent": {"limit": 10}},
+  "collected_at": "2024-01-15T10:30:00Z",
+  "warnings": [],
+  "sample_status": "Complete"
+}
+```
+
+**Sample Status Field**
+
+The optional `sample_status` field indicates the outcome of the sampling operation:
+
+- **`"Complete"`**: Sampling completed successfully with no issues
+- **`{"PartialRetry": {"original_limit": 10}}`**: Sampling partially completed with a reduced row limit (may be retried)
+- **`{"Skipped": {"reason": "table too large"}}`**: Sampling was skipped or not performed
+
+**Backward Compatibility**: The `sample_status` field is optional and omitted when not set, ensuring older JSON files without this field remain valid.
+
 ### Compressed Format (.dbsurveyor.json.zst)
 
 Large schema files can be compressed using Zstandard compression:
