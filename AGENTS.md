@@ -242,7 +242,8 @@ Releases use **GoReleaser** with the native Rust builder (`builder: rust`) and `
 - `DatabaseAdapter::sample_table(TableRef<'_>, &SamplingConfig) -> Result<TableSample>` is the trait-level entry point
 - `TableRef<'a>` holds `schema_name: Option<&'a str>` and `table_name: &'a str`
 - PostgreSQL delegates to `sampling::sample_table()` (full implementation with `SampleStatus::Complete`)
-- MySQL, SQLite, MongoDB, and placeholder adapters return `SampleStatus::Skipped` until implemented
+- MySQL, SQLite, and MongoDB adapters delegate to their real `sampling::sample_table()` implementations (returning `SampleStatus::Complete`)
+- Placeholder adapters return an error (adapter not implemented)
 - `SampleStatus` enum: `Complete`, `PartialRetry { original_limit }`, `Skipped { reason }`
 - `TableSample.sample_status` is `Option<SampleStatus>` with `#[serde(skip_serializing_if = "Option::is_none")]` for v1.0 backward compat
 
