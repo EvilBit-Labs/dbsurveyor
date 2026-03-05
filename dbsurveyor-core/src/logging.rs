@@ -6,15 +6,17 @@ use crate::Result;
 
 /// Returns true if ANSI color output should be disabled.
 ///
-/// Checks for the `NO_COLOR` environment variable (any value) and
+/// Checks for the `NO_COLOR` environment variable (any value) or
 /// `TERM=dumb`, following the <https://no-color.org/> convention.
-fn should_disable_color() -> bool {
-    std::env::var("NO_COLOR").is_ok() || std::env::var("TERM").is_ok_and(|t| t == "dumb")
+///
+/// Uses `var_os` for `NO_COLOR` to correctly detect non-Unicode values.
+pub fn should_disable_color() -> bool {
+    std::env::var_os("NO_COLOR").is_some() || std::env::var("TERM").is_ok_and(|t| t == "dumb")
 }
 
 /// Initializes structured logging based on verbosity level.
 ///
-/// Respects `NO_COLOR` and `TERM=dumb` to disable ANSI escape codes.
+/// Respects `NO_COLOR` or `TERM=dumb` to disable ANSI escape codes.
 ///
 /// # Arguments
 /// * `verbose` - Verbosity level (0=INFO, 1=DEBUG, 2+=TRACE)
@@ -65,9 +67,9 @@ mod tests {
 
     #[test]
     fn test_should_disable_color_reads_env() {
-        // We cannot safely mutate env vars in Rust 2024 edition without unsafe,
-        // so we just verify the function runs without panicking and returns a bool.
-        // The actual NO_COLOR/TERM logic is trivial (two env var reads).
+        // Setting env vars requires `unsafe` in Rust 2024 edition (inherently racy
+        // in multithreaded test runners). This test only verifies the function executes
+        // without panicking; the NO_COLOR/TERM branching logic is trivial.
         let _result: bool = super::should_disable_color();
     }
 
