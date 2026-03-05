@@ -51,7 +51,7 @@ password-hash = { version = "0.5", optional = true }
 base64 = { workspace = true }
 
 # JSON Schema validation
-jsonschema = { version = "0.41.0", default-features = false }
+jsonschema = { version = "0.44.1", default-features = false }
 regex = "1.12.3"
 
 [dev-dependencies]
