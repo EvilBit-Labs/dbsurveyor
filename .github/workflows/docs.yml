@@ -40,18 +40,18 @@ jobs:
                   use-toc: true
                   use-admonish: true
             - name: Install mdbook plugins
-              run: cargo binstall mdbook-tabs mdbook-i18n-helpers mdbook-alerts mdbook-yml-header mdbook-image-size --no-confirm
+              run: mise x -- cargo binstall mdbook-tabs mdbook-i18n-helpers mdbook-alerts mdbook-yml-header mdbook-image-size --no-confirm
 
             - name: Build rustdoc
               run: |
-                  cargo doc --no-deps --document-private-items --target-dir target
+                  mise x -- cargo doc --no-deps --document-private-items --target-dir target
                   mkdir -p docs/book/api
                   cp -r target/doc/* docs/book/api/
 
             - name: Build mdBook
               run: |
                   cd docs
-                  mdbook build
+                  mise x -- mdbook build
 
             - name: Setup Pages
               if: github.ref == 'refs/heads/main'
