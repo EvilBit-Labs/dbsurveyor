@@ -97,8 +97,15 @@ impl DatabaseAdapter for MySqlAdapter {
         table_ref: TableRef<'_>,
         config: &super::SamplingConfig,
     ) -> Result<TableSample> {
-        let db_name = table_ref.schema_name.unwrap_or(&self.config.host);
-        sampling::sample_table(&self.pool, db_name, table_ref.table_name, config).await
+        let db_name = match table_ref.schema_name {
+            Some(s) => s.to_string(),
+            None => self.config.database.clone().ok_or_else(|| {
+                crate::error::DbSurveyorError::configuration(
+                    "MySQL sample_table requires a database name via schema_name or connection config",
+                )
+            })?,
+        };
+        sampling::sample_table(&self.pool, &db_name, table_ref.table_name, config).await
     }
 
     fn database_type(&self) -> DatabaseType {
