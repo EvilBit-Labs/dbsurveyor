@@ -10,7 +10,7 @@ DBSurveyor follows the [Rust Code of Conduct](https://www.rust-lang.org/policies
 
 ### Prerequisites
 
-- Rust 1.87+ (MSRV)
+- Rust 1.93.1+ (MSRV)
 - Git
 - Docker (for integration tests)
 - Just task runner
