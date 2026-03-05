@@ -248,27 +248,30 @@ async fn sample_table(
 ```
 
 **Parameters:**
+
 - `table_ref`: A `TableRef` containing the table name and optional schema name
 - `config`: A `SamplingConfig` with sampling parameters (sample size, throttle, etc.)
 
 **Returns:** A `TableSample` that includes:
+
 - Sampled rows as JSON values
 - Sample metadata (size, total rows, strategy used)
 - Collection timestamp and any warnings
 - `sample_status`: An optional field indicating the sampling outcome
 
 **Sample Status Values:**
+
 - `Some(SampleStatus::Complete)`: Sampling completed successfully
 - `Some(SampleStatus::PartialRetry { original_limit })`: Sampling partially completed with a reduced limit
 - `Some(SampleStatus::Skipped { reason })`: Sampling was skipped (e.g., not implemented)
 - `None`: For backward compatibility with existing data
 
 **Implementation Notes:**
+
 - The `TableRef` struct wraps the table name and optional schema for the method signature
 - Implementations should populate `sample_status` with `SampleStatus::Complete` on successful sampling
 - If sampling is not implemented, return `SampleStatus::Skipped` with an appropriate reason
 - The method supports optional schema qualification (e.g., `public.users` vs `users`)
-
 
 ### Testing Database Adapters
 

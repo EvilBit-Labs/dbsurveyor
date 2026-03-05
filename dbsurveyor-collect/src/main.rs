@@ -10,7 +10,7 @@
 //! - Offline operation after database connection
 //! - Optional AES-GCM encryption for outputs
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use dbsurveyor_core::{
     Result,
     adapters::create_adapter,
@@ -146,6 +146,13 @@ pub enum Command {
     Test(TestArgs),
     /// List supported database types
     List,
+    /// Generate shell completions
+    #[command(hide = true)]
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(Args)]
@@ -211,6 +218,7 @@ async fn main() -> Result<()> {
             list_supported_databases();
             Ok(())
         }
+        Some(Command::Completions { shell }) => print_completions(*shell),
         None => {
             // Default behavior: collect schema if database_url is provided
             if let Some(ref database_url) = cli.database_url {
@@ -222,6 +230,27 @@ async fn main() -> Result<()> {
             }
         }
     }
+}
+
+/// Prints shell completion script to stdout. Invoked via the hidden `completions` subcommand.
+fn print_completions(shell: clap_complete::Shell) -> Result<()> {
+    use std::io::Write;
+
+    let mut buf = Vec::new();
+    clap_complete::generate(shell, &mut Cli::command(), "dbsurveyor-collect", &mut buf);
+    std::io::stdout()
+        .write_all(&buf)
+        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
+            context: "Failed to write shell completions to stdout".to_string(),
+            source: e,
+        })?;
+    std::io::stdout()
+        .flush()
+        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
+            context: "Failed to flush stdout after writing completions".to_string(),
+            source: e,
+        })?;
+    Ok(())
 }
 
 /// Tests database connection without collecting schema

@@ -24,17 +24,17 @@ dbsurveyor-collect <COMMAND>
 
 ### Collection Options
 
-| Option                       | Description                      | Default                     | Status |
-| ---------------------------- | -------------------------------- | --------------------------- | ------ |
+| Option                       | Description                      | Default                     | Status         |
+| ---------------------------- | -------------------------------- | --------------------------- | -------------- |
 | `--database-url <URL>`       | Database connection string       | From `DATABASE_URL` env var | ✅ Implemented |
 | `--output <PATH>`            | Output file path                 | `schema.dbsurveyor.json`    | ✅ Implemented |
-| `--sample <N>`               | Number of sample rows per table  | `100`                       | 🚧 Planned |
-| `--throttle <MS>`            | Delay between operations (ms)    | None                        | 🚧 Planned |
+| `--sample <N>`               | Number of sample rows per table  | `100`                       | 🚧 Planned     |
+| `--throttle <MS>`            | Delay between operations (ms)    | None                        | 🚧 Planned     |
 | `--compress`                 | Compress output using Zstandard  | `false`                     | ✅ Implemented |
 | `--encrypt`                  | Encrypt output using AES-GCM     | `false`                     | ✅ Implemented |
-| `--all-databases`            | Collect all accessible databases | `false`                     | 🚧 Planned |
-| `--include-system-databases` | Include system databases         | `false`                     | 🚧 Planned |
-| `--exclude-databases <LIST>` | Comma-separated list to exclude  | None                        | 🚧 Planned |
+| `--all-databases`            | Collect all accessible databases | `false`                     | 🚧 Planned     |
+| `--include-system-databases` | Include system databases         | `false`                     | 🚧 Planned     |
+| `--exclude-databases <LIST>` | Comma-separated list to exclude  | None                        | 🚧 Planned     |
 
 ### Commands
 
@@ -86,13 +86,13 @@ dbsurveyor-collect --throttle 1000 postgres://localhost/db
 
 ### Connection String Formats
 
-| Database   | Format                              | Example                                       | Status |
-| ---------- | ----------------------------------- | --------------------------------------------- | ------ |
-| PostgreSQL | `postgres://user:pass@host:port/db` | `postgres://admin:secret@localhost:5432/mydb` | ✅ Implemented |
-| SQLite     | `sqlite:///path/to/file`            | `sqlite:///home/user/data.db`                 | ✅ Implemented |
+| Database   | Format                              | Example                                       | Status            |
+| ---------- | ----------------------------------- | --------------------------------------------- | ----------------- |
+| PostgreSQL | `postgres://user:pass@host:port/db` | `postgres://admin:secret@localhost:5432/mydb` | ✅ Implemented    |
+| SQLite     | `sqlite:///path/to/file`            | `sqlite:///home/user/data.db`                 | ✅ Implemented    |
 | MySQL      | `mysql://user:pass@host:port/db`    | `mysql://root:password@localhost:3306/mydb`   | 🚧 In Development |
-| MongoDB    | `mongodb://user:pass@host:port/db`  | `mongodb://admin:secret@localhost:27017/mydb` | 🚧 Planned |
-| SQL Server | `mssql://user:pass@host:port/db`    | `mssql://sa:password@localhost:1433/mydb`     | 🚧 Planned |
+| MongoDB    | `mongodb://user:pass@host:port/db`  | `mongodb://admin:secret@localhost:27017/mydb` | 🚧 Planned        |
+| SQL Server | `mssql://user:pass@host:port/db`    | `mssql://sa:password@localhost:1433/mydb`     | 🚧 Planned        |
 
 ### Environment Variables
 
@@ -134,8 +134,8 @@ dbsurveyor <COMMAND>
 
 ### Output Formats
 
-| Format     | Description             | Extension | Status |
-| ---------- | ----------------------- | --------- | ------ |
+| Format     | Description             | Extension | Status         |
+| ---------- | ----------------------- | --------- | -------------- |
 | `markdown` | Markdown documentation  | `.md`     | ✅ Implemented |
 | `json`     | JSON analysis report    | `.json`   | ✅ Implemented |
 | `html`     | HTML report with search | `.html`   | 🚧 Placeholder |

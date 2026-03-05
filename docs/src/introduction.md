@@ -13,6 +13,9 @@ Generate comprehensive, secure database schema documentation for PostgreSQL, MyS
 - **Security-First Design**: AES-GCM encryption, credential protection, zero telemetry
 - **Offline Operation**: Complete functionality in air-gapped environments
 - **Documentation Generation**: Markdown (✅), JSON analysis (✅), HTML/ERD (🚧 in development)
+- **Shell Completion Support**: Built-in completion scripts for bash, zsh, fish, PowerShell, and elvish
+- **Progress Indicators**: Visual feedback with spinners for long-running operations (schema loading, decryption, documentation generation)
+- **Environment-Aware Output**: Respects `NO_COLOR` and `TERM=dumb` environment variables to disable color output and progress indicators
 
 ## Security Guarantees
 

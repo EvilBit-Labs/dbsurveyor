@@ -16,7 +16,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.7, 9.3, 9.4, 9.5_
 
 - [ ] 2. Implement PostgreSQL schema collection with real database queries
+
 - [x] 2.1 Set up PostgreSQL connection pooling infrastructure
+
   - Replace placeholder `collect_schema` method in PostgresAdapter
   - Implement sqlx::PgPool configuration with proper connection limits
   - Add connection timeout and query timeout handling (30s defaults)
@@ -25,6 +27,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [x] 2.2 Implement basic schema enumeration queries
+
   - Add schema enumeration queries using information_schema.schemata
   - Query information_schema.tables for table metadata
   - Extract basic table information (name, type, schema)
@@ -33,6 +36,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [x] 2.3 Implement table and column introspection ✅ **COMPLETED & ENHANCED**
+
   - ✅ Query information_schema.columns for column metadata
   - ✅ Extract column names, data types, nullability, and defaults
   - ✅ Implement proper UnifiedDataType mapping from PostgreSQL types
@@ -42,6 +46,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [x] 2.4 Add constraint and index collection
+
   - Query information_schema.table_constraints for constraints
   - Extract primary keys, foreign keys, unique constraints, and check constraints
   - Query pg_catalog.pg_indexes for index information
@@ -50,6 +55,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [x] 2.5 Implement foreign key relationship mapping ✅ **COMPLETED**
+
   - ✅ Query information_schema.referential_constraints for FK relationships
   - ✅ Extract foreign key column mappings and reference tables
   - ✅ Build relationship graph between tables
@@ -59,6 +65,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [x] 2.6 Create comprehensive JSON Schema specification for .dbsurveyor.json output format
+
   - Design comprehensive JSON Schema based on Frictionless Data Table Schema specification as foundation
   - Define complete schema for all implemented data structures:
     - DatabaseSchema root object with format_version, database_info, collection_metadata
@@ -97,6 +104,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.3, 2.1, 9.1, 11.1-11.6, 12.1-12.6_
 
 - [x] 2.8 Add comprehensive PostgreSQL adapter testing ✅ **COMPLETED**
+
   - ✅ Set up testcontainers for PostgreSQL integration testing, this is a HARD requirement and must be accomplished. Mocks and unit tests are not sufficient alternatives.
   - ✅ Test connection pooling with various configurations
   - ✅ Test schema collection with different PostgreSQL versions
@@ -127,7 +135,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.3, 2.1, 9.1_
 
 - [ ] 5. Implement comprehensive PostgreSQL adapter testing and advanced features
+
 - [ ] 5.1 Implement advanced connection pooling configuration
+
   - Add configurable pool limits: max_connections (default: 10), min_idle_connections (default: 2)
   - Implement connection timeouts: connect_timeout (default: 30s), acquire_timeout (default: 30s)
   - Add idle connection management: idle_timeout (default: 10min), max_lifetime (default: 1hour)
@@ -137,6 +147,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 5.2 Add comprehensive connection pool testing
+
   - Test connection pool exhaustion scenarios (max_connections + 1)
   - Add timeout validation under load testing
   - Test pool parameter configuration with various settings
@@ -145,6 +156,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 5.3 Increase test coverage to meet 70% threshold
+
   - Audit current test coverage for dbsurveyor-core crate
   - Identify untested code paths and edge cases
   - Develop additional unit tests to meet 70% coverage requirement
@@ -153,7 +165,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 1.7_
 
 - [ ] 6. Add intelligent data sampling to PostgreSQL adapter
+
 - [ ] 6.1 Implement ordering strategy detection
+
   - Detect primary key columns for optimal ordering
   - Identify timestamp columns for chronological sampling
   - Find auto-increment columns for sequential sampling
@@ -162,6 +176,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 11.1, 11.2, 11.3_
 
 - [ ] 6.2 Create configurable data sampling infrastructure
+
   - Implement SamplingConfig structure with rate limiting parameters
   - Add configurable rate limits: queries/sec and rows/sec
   - Implement exponential backoff for rate limit violations
@@ -170,6 +185,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 11.1, 11.2, 11.3, 11.4_
 
 - [ ] 6.3 Implement safe query execution with timeouts
+
   - Add PostgreSQL statement_timeout configuration
   - Implement per-query execution controls and monitoring
   - Use indexed ordering (PK/timestamp) for efficient sampling
@@ -178,6 +194,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 11.1, 11.3, 11.4_
 
 - [ ] 6.4 Add sensitive data detection and logging
+
   - Implement sensitive data detection patterns (PII, credentials, etc.)
   - Add log-only warnings for potentially sensitive data (no redaction)
   - Create configurable sensitivity detection rules
@@ -186,6 +203,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 11.5, 11.6_
 
 - [ ] 6.5 Test data sampling with various scenarios
+
   - Test sampling with different table structures and sizes
   - Validate rate limiting and backoff behavior under load
   - Test with various PostgreSQL data types and edge cases
@@ -194,7 +212,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
 
 - [ ] 7. Implement multi-database collection for PostgreSQL
+
 - [ ] 7.1 Add database enumeration capabilities
+
   - Implement list_databases method to query pg_database
   - Filter accessible databases based on user privileges
   - Handle system database filtering (postgres, template0, template1)
@@ -203,6 +223,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 12.1, 12.2, 12.4, 12.5_
 
 - [ ] 7.2 Implement per-database connection management
+
   - Create connect_to_database method for specific database connections
   - Handle connection string modification for different databases
   - Implement connection pooling per database with resource limits
@@ -211,6 +232,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 12.1, 12.2, 12.3_
 
 - [ ] 7.3 Create server-level schema collection orchestration
+
   - Implement collect_all_databases method with parallel collection
   - Add progress reporting for multi-database operations
   - Handle partial failures gracefully (continue with accessible databases)
@@ -275,7 +297,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 3.3, 6.1_
 
 - [ ] 14. Implement data redaction in postprocessor
+
 - [ ] 14.1 Create redaction configuration infrastructure
+
   - ✅ Add redaction modes to CLI: Conservative, Balanced, Minimal, None
   - ✅ Create CLI flags for redaction control (--no-redact, --redact-mode)
   - Create RedactionConfig structure with pattern matching rules
@@ -284,6 +308,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 4.1, 4.2, 8.6_
 
 - [ ] 14.2 Implement redaction logic for different sensitivity levels
+
   - Implement Conservative mode: redact all potentially sensitive data
   - Implement Balanced mode: redact obvious PII/credentials, preserve structure
   - Implement Minimal mode: redact only clear credentials and secrets
@@ -292,6 +317,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 4.1, 4.2, 11.5_
 
 - [ ] 14.3 Add pattern-based sensitive data detection
+
   - Create regex patterns for common PII (SSN, credit cards, emails)
   - Add patterns for database credentials and connection strings
   - Implement field name heuristics (password, ssn, credit_card, etc.)
@@ -300,7 +326,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 4.1, 4.2, 8.6, 11.5_
 
 - [ ] 15. Add SQL reconstruction and schema documentation
+
 - [ ] 15.1 Implement SQL DDL generation infrastructure
+
   - Create SqlDialect enum for database-specific SQL generation
   - Implement DDL generator trait with database-specific implementations
   - Add PostgreSQL DDL generation with proper type mapping
@@ -309,6 +337,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 3.3_
 
 - [ ] 15.2 Add constraint and index DDL generation
+
   - Generate PRIMARY KEY and UNIQUE constraint statements
   - Implement FOREIGN KEY constraint generation with references
   - Add CHECK constraint generation from metadata
@@ -317,6 +346,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 3.3_
 
 - [ ] 15.3 Create comprehensive Markdown report generation
+
   - Replace placeholder documentation generators with askama templates
   - Implement Markdown template for schema overview and table of contents
   - Add detailed table documentation with column descriptions
@@ -325,6 +355,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 6.1_
 
 - [ ] 15.4 Add visual relationship diagrams
+
   - Implement Mermaid.js entity relationship diagram generation
   - Create table relationship graphs showing foreign key connections
   - Add configurable diagram complexity (simple vs. detailed)
@@ -362,7 +393,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 7.1, 7.2, 10.1, 13.1-13.6_
 
 - [ ] 19. Set up comprehensive testing framework
+
 - [ ] 19.1 Configure parallel test execution with nextest
+
   - Add nextest configuration to Cargo.toml and .config/nextest.toml
   - Configure test partitioning and parallel execution settings
   - Set up test filtering and grouping for different test types
@@ -371,6 +404,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2_
 
 - [ ] 19.2 Set up testcontainers for database integration testing
+
   - Add testcontainers-modules dependencies for PostgreSQL, MySQL, MongoDB
   - Create database test fixtures with known schema structures
   - Implement test database initialization and cleanup
@@ -379,6 +413,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 2.1_
 
 - [ ] 19.3 Create comprehensive integration test suite
+
   - Implement integration tests for PostgreSQL adapter with real database
   - Add MySQL adapter integration tests with testcontainers
   - Create SQLite adapter tests with temporary file databases
@@ -387,6 +422,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 2.1_
 
 - [ ] 19.4 Add property-based testing for edge cases
+
   - Set up proptest for generating random database schemas
   - Test schema collection with various table and column configurations
   - Add property tests for data type mapping and serialization
@@ -395,6 +431,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 2.2_
 
 - [ ] 19.5 Implement comprehensive security testing
+
   - Test credential sanitization in all error messages and logs
   - Verify no database credentials appear in output files
   - Test schema collection with malicious table/column names
@@ -403,7 +440,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.1, 2.2_
 
 - [ ] 22. Implement core security testing suite
+
 - [ ] 22.1 Test credential protection and sanitization
+
   - Test database connection strings never appear in logs, error messages, or output files
   - Verify password fields are `zeroized` in memory after use
   - Test credential sanitization in all error paths and logging statements
@@ -412,6 +451,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.5, 2.1, 2.2, 2.3_
 
 - [ ] 22.2 Test SQL injection resistance and malicious input handling
+
   - Test schema collection with malicious table/column names containing SQL injection payloads
   - Validate parameterized query usage prevents SQL injection
   - Test handling of special characters and Unicode in database identifiers
@@ -420,6 +460,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.1, 2.2, 2.4_
 
 - [ ] 22.3 Test offline operation and network isolation
+
   - Test complete functionality without internet connectivity
   - Verify no external network calls except to target databases
   - Test airgap compatibility with all features enabled
@@ -428,6 +469,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.3, 2.4_
 
 - [ ] 22.4 Test cryptographic security implementation
+
   - Test AES-GCM encryption with random nonce generation for uniqueness
   - Verify Argon2id KDF parameters meet security requirements
   - Test encryption/decryption roundtrip with various data sizes
@@ -436,6 +478,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.7, 9.3, 9.4, 9.5_
 
 - [ ] 22.5 Set up security-focused database testing
+
   - Set up testcontainers with custom security profiles and privilege configurations
   - Test with minimal database privileges (read-only access)
   - Validate behavior with restricted database permissions
@@ -462,7 +505,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 9.6_
 
 - [ ] 25. Create documentation with rustdoc and mdbook
+
 - [ ] 25.1 Set up comprehensive rustdoc API documentation
+
   - Set up comprehensive rustdoc with examples and security notes (Requirement 14.1)
   - Document all public APIs with security implications and usage examples
   - Add module-level documentation with architecture overviews
@@ -471,6 +516,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 14.1_
 
 - [ ] 25.2 Create user-facing mdbook documentation
+
   - Create mdbook user guide with installation and usage instructions (Requirement 14.2)
   - Document all CLI options and configuration parameters with examples
   - Add security best practices and operational guidelines
@@ -479,6 +525,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 14.2_
 
 - [ ] 25.3 Add practical usage examples and scenarios
+
   - Add practical examples for red team, compliance, and development scenarios (Requirement 14.3)
   - Create database-specific usage examples (PostgreSQL, MySQL, SQLite, MongoDB)
   - Document encryption and compression workflows with security considerations
@@ -487,6 +534,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 14.3_
 
 - [ ] 25.4 Create architecture and development documentation
+
   - Create architecture and plugin development guides (Requirement 14.4)
   - Document the dual-binary architecture and design decisions
   - Add plugin development guide with WASM integration examples
@@ -495,6 +543,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 3.1, 10.1, 14.4_
 
 - [ ] 25.5 Set up automated documentation deployment and testing
+
   - Set up automated documentation deployment (Requirement 14.5)
   - Ensure all examples are tested for accuracy (Requirement 14.6)
   - Configure GitHub Pages or similar for documentation hosting
@@ -503,7 +552,9 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 14.5, 14.6_
 
 - [ ] 20. Set up comprehensive cross-platform CI testing with GitHub Actions
+
 - [ ] 20.1 Configure platform-specific CI matrix testing
+
   - ✅ Create matrix-based CI workflow for macOS, Windows, and Linux platforms (existing .github/workflows)
   - Configure macOS and Windows runners for build validation with SQLite-only testing
   - Set up Linux runners for comprehensive testing with all database types
@@ -512,6 +563,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 7.1, 7.2_
 
 - [ ] 20.2 Implement comprehensive security scanning
+
   - ✅ Configure security scanning with CodeQL, cargo-audit, cargo-deny, and Grype vulnerability checks
   - ✅ Add clippy linting with zero-warnings policy across all platforms (justfile enforces this)
   - ✅ Configure SBOM generation and security attestation for release artifacts (justfile includes sbom task)
@@ -520,6 +572,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 2.1, 2.2_
 
 - [ ] 20.3 Set up database integration testing in CI
+
   - Implement testcontainers integration for realistic database testing on Linux
   - Configure PostgreSQL, MySQL, and MongoDB containers for CI testing
   - Add database version matrix testing (multiple PostgreSQL/MySQL versions)
@@ -528,6 +581,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2, 2.1_
 
 - [ ] 20.4 Configure test coverage and performance monitoring
+
   - Configure test coverage reporting with cargo-llvm-cov and codecov integration
   - Add performance regression testing with Criterion benchmarks
   - Implement coverage threshold enforcement (70% minimum)
@@ -536,6 +590,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - _Requirements: 1.1, 1.2_
 
 - [ ] 20.5 Optimize CI performance and caching
+
   - Implement artifact caching for dependencies and build outputs
   - Configure Rust toolchain caching and incremental compilation
   - Add selective test execution based on changed files

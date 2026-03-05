@@ -13,7 +13,7 @@ This design document is organized into focused modules for better maintainabilit
 ### Core Architecture and Components
 
 - **Architecture**: #[[file:design/architecture.md]] - High-level system architecture and dual-binary design
-- **Components**: #[[file:design/components.md]] - Core components and interfaces (CLI, templates, logging)  
+- **Components**: #[[file:design/components.md]] - Core components and interfaces (CLI, templates, logging)
 - **Adapters**: #[[file:design/adapters.md]] - Database adapter system and implementations
 
 ### Data Models and Schema
@@ -22,7 +22,7 @@ This design document is organized into focused modules for better maintainabilit
 - **JSON Schema**: #[[file:design/json-schema.md]] - JSON Schema specification for output format validation
 - **Type System**: #[[file:design/type-system.md]] - Unified data type mapping across databases
 
-### Security and Performance  
+### Security and Performance
 
 - **Security**: #[[file:design/security.md]] - Security architecture, credential management, and encryption
 - **Plugin Architecture**: #[[file:design/plugin-architecture.md]] - Plugin system design and WASM integration
@@ -39,7 +39,7 @@ This design document is organized into focused modules for better maintainabilit
 The system follows these core principles:
 
 1. **Security-First**: Every design decision prioritizes security and privacy
-2. **Offline-Capable**: Zero external dependencies after database connection  
+2. **Offline-Capable**: Zero external dependencies after database connection
 3. **Database-Agnostic**: Unified interface across all supported databases
 4. **Dual-Binary Architecture**: Separate collector and postprocessor for flexible workflows
 
@@ -57,7 +57,7 @@ For implementation details, see the modular design documents above. Key highligh
 Current implementation progress can be tracked in the [tasks.md](tasks.md) file. Key completed components:
 
 - ✅ **Core Architecture**: Dual-binary workspace structure established
-- ✅ **Security Foundation**: AES-GCM encryption and Argon2id key derivation implemented  
+- ✅ **Security Foundation**: AES-GCM encryption and Argon2id key derivation implemented
 - ✅ **PostgreSQL Adapter**: Schema collection, foreign key mapping, and data sampling
 - ✅ **CLI Framework**: Comprehensive command-line interfaces for both binaries
 - 🚧 **JSON Schema Specification**: In progress (Task 2.6)
@@ -68,7 +68,7 @@ Current implementation progress can be tracked in the [tasks.md](tasks.md) file.
 The immediate focus is on completing the JSON Schema specification (Task 2.6) which will provide:
 
 1. **Validation Foundation**: Ensure consistent output format across all database adapters
-2. **Documentation Standard**: Clear specification for postprocessor input requirements  
+2. **Documentation Standard**: Clear specification for postprocessor input requirements
 3. **Quality Assurance**: Prevent malformed output through schema validation
 4. **Future Compatibility**: Version management for format evolution
 

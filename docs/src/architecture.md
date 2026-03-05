@@ -124,13 +124,13 @@ graph TD
 
 ```rust
 // dbsurveyor-core/src/lib.rs
-pub mod adapters;    // Database adapter traits and factory
-pub mod error;       // Comprehensive error handling
-pub mod models;      // Unified data models
-pub mod security;    // Encryption and credential protection
+pub mod adapters; // Database adapter traits and factory
+pub mod error; // Comprehensive error handling
+pub mod models; // Unified data models
+pub mod security; // Encryption and credential protection
 
 // Re-exports for public API
-pub use adapters::{DatabaseAdapter, create_adapter};
+pub use adapters::{create_adapter, DatabaseAdapter};
 pub use error::{DbSurveyorError, Result};
 pub use models::{DatabaseSchema, DatabaseType};
 ```
@@ -327,10 +327,10 @@ Each adapter manages its own connection pool with security-focused defaults:
 
 ```rust
 pub struct ConnectionConfig {
-    pub connect_timeout: Duration,      // Default: 30s
-    pub query_timeout: Duration,        // Default: 30s
-    pub max_connections: u32,           // Default: 10
-    pub read_only: bool,               // Default: true
+    pub connect_timeout: Duration, // Default: 30s
+    pub query_timeout: Duration,   // Default: 30s
+    pub max_connections: u32,      // Default: 10
+    pub read_only: bool,           // Default: true
 }
 ```
 
@@ -357,18 +357,24 @@ mssql = ["dep:tiberius"]
 pub enum DbSurveyorError {
     #[error("Database connection failed")]
     Connection(#[from] ConnectionError),
-    
+
     #[error("Schema collection failed: {context}")]
-    Collection { context: String, source: Box<dyn std::error::Error> },
-    
+    Collection {
+        context: String,
+        source: Box<dyn std::error::Error>,
+    },
+
     #[error("Configuration error: {message}")]
     Configuration { message: String },
-    
+
     #[error("Encryption operation failed")]
     Encryption(#[from] EncryptionError),
-    
+
     #[error("I/O operation failed: {context}")]
-    Io { context: String, source: std::io::Error },
+    Io {
+        context: String,
+        source: std::io::Error,
+    },
 }
 ```
 
@@ -606,11 +612,13 @@ cargo zigbuild --release --no-default-features \
 ```
 
 **Artifact Naming**: Release artifacts follow the pattern:
+
 ```
 dbsurveyor_{variant}_{OS}_{arch}.{tar.gz|zip}
 ```
 
 Examples:
+
 - `dbsurveyor_all_Linux_x86_64.tar.gz`
 - `dbsurveyor_postgresql_Darwin_x86_64.tar.gz`
 - `dbsurveyor_sqlite_Windows_x86_64.zip`
@@ -637,37 +645,38 @@ DBSurveyor uses GoReleaser v2 with cargo-zigbuild for cross-compilation:
 
 ```yaml
 # GitHub Actions release workflow
-- name: Install Rust toolchain
-  uses: dtolnay/rust-toolchain@stable
-  with:
-    toolchain: "1.93.1"
+  - name: Install Rust toolchain
+    uses: dtolnay/rust-toolchain@stable
+    with:
+      toolchain: 1.93.1
 
-- name: Install Zig
-  uses: mlugg/setup-zig@v2
-  with:
-    version: "0.13.0"
+  - name: Install Zig
+    uses: mlugg/setup-zig@v2
+    with:
+      version: 0.13.0
 
-- name: Install cargo-zigbuild
-  run: cargo install --locked cargo-zigbuild --version 0.19.8
+  - name: Install cargo-zigbuild
+    run: cargo install --locked cargo-zigbuild --version 0.19.8
 
-- name: Install Cosign
-  uses: sigstore/cosign-installer@v3
+  - name: Install Cosign
+    uses: sigstore/cosign-installer@v3
 
-- name: Install Syft
-  uses: anchore/sbom-action/download-syft@v0
+  - name: Install Syft
+    uses: anchore/sbom-action/download-syft@v0
 
-- name: Run GoReleaser
-  uses: goreleaser/goreleaser-action@v6
-  with:
-    distribution: goreleaser
-    version: "~> v2"
-    args: release --clean
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+  - name: Run GoReleaser
+    uses: goreleaser/goreleaser-action@v6
+    with:
+      distribution: goreleaser
+      version: ~> v2
+      args: release --clean
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 ```
 
 **Cross-Compilation Targets** (6 platforms):
+
 - `x86_64-unknown-linux-gnu` - Linux x86_64 (glibc)
 - `aarch64-unknown-linux-gnu` - Linux ARM64 (glibc)
 - `x86_64-unknown-linux-musl` - Linux x86_64 (musl/Alpine)
@@ -676,6 +685,7 @@ DBSurveyor uses GoReleaser v2 with cargo-zigbuild for cross-compilation:
 - `x86_64-pc-windows-gnu` - Windows x86_64
 
 **Security Features**:
+
 - **Cosign Keyless Signing**: Checksums are signed using GitHub OIDC identity
 - **Syft SBOM Generation**: Software Bill of Materials for all archives
 - **Reproducible Builds**: Consistent timestamps via `{{ .CommitTimestamp }}`

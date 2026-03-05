@@ -137,7 +137,7 @@ mod tests {
     fn test_database_schema_creation() {
         let db_info = DatabaseInfo::new("test_db".to_string());
         let schema = DatabaseSchema::new(db_info);
-        
+
         assert_eq!(schema.format_version, "1.0");
         assert_eq!(schema.database_info.name, "test_db");
         assert_eq!(schema.object_count(), 0);
@@ -147,9 +147,9 @@ mod tests {
     fn test_add_warning() {
         let db_info = DatabaseInfo::new("test_db".to_string());
         let mut schema = DatabaseSchema::new(db_info);
-        
+
         schema.add_warning("Test warning".to_string());
-        
+
         assert_eq!(schema.collection_metadata.warnings.len(), 1);
         assert_eq!(schema.collection_metadata.warnings[0], "Test warning");
     }
@@ -169,7 +169,7 @@ mod security_tests {
     fn test_credential_sanitization() {
         let url = "postgres://user:secret123@localhost:5432/db";
         let sanitized = redact_database_url(url);
-        
+
         // Verify credentials are sanitized
         assert!(!sanitized.contains("secret123"));
         assert!(sanitized.contains("user:****"));
@@ -181,9 +181,9 @@ mod security_tests {
         let config = ConnectionConfig::new("localhost".to_string())
             .with_port(5432)
             .with_database("testdb".to_string());
-        
+
         let display_output = format!("{}", config);
-        
+
         // Should show connection info but never credentials
         assert!(display_output.contains("localhost:5432"));
         assert!(display_output.contains("testdb"));
@@ -493,12 +493,12 @@ fn bench_schema_serialization(c: &mut Criterion) {
 fn create_large_test_schema(table_count: usize) -> DatabaseSchema {
     let db_info = DatabaseInfo::new("benchmark_db".to_string());
     let mut schema = DatabaseSchema::new(db_info);
-    
+
     for i in 0..table_count {
         let table = create_test_table(&format!("table_{}", i));
         schema.tables.push(table);
     }
-    
+
     schema
 }
 
@@ -543,33 +543,33 @@ success-output = "never"
 [[profile.default.overrides]]
 filter = "test(integration)"
 test-group = "integration"
-max-threads = 2  # Limit concurrent container tests
+max-threads = 2              # Limit concurrent container tests
 
 [[profile.default.overrides]]
 filter = "test(security)"
 test-group = "security"
-max-threads = 1  # Security tests run sequentially
+max-threads = 1           # Security tests run sequentially
 
 [[profile.default.overrides]]
 filter = "test(unit)"
 test-group = "unit"
-max-threads = 8  # Unit tests can run in parallel
+max-threads = 8       # Unit tests can run in parallel
 ```
 
 ### CI Test Configuration
 
 ```yaml
 # .github/workflows/test.yml
-- name: Run Tests
-  run: |
-    # Run tests with CI profile
-    cargo nextest run --profile ci --workspace --all-features
-    
-    # Generate coverage
-    cargo llvm-cov --lcov --output-path lcov.info
-    
-    # Security validation
-    just security-full
+  - name: Run Tests
+    run: |
+      # Run tests with CI profile
+      cargo nextest run --profile ci --workspace --all-features
+
+      # Generate coverage
+      cargo llvm-cov --lcov --output-path lcov.info
+
+      # Security validation
+      just security-full
 ```
 
 ## Test Data and Fixtures
@@ -581,13 +581,13 @@ max-threads = 8  # Unit tests can run in parallel
 pub fn create_test_schema() -> DatabaseSchema {
     let db_info = DatabaseInfo::new("test_db".to_string());
     let mut schema = DatabaseSchema::new(db_info);
-    
+
     schema.tables = vec![
         create_test_table("users"),
         create_test_table("orders"),
         create_test_table("products"),
     ];
-    
+
     schema
 }
 
@@ -595,18 +595,19 @@ pub fn create_test_table(name: &str) -> Table {
     Table {
         name: name.to_string(),
         schema: Some("public".to_string()),
-        columns: vec![
-            Column {
-                name: "id".to_string(),
-                data_type: UnifiedDataType::Integer { bits: 32, signed: true },
-                is_nullable: false,
-                is_primary_key: true,
-                is_auto_increment: true,
-                default_value: None,
-                comment: None,
-                ordinal_position: 1,
-            }
-        ],
+        columns: vec![Column {
+            name: "id".to_string(),
+            data_type: UnifiedDataType::Integer {
+                bits: 32,
+                signed: true,
+            },
+            is_nullable: false,
+            is_primary_key: true,
+            is_auto_increment: true,
+            default_value: None,
+            comment: None,
+            ordinal_position: 1,
+        }],
         primary_key: Some(PrimaryKey {
             name: Some(format!("{}_pkey", name)),
             columns: vec!["id".to_string()],
@@ -699,19 +700,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        
+
       - name: Install tools
         run: just install
-        
+
       - name: Run tests
         run: just test-ci
-        
+
       - name: Security validation
         run: just security-full
-        
+
       - name: Coverage
         run: just coverage-ci
 ```

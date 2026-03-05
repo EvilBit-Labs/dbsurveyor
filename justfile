@@ -67,7 +67,7 @@ fmt:
     @{{ mise_exec }} cargo fmt --all
 
 # Check Rust code formatting
-fmt-check:
+fmt-check: pre-commit
     @{{ mise_exec }} cargo fmt --all --check
 
 # Format justfile
@@ -95,6 +95,9 @@ fix:
 
 # Quick development check
 check: fmt-check lint
+
+pre-commit:
+    @{{ mise_exec }} pre-commit run --all-files
 
 # =============================================================================
 # BUILDING

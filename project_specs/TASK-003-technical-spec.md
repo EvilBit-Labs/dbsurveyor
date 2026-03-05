@@ -17,6 +17,7 @@ Implement comprehensive schema discovery, metadata extraction, and privacy-contr
 ## Problem Statement
 
 DBSurveyor needs a robust database schema discovery that:
+
 - Enumerates database structures safely across multiple engine types
 - Extracts comprehensive metadata (tables, views, procedures, functions, triggers, indexes)
 - Collects representative data samples with configurable privacy controls
@@ -29,21 +30,22 @@ DBSurveyor needs a robust database schema discovery that:
 
 ### What's Already Implemented
 
-| Component | Status | Location |
-|-----------|--------|----------|
-| PostgreSQL Adapter | COMPLETE | `dbsurveyor-core/src/adapters/postgres/` |
-| MySQL Adapter | PLACEHOLDER | `dbsurveyor-core/src/adapters/mysql.rs` |
-| SQLite Adapter | PLACEHOLDER | `dbsurveyor-core/src/adapters/sqlite.rs` |
-| MongoDB Adapter | PLACEHOLDER | `dbsurveyor-core/src/adapters/mongodb.rs` |
-| DatabaseAdapter Trait | COMPLETE | `dbsurveyor-core/src/adapters/mod.rs` |
-| Data Models | COMPLETE | `dbsurveyor-core/src/models.rs` |
-| Configuration | COMPLETE | `dbsurveyor-core/src/adapters/config/` |
-| Error Handling | COMPLETE | `dbsurveyor-core/src/error.rs` |
-| Security/Encryption | COMPLETE | `dbsurveyor-core/src/security/` |
+| Component             | Status      | Location                                  |
+| --------------------- | ----------- | ----------------------------------------- |
+| PostgreSQL Adapter    | COMPLETE    | `dbsurveyor-core/src/adapters/postgres/`  |
+| MySQL Adapter         | PLACEHOLDER | `dbsurveyor-core/src/adapters/mysql.rs`   |
+| SQLite Adapter        | PLACEHOLDER | `dbsurveyor-core/src/adapters/sqlite.rs`  |
+| MongoDB Adapter       | PLACEHOLDER | `dbsurveyor-core/src/adapters/mongodb.rs` |
+| DatabaseAdapter Trait | COMPLETE    | `dbsurveyor-core/src/adapters/mod.rs`     |
+| Data Models           | COMPLETE    | `dbsurveyor-core/src/models.rs`           |
+| Configuration         | COMPLETE    | `dbsurveyor-core/src/adapters/config/`    |
+| Error Handling        | COMPLETE    | `dbsurveyor-core/src/error.rs`            |
+| Security/Encryption   | COMPLETE    | `dbsurveyor-core/src/security/`           |
 
 ### PostgreSQL Reference Implementation (Complete)
 
 The PostgreSQL adapter provides a complete reference with:
+
 - Schema collection (`schema_collection.rs` - 31KB)
 - Data sampling with ordering strategies (`sampling.rs` - 17KB)
 - Type mapping (`type_mapping.rs` - 11KB)
@@ -79,14 +81,14 @@ pub trait DatabaseAdapter: Send + Sync {
 
 ### Feature Support Matrix
 
-| Feature | PostgreSQL | MySQL | SQLite | MongoDB |
-|---------|------------|-------|--------|---------|
-| SchemaCollection | Yes | Yes | Yes | Yes |
-| DataSampling | Yes | Yes | Yes | Yes |
-| MultiDatabase | Yes | Yes | No | Yes |
-| ConnectionPooling | Yes | Yes | No | No |
-| QueryTimeout | Yes | Yes | Yes | Yes |
-| ReadOnlyMode | Yes | Yes | Yes | No |
+| Feature           | PostgreSQL | MySQL | SQLite | MongoDB |
+| ----------------- | ---------- | ----- | ------ | ------- |
+| SchemaCollection  | Yes        | Yes   | Yes    | Yes     |
+| DataSampling      | Yes        | Yes   | Yes    | Yes     |
+| MultiDatabase     | Yes        | Yes   | No     | Yes     |
+| ConnectionPooling | Yes        | Yes   | No     | No      |
+| QueryTimeout      | Yes        | Yes   | Yes    | Yes     |
+| ReadOnlyMode      | Yes        | Yes   | Yes    | No      |
 
 ---
 
@@ -108,6 +110,7 @@ dbsurveyor-core/src/adapters/mysql/
 ```
 
 **Key Queries**:
+
 ```sql
 -- Tables
 SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?
@@ -144,6 +147,7 @@ dbsurveyor-core/src/adapters/sqlite/
 ```
 
 **Key Queries**:
+
 ```sql
 -- Tables
 SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'
@@ -180,6 +184,7 @@ dbsurveyor-core/src/adapters/mongodb/
 ```
 
 **Key Operations**:
+
 ```rust
 // List databases
 client.list_database_names().await
@@ -210,6 +215,7 @@ dbsurveyor-core/src/adapters/postgres/
 ```
 
 **Additional Queries**:
+
 ```sql
 -- Views
 SELECT schemaname, viewname, definition
@@ -234,16 +240,19 @@ WHERE NOT tgisinternal
 ### Unit Tests (Per Adapter)
 
 1. **Type Mapping Tests**
+
    - All source types map to valid UnifiedDataType
    - Edge cases (null types, unknown types)
    - Precision/scale preservation
 
 2. **Query Generation Tests**
+
    - Parameterized query safety
    - SQL injection prevention
    - Proper escaping
 
 3. **Configuration Tests**
+
    - Default values applied correctly
    - Environment variable overrides
    - Validation errors for invalid config
@@ -253,6 +262,7 @@ WHERE NOT tgisinternal
 **File**: `dbsurveyor-core/tests/integration_*.rs`
 
 1. **MySQL Integration**
+
    ```rust
    #[tokio::test]
    async fn test_mysql_schema_collection() {
@@ -264,6 +274,7 @@ WHERE NOT tgisinternal
    ```
 
 2. **SQLite Integration**
+
    ```rust
    #[tokio::test]
    async fn test_sqlite_schema_collection() {
@@ -273,6 +284,7 @@ WHERE NOT tgisinternal
    ```
 
 3. **MongoDB Integration**
+
    ```rust
    #[tokio::test]
    async fn test_mongodb_schema_inference() {
@@ -283,10 +295,10 @@ WHERE NOT tgisinternal
 
 ### Performance Tests
 
-- Schema discovery: <10s for 1000 tables
-- Table analysis: <100ms per table
-- Sample collection: <500ms for 100 rows
-- Memory usage: <1GB for 10,000 tables
+- Schema discovery: \<10s for 1000 tables
+- Table analysis: \<100ms per table
+- Sample collection: \<500ms for 100 rows
+- Memory usage: \<1GB for 10,000 tables
 
 ---
 
@@ -294,48 +306,49 @@ WHERE NOT tgisinternal
 
 ### New Files
 
-| Path | Purpose | Max Lines |
-|------|---------|-----------|
-| `adapters/mysql/mod.rs` | MySQL adapter main | 150 |
-| `adapters/mysql/connection.rs` | Connection pooling | 200 |
-| `adapters/mysql/schema_collection.rs` | Schema queries | 300 |
-| `adapters/mysql/type_mapping.rs` | Type conversion | 200 |
-| `adapters/mysql/sampling.rs` | Data sampling | 200 |
-| `adapters/mysql/enumeration.rs` | Multi-DB enum | 150 |
-| `adapters/mysql/tests.rs` | Unit tests | 200 |
-| `adapters/sqlite/mod.rs` | SQLite adapter main | 150 |
-| `adapters/sqlite/connection.rs` | Connection handling | 100 |
-| `adapters/sqlite/schema_collection.rs` | sqlite_master parsing | 250 |
-| `adapters/sqlite/type_mapping.rs` | Type conversion | 150 |
-| `adapters/sqlite/sampling.rs` | Data sampling | 150 |
-| `adapters/sqlite/tests.rs` | Unit tests | 150 |
-| `adapters/mongodb/mod.rs` | MongoDB adapter main | 150 |
-| `adapters/mongodb/connection.rs` | Client management | 100 |
-| `adapters/mongodb/schema_inference.rs` | Schema inference | 300 |
-| `adapters/mongodb/type_mapping.rs` | BSON conversion | 150 |
-| `adapters/mongodb/sampling.rs` | Document sampling | 150 |
-| `adapters/mongodb/enumeration.rs` | DB/collection enum | 150 |
-| `adapters/mongodb/tests.rs` | Unit tests | 200 |
-| `adapters/postgres/views.rs` | View collection | 150 |
-| `adapters/postgres/routines.rs` | Proc/func collection | 200 |
-| `adapters/postgres/triggers.rs` | Trigger collection | 150 |
+| Path                                   | Purpose               | Max Lines |
+| -------------------------------------- | --------------------- | --------- |
+| `adapters/mysql/mod.rs`                | MySQL adapter main    | 150       |
+| `adapters/mysql/connection.rs`         | Connection pooling    | 200       |
+| `adapters/mysql/schema_collection.rs`  | Schema queries        | 300       |
+| `adapters/mysql/type_mapping.rs`       | Type conversion       | 200       |
+| `adapters/mysql/sampling.rs`           | Data sampling         | 200       |
+| `adapters/mysql/enumeration.rs`        | Multi-DB enum         | 150       |
+| `adapters/mysql/tests.rs`              | Unit tests            | 200       |
+| `adapters/sqlite/mod.rs`               | SQLite adapter main   | 150       |
+| `adapters/sqlite/connection.rs`        | Connection handling   | 100       |
+| `adapters/sqlite/schema_collection.rs` | sqlite_master parsing | 250       |
+| `adapters/sqlite/type_mapping.rs`      | Type conversion       | 150       |
+| `adapters/sqlite/sampling.rs`          | Data sampling         | 150       |
+| `adapters/sqlite/tests.rs`             | Unit tests            | 150       |
+| `adapters/mongodb/mod.rs`              | MongoDB adapter main  | 150       |
+| `adapters/mongodb/connection.rs`       | Client management     | 100       |
+| `adapters/mongodb/schema_inference.rs` | Schema inference      | 300       |
+| `adapters/mongodb/type_mapping.rs`     | BSON conversion       | 150       |
+| `adapters/mongodb/sampling.rs`         | Document sampling     | 150       |
+| `adapters/mongodb/enumeration.rs`      | DB/collection enum    | 150       |
+| `adapters/mongodb/tests.rs`            | Unit tests            | 200       |
+| `adapters/postgres/views.rs`           | View collection       | 150       |
+| `adapters/postgres/routines.rs`        | Proc/func collection  | 200       |
+| `adapters/postgres/triggers.rs`        | Trigger collection    | 150       |
 
 ### Files to Modify
 
-| Path | Changes |
-|------|---------|
-| `adapters/mod.rs` | Add module declarations, update create_adapter() |
-| `adapters/mysql.rs` | DELETE (replaced by mysql/ directory) |
-| `adapters/sqlite.rs` | DELETE (replaced by sqlite/ directory) |
-| `adapters/mongodb.rs` | DELETE (replaced by mongodb/ directory) |
-| `adapters/postgres/schema_collection.rs` | Integrate views/routines/triggers |
-| `Cargo.toml` | Add testcontainers-modules features |
+| Path                                     | Changes                                          |
+| ---------------------------------------- | ------------------------------------------------ |
+| `adapters/mod.rs`                        | Add module declarations, update create_adapter() |
+| `adapters/mysql.rs`                      | DELETE (replaced by mysql/ directory)            |
+| `adapters/sqlite.rs`                     | DELETE (replaced by sqlite/ directory)           |
+| `adapters/mongodb.rs`                    | DELETE (replaced by mongodb/ directory)          |
+| `adapters/postgres/schema_collection.rs` | Integrate views/routines/triggers                |
+| `Cargo.toml`                             | Add testcontainers-modules features              |
 
 ---
 
 ## Success Criteria
 
 ### Database Engine Coverage
+
 - [ ] PostgreSQL adapter with complete `information_schema` extraction
 - [ ] MySQL adapter with `INFORMATION_SCHEMA` support
 - [ ] SQLite adapter with `sqlite_master` parsing
@@ -343,6 +356,7 @@ WHERE NOT tgisinternal
 - [ ] Unified `DatabaseAdapter` trait implementation for all engines
 
 ### Schema Discovery Completeness
+
 - [ ] Tables: name, schema, column definitions, constraints, row counts
 - [ ] Views: definition extraction and dependency analysis
 - [ ] Indexes: type, columns, uniqueness, partial conditions
@@ -352,6 +366,7 @@ WHERE NOT tgisinternal
 - [ ] Statistical Analysis: row counts, table sizes
 
 ### Privacy and Security Controls
+
 - [ ] Configurable sampling with row limits per table
 - [ ] Built-in redaction patterns for sensitive data (PII/PCI)
 - [ ] Privacy level controls (None/Minimal/Standard/Maximum)
@@ -359,12 +374,14 @@ WHERE NOT tgisinternal
 - [ ] No credential storage in output files
 
 ### Performance and Reliability
+
 - [ ] Throttling controls with configurable delays
 - [ ] Progress tracking for operations on large databases
 - [ ] Error recovery for partial failures
-- [ ] Performance: <10s for databases with <1000 tables
+- [ ] Performance: \<10s for databases with \<1000 tables
 
 ### Quality Gates
+
 - [ ] All code passes `cargo clippy -- -D warnings`
 - [ ] Test coverage >80%
 - [ ] Documentation for all public APIs
@@ -385,6 +402,7 @@ WHERE NOT tgisinternal
 ## Dependencies
 
 ### Already in Cargo.toml
+
 - `sqlx` with postgres/mysql/sqlite features
 - `mongodb` (feature-gated)
 - `async-trait`
@@ -392,6 +410,7 @@ WHERE NOT tgisinternal
 - `tokio`
 
 ### To Add
+
 - `testcontainers-modules = { version = "0.11", features = ["mysql", "mongo"] }`
 
 ---
@@ -399,6 +418,7 @@ WHERE NOT tgisinternal
 ## Security Considerations
 
 All implementations MUST maintain:
+
 1. **Offline Operation**: No network calls except to target databases
 2. **No Telemetry**: Zero data collection or external reporting
 3. **Credential Protection**: Credentials are never in output files or logs

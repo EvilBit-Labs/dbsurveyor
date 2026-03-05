@@ -46,4 +46,4 @@ pub use validation::{
     ValidationError, initialize_schema_validator, validate_and_parse_schema, validate_schema_output,
 };
 
-pub use logging::init_logging;
+pub use logging::{init_logging, should_disable_color};

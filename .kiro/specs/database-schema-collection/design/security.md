@@ -5,7 +5,7 @@
 DBSurveyor is built with security-first principles that are non-negotiable:
 
 - **Offline-Only Operation**: No network calls except to target databases
-- **No Telemetry**: Zero data collection or external reporting  
+- **No Telemetry**: Zero data collection or external reporting
 - **Credential Protection**: Database credentials never stored, logged, or output
 - **Airgap Compatibility**: Full functionality in air-gapped environments
 
@@ -39,20 +39,22 @@ struct Credentials {
 }
 
 // Credentials are immediately consumed and zeroed
-pub fn parse_connection_string(url: &str) -> Result<(ConnectionParams, Credentials), SecurityError> {
+pub fn parse_connection_string(
+    url: &str,
+) -> Result<(ConnectionParams, Credentials), SecurityError> {
     let parsed_url = url::Url::parse(url)?;
-    
+
     let credentials = Credentials {
         username: Zeroizing::new(parsed_url.username().to_string()),
         password: Zeroizing::new(parsed_url.password().map(|p| p.to_string())),
     };
-    
+
     let params = ConnectionParams {
         host: parsed_url.host_str().unwrap_or("localhost").to_string(),
         port: parsed_url.port().unwrap_or(5432),
         database: parsed_url.path().trim_start_matches('/').to_string(),
     };
-    
+
     Ok((params, credentials))
     // Credentials automatically zeroed when dropped
 }

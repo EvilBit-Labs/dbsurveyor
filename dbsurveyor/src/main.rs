@@ -10,7 +10,7 @@
 //! - Optional data redaction for privacy compliance
 //! - No telemetry or external reporting
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use dbsurveyor_core::{Result, init_logging, models::DatabaseSchema};
 use std::path::PathBuf;
 use tracing::info;
@@ -105,6 +105,13 @@ pub enum Command {
     Sql(SqlArgs),
     /// Validate schema file format
     Validate(ValidateArgs),
+    /// Generate shell completions
+    #[command(hide = true)]
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(Args)]
@@ -240,6 +247,7 @@ async fn main() -> Result<()> {
             generate_sql(&args.input, args.dialect.clone(), args.output.as_ref()).await
         }
         Some(Command::Validate(args)) => validate_schema(&args.input).await,
+        Some(Command::Completions { shell }) => print_completions(*shell),
         None => {
             // Default behavior: generate documentation if input is provided
             if let Some(ref input) = cli.input {
@@ -253,8 +261,56 @@ async fn main() -> Result<()> {
     }
 }
 
+/// Creates a progress spinner with the given message and a 120ms tick interval.
+///
+/// The spinner draw target is hidden when `NO_COLOR` is set, `TERM=dumb`,
+/// or stdout is not a TTY.
+fn create_spinner(msg: &str) -> indicatif::ProgressBar {
+    let pb = indicatif::ProgressBar::new_spinner();
+    if dbsurveyor_core::should_disable_color()
+        || !std::io::IsTerminal::is_terminal(&std::io::stdout())
+    {
+        pb.set_draw_target(indicatif::ProgressDrawTarget::hidden());
+    }
+    pb.set_message(msg.to_string());
+    pb.enable_steady_tick(std::time::Duration::from_millis(120));
+    pb
+}
+
+/// Prints shell completion script to stdout. Invoked via the hidden `completions` subcommand.
+fn print_completions(shell: clap_complete::Shell) -> Result<()> {
+    use std::io::Write;
+
+    let mut buf = Vec::new();
+    clap_complete::generate(shell, &mut Cli::command(), "dbsurveyor", &mut buf);
+    std::io::stdout()
+        .write_all(&buf)
+        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
+            context: "Failed to write shell completions to stdout".to_string(),
+            source: e,
+        })?;
+    std::io::stdout()
+        .flush()
+        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
+            context: "Failed to flush stdout after writing completions".to_string(),
+            source: e,
+        })?;
+    Ok(())
+}
+
 /// Loads schema from file with support for different formats
 async fn load_schema(input_path: &PathBuf) -> Result<DatabaseSchema> {
+    let spinner = create_spinner("Loading schema...");
+    let result = load_schema_inner(input_path, &spinner).await;
+    spinner.finish_and_clear();
+    result
+}
+
+/// Inner implementation for schema loading, separated to guarantee spinner cleanup.
+async fn load_schema_inner(
+    input_path: &PathBuf,
+    spinner: &indicatif::ProgressBar,
+) -> Result<DatabaseSchema> {
     info!("Loading schema from {}", input_path.display());
 
     let file_content = tokio::fs::read(input_path).await.map_err(|e| {
@@ -272,6 +328,7 @@ async fn load_schema(input_path: &PathBuf) -> Result<DatabaseSchema> {
 
     match extension {
         "enc" => {
+            spinner.set_message("Decrypting...");
             #[cfg(feature = "encryption")]
             {
                 load_encrypted_schema(&file_content).await
@@ -284,6 +341,7 @@ async fn load_schema(input_path: &PathBuf) -> Result<DatabaseSchema> {
             }
         }
         "zst" => {
+            spinner.set_message("Decompressing...");
             #[cfg(feature = "compression")]
             {
                 load_compressed_schema(&file_content).await
@@ -296,7 +354,7 @@ async fn load_schema(input_path: &PathBuf) -> Result<DatabaseSchema> {
             }
         }
         _ => {
-            // Assume JSON format
+            spinner.set_message("Parsing JSON...");
             load_json_schema(&file_content).await
         }
     }
@@ -429,13 +487,23 @@ async fn generate_documentation(
         }
     };
 
-    match format {
+    let format_name = match format {
+        OutputFormat::Markdown => "markdown",
+        OutputFormat::Html => "HTML",
+        OutputFormat::Json => "JSON",
+        OutputFormat::Mermaid => "Mermaid",
+    };
+    let spinner = create_spinner(&format!("Generating {} documentation...", format_name));
+
+    let gen_result = match format {
         OutputFormat::Markdown => generate_markdown(&schema, &output_file).await,
         OutputFormat::Html => generate_html(&schema, &output_file).await,
         OutputFormat::Json => generate_json_analysis(&schema, &output_file).await,
         OutputFormat::Mermaid => generate_mermaid(&schema, &output_file).await,
-    }?;
+    };
 
+    spinner.finish_and_clear();
+    gen_result?;
     info!("[OK]Documentation generated: {}", output_file.display());
     println!("Documentation generated: {}", output_file.display());
 

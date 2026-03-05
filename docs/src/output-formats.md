@@ -27,7 +27,12 @@ The primary output format is a JSON file following the DBSurveyor Schema v1.0 sp
       "columns": [
         {
           "name": "id",
-          "data_type": {"Integer": {"bits": 32, "signed": true}},
+          "data_type": {
+            "Integer": {
+              "bits": 32,
+              "signed": true
+            }
+          },
           "is_nullable": false,
           "is_primary_key": true,
           "is_auto_increment": true,
@@ -36,7 +41,9 @@ The primary output format is a JSON file following the DBSurveyor Schema v1.0 sp
       ],
       "primary_key": {
         "name": "users_pkey",
-        "columns": ["id"]
+        "columns": [
+          "id"
+        ]
       },
       "foreign_keys": [],
       "indexes": [],
@@ -68,12 +75,24 @@ Tables may optionally include a `sampling` field containing sampled row data wit
   "table_name": "users",
   "schema_name": "public",
   "rows": [
-    {"id": 1, "username": "alice", "email": "alice@example.com"},
-    {"id": 2, "username": "bob", "email": "bob@example.com"}
+    {
+      "id": 1,
+      "username": "alice",
+      "email": "alice@example.com"
+    },
+    {
+      "id": 2,
+      "username": "bob",
+      "email": "bob@example.com"
+    }
   ],
   "sample_size": 2,
   "total_rows": 1234,
-  "sampling_strategy": {"MostRecent": {"limit": 10}},
+  "sampling_strategy": {
+    "MostRecent": {
+      "limit": 10
+    }
+  },
   "collected_at": "2024-01-15T10:30:00Z",
   "warnings": [],
   "sample_status": "Complete"
@@ -282,13 +301,24 @@ DBSurveyor uses a unified type system to represent data types across different d
 
 ```json
 {
-  "String": {"max_length": 255},
-  "Integer": {"bits": 32, "signed": true},
-  "Float": {"precision": 53},
+  "String": {
+    "max_length": 255
+  },
+  "Integer": {
+    "bits": 32,
+    "signed": true
+  },
+  "Float": {
+    "precision": 53
+  },
   "Boolean": null,
   "Date": null,
-  "DateTime": {"with_timezone": true},
-  "Time": {"with_timezone": false}
+  "DateTime": {
+    "with_timezone": true
+  },
+  "Time": {
+    "with_timezone": false
+  }
 }
 ```
 
@@ -296,27 +326,35 @@ DBSurveyor uses a unified type system to represent data types across different d
 
 ```json
 {
-  "Binary": {"max_length": 1024},
+  "Binary": {
+    "max_length": 1024
+  },
   "Json": null,
   "Uuid": null,
   "Array": {
-    "element_type": {"String": {"max_length": 50}}
+    "element_type": {
+      "String": {
+        "max_length": 50
+      }
+    }
   },
-  "Custom": {"type_name": "user_status_enum"}
+  "Custom": {
+    "type_name": "user_status_enum"
+  }
 }
 ```
 
 ### Database-Specific Mapping
 
-| DBSurveyor Type | PostgreSQL | MySQL | SQLite | MongoDB |
-|-----------------|------------|-------|--------|---------|
-| `String` | `VARCHAR`, `TEXT` | `VARCHAR`, `TEXT` | `TEXT` | `string` |
-| `Integer` | `INTEGER`, `BIGINT` | `INT`, `BIGINT` | `INTEGER` | `int`, `long` |
-| `Float` | `REAL`, `DOUBLE` | `FLOAT`, `DOUBLE` | `REAL` | `double` |
-| `Boolean` | `BOOLEAN` | `BOOLEAN` | `INTEGER` | `bool` |
-| `Json` | `JSON`, `JSONB` | `JSON` | `TEXT` | `object` |
-| `Array` | `ARRAY[]` | `JSON` | `TEXT` | `array` |
-| `Custom` | `ENUM`, `DOMAIN` | `ENUM` | N/A | N/A |
+| DBSurveyor Type | PostgreSQL          | MySQL             | SQLite    | MongoDB       |
+| --------------- | ------------------- | ----------------- | --------- | ------------- |
+| `String`        | `VARCHAR`, `TEXT`   | `VARCHAR`, `TEXT` | `TEXT`    | `string`      |
+| `Integer`       | `INTEGER`, `BIGINT` | `INT`, `BIGINT`   | `INTEGER` | `int`, `long` |
+| `Float`         | `REAL`, `DOUBLE`    | `FLOAT`, `DOUBLE` | `REAL`    | `double`      |
+| `Boolean`       | `BOOLEAN`           | `BOOLEAN`         | `INTEGER` | `bool`        |
+| `Json`          | `JSON`, `JSONB`     | `JSON`            | `TEXT`    | `object`      |
+| `Array`         | `ARRAY[]`           | `JSON`            | `TEXT`    | `array`       |
+| `Custom`        | `ENUM`, `DOMAIN`    | `ENUM`            | N/A       | N/A           |
 
 ## Schema Validation
 
@@ -347,11 +385,11 @@ Error: Schema validation failed
 
 ### Compression Recommendations
 
-| Schema Size | Recommendation | Expected Compression |
-|-------------|----------------|---------------------|
-| < 1 MB | Standard JSON | N/A |
-| 1-10 MB | Zstandard compression | 60-70% reduction |
-| > 10 MB | Compression + chunking | 70-80% reduction |
+| Schema Size | Recommendation         | Expected Compression |
+| ----------- | ---------------------- | -------------------- |
+| < 1 MB      | Standard JSON          | N/A                  |
+| 1-10 MB     | Zstandard compression  | 60-70% reduction     |
+| > 10 MB     | Compression + chunking | 70-80% reduction     |
 
 ### Large Schema Handling
 
@@ -419,16 +457,16 @@ The format supports extensions for:
 
 ```yaml
 # Generate schema documentation in CI
-- name: Collect Database Schema
-  run: |
-    dbsurveyor-collect --compress $DATABASE_URL
-    dbsurveyor generate schema.dbsurveyor.json.zst --format markdown
+  - name: Collect Database Schema
+    run: |
+      dbsurveyor-collect --compress $DATABASE_URL
+      dbsurveyor generate schema.dbsurveyor.json.zst --format markdown
 
-- name: Upload Documentation
-  uses: actions/upload-artifact@v3
-  with:
-    name: database-docs
-    path: schema.md
+  - name: Upload Documentation
+    uses: actions/upload-artifact@v3
+    with:
+      name: database-docs
+      path: schema.md
 ```
 
 ### Programmatic Access
@@ -437,11 +475,11 @@ The format supports extensions for:
 import json
 
 # Load schema data
-with open('schema.dbsurveyor.json') as f:
+with open("schema.dbsurveyor.json") as f:
     schema = json.load(f)
 
 # Analyze tables
-for table in schema['tables']:
+for table in schema["tables"]:
     print(f"Table: {table['name']}")
     print(f"Columns: {len(table['columns'])}")
 ```

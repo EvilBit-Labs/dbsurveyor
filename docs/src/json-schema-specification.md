@@ -29,25 +29,25 @@ Every `.dbsurveyor.json` file contains these required fields:
 
 ### Required Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `format_version` | String | Schema format version (currently "1.0") |
-| `database_info` | Object | Database-level information and status |
-| `collection_metadata` | Object | Collection process metadata |
+| Field                 | Type   | Description                             |
+| --------------------- | ------ | --------------------------------------- |
+| `format_version`      | String | Schema format version (currently "1.0") |
+| `database_info`       | Object | Database-level information and status   |
+| `collection_metadata` | Object | Collection process metadata             |
 
 ### Optional Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `tables` | Array | Table definitions (default: empty array) |
-| `views` | Array | View definitions |
-| `indexes` | Array | Database indexes |
-| `constraints` | Array | Database constraints |
-| `procedures` | Array | Stored procedures |
-| `functions` | Array | Database functions |
-| `triggers` | Array | Database triggers |
-| `custom_types` | Array | Custom data types |
-| `samples` | Array | Data samples from tables |
+| Field          | Type  | Description                              |
+| -------------- | ----- | ---------------------------------------- |
+| `tables`       | Array | Table definitions (default: empty array) |
+| `views`        | Array | View definitions                         |
+| `indexes`      | Array | Database indexes                         |
+| `constraints`  | Array | Database constraints                     |
+| `procedures`   | Array | Stored procedures                        |
+| `functions`    | Array | Database functions                       |
+| `triggers`     | Array | Database triggers                        |
+| `custom_types` | Array | Custom data types                        |
+| `samples`      | Array | Data samples from tables                 |
 
 ## Database Information
 
@@ -90,7 +90,12 @@ Tables are defined with comprehensive metadata:
   "columns": [
     {
       "name": "id",
-      "data_type": {"Integer": {"bits": 32, "signed": true}},
+      "data_type": {
+        "Integer": {
+          "bits": 32,
+          "signed": true
+        }
+      },
       "is_nullable": false,
       "is_primary_key": true,
       "is_auto_increment": true,
@@ -99,7 +104,11 @@ Tables are defined with comprehensive metadata:
     },
     {
       "name": "email",
-      "data_type": {"String": {"max_length": 255}},
+      "data_type": {
+        "String": {
+          "max_length": 255
+        }
+      },
       "is_nullable": false,
       "ordinal_position": 2,
       "comment": "User email address"
@@ -107,14 +116,20 @@ Tables are defined with comprehensive metadata:
   ],
   "primary_key": {
     "name": "users_pkey",
-    "columns": ["id"]
+    "columns": [
+      "id"
+    ]
   },
   "foreign_keys": [
     {
       "name": "users_profile_fk",
-      "columns": ["profile_id"],
+      "columns": [
+        "profile_id"
+      ],
       "referenced_table": "profiles",
-      "referenced_columns": ["id"],
+      "referenced_columns": [
+        "id"
+      ],
       "on_delete": "Cascade",
       "on_update": "Cascade"
     }
@@ -122,7 +137,12 @@ Tables are defined with comprehensive metadata:
   "indexes": [
     {
       "name": "users_email_idx",
-      "columns": [{"name": "email", "order": "asc"}],
+      "columns": [
+        {
+          "name": "email",
+          "order": "asc"
+        }
+      ],
       "is_unique": true,
       "index_type": "btree"
     }
@@ -217,7 +237,9 @@ DBSurveyor uses a unified data type system that maps database-specific types to 
 ```json
 {
   "name": "users_pkey",
-  "columns": ["id"]
+  "columns": [
+    "id"
+  ]
 }
 ```
 
@@ -226,10 +248,14 @@ DBSurveyor uses a unified data type system that maps database-specific types to 
 ```json
 {
   "name": "orders_user_fk",
-  "columns": ["user_id"],
+  "columns": [
+    "user_id"
+  ],
   "referenced_table": "users",
   "referenced_schema": "public",
-  "referenced_columns": ["id"],
+  "referenced_columns": [
+    "id"
+  ],
   "on_delete": "Cascade",
   "on_update": "Restrict"
 }
@@ -309,9 +335,15 @@ Optional data samples provide insight into actual data:
       ],
       "sample_size": 2,
       "total_rows": 50000,
-      "sampling_strategy": {"MostRecent": {"limit": 10}},
+      "sampling_strategy": {
+        "MostRecent": {
+          "limit": 10
+        }
+      },
       "collected_at": "2024-01-15T10:30:00Z",
-      "warnings": ["Large table - limited sample collected"],
+      "warnings": [
+        "Large table - limited sample collected"
+      ],
       "sample_status": "Complete"
     }
   ]
@@ -320,17 +352,17 @@ Optional data samples provide insight into actual data:
 
 ### Table Sample Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `table_name` | String | Yes | Name of the sampled table |
-| `schema_name` | String | No | Schema/database name (null for databases without schemas) |
-| `rows` | Array | Yes | Array of sampled row data as JSON objects |
-| `sample_size` | Integer | Yes | Number of rows actually sampled |
-| `total_rows` | Integer | No | Estimated total row count in the table |
-| `sampling_strategy` | Object/String | Yes | Strategy used for sampling (see below) |
-| `collected_at` | String | Yes | ISO 8601 timestamp of when sample was collected |
-| `warnings` | Array | Yes | Array of warning messages (empty if no warnings) |
-| `sample_status` | String/Object | No | Status of the sampling operation (see below) |
+| Field               | Type          | Required | Description                                               |
+| ------------------- | ------------- | -------- | --------------------------------------------------------- |
+| `table_name`        | String        | Yes      | Name of the sampled table                                 |
+| `schema_name`       | String        | No       | Schema/database name (null for databases without schemas) |
+| `rows`              | Array         | Yes      | Array of sampled row data as JSON objects                 |
+| `sample_size`       | Integer       | Yes      | Number of rows actually sampled                           |
+| `total_rows`        | Integer       | No       | Estimated total row count in the table                    |
+| `sampling_strategy` | Object/String | Yes      | Strategy used for sampling (see below)                    |
+| `collected_at`      | String        | Yes      | ISO 8601 timestamp of when sample was collected           |
+| `warnings`          | Array         | Yes      | Array of warning messages (empty if no warnings)          |
+| `sample_status`     | String/Object | No       | Status of the sampling operation (see below)              |
 
 ### Sampling Strategies
 
@@ -374,7 +406,11 @@ The optional `sample_status` field tracks the outcome of the sampling operation.
   "sampling_strategy": "None",
   "collected_at": "2024-01-15T10:30:00Z",
   "warnings": [],
-  "sample_status": {"Skipped": {"reason": "Table exceeds size threshold"}}
+  "sample_status": {
+    "Skipped": {
+      "reason": "Table exceeds size threshold"
+    }
+  }
 }
 ```
 

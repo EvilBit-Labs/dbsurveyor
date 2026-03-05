@@ -1,6 +1,6 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "**/*.rs"
+fileMatchPattern: '**/*.rs'
 ---
 
 # Security Standards for DBSurveyor
