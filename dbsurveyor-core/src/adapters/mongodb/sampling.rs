@@ -10,7 +10,7 @@
 
 use crate::Result;
 use crate::adapters::config::SamplingConfig;
-use crate::models::{OrderingStrategy, SamplingStrategy, SortDirection, TableSample};
+use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use mongodb::Client;
 use mongodb::bson::{Document, doc};
 use mongodb::options::FindOptions;
@@ -257,6 +257,7 @@ pub async fn sample_collection(
         sampling_strategy,
         collected_at: chrono::Utc::now(),
         warnings,
+        sample_status: Some(SampleStatus::Complete),
     })
 }
 

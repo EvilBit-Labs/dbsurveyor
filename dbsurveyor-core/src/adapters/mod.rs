@@ -10,7 +10,10 @@
 //! - `placeholder`: Placeholder adapter macro for unimplemented databases
 //! - Database-specific modules (postgres, mysql, sqlite, mongodb, mssql)
 
-use crate::{Result, models::DatabaseSchema};
+use crate::{
+    Result,
+    models::{DatabaseSchema, TableSample},
+};
 use async_trait::async_trait;
 
 // Configuration module
@@ -36,6 +39,13 @@ pub enum AdapterFeature {
     QueryTimeout,
     /// Read-only connection enforcement
     ReadOnlyMode,
+}
+
+/// Reference to a table, used for trait-level sampling.
+#[derive(Debug, Clone)]
+pub struct TableRef<'a> {
+    pub schema_name: Option<&'a str>,
+    pub table_name: &'a str,
 }
 
 /// Main trait for database adapters with object-safe design.
@@ -78,6 +88,20 @@ pub trait DatabaseAdapter: Send + Sync {
     /// - Insufficient privileges for schema access
     /// - Database-specific errors occur
     async fn collect_schema(&self) -> Result<DatabaseSchema>;
+
+    /// Samples data from a single table.
+    ///
+    /// # Arguments
+    /// * `table_ref` - Reference identifying the table (schema + name)
+    /// * `config` - Sampling configuration (sample size, throttle, etc.)
+    ///
+    /// # Returns
+    /// A `TableSample` with rows, metadata, and status information.
+    async fn sample_table(
+        &self,
+        table_ref: TableRef<'_>,
+        config: &SamplingConfig,
+    ) -> Result<TableSample>;
 
     /// Returns the database type this adapter handles.
     fn database_type(&self) -> crate::models::DatabaseType;

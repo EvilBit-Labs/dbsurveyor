@@ -359,6 +359,17 @@ pub enum SortDirection {
     Descending,
 }
 
+/// Status of a sampling operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SampleStatus {
+    /// Sampling completed successfully
+    Complete,
+    /// Sampling partially completed with a reduced limit
+    PartialRetry { original_limit: u32 },
+    /// Sampling was skipped
+    Skipped { reason: String },
+}
+
 /// Sample data from a table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableSample {
@@ -370,6 +381,8 @@ pub struct TableSample {
     pub sampling_strategy: SamplingStrategy,
     pub collected_at: chrono::DateTime<chrono::Utc>,
     pub warnings: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sample_status: Option<SampleStatus>,
 }
 
 impl TableSample {
@@ -544,6 +557,7 @@ mod tests {
             sampling_strategy: SamplingStrategy::MostRecent { limit: 1 },
             collected_at: chrono::Utc::now(),
             warnings: Vec::new(),
+            sample_status: None,
         };
 
         schema.add_samples(vec![sample]);
@@ -569,5 +583,108 @@ mod tests {
         assert_eq!(DatabaseType::MySQL.to_string(), "MySQL");
         assert_eq!(DatabaseType::SQLite.to_string(), "SQLite");
         assert_eq!(DatabaseType::MongoDB.to_string(), "MongoDB");
+    }
+
+    #[test]
+    fn test_table_sample_serialize_omits_none_sample_status() {
+        let sample = TableSample {
+            table_name: "users".to_string(),
+            schema_name: Some("public".to_string()),
+            rows: vec![],
+            sample_size: 0,
+            total_rows: None,
+            sampling_strategy: SamplingStrategy::None,
+            collected_at: chrono::Utc::now(),
+            warnings: Vec::new(),
+            sample_status: None,
+        };
+
+        let json = serde_json::to_value(&sample).unwrap();
+        assert!(
+            !json.as_object().unwrap().contains_key("sample_status"),
+            "sample_status should be omitted when None"
+        );
+    }
+
+    #[test]
+    fn test_table_sample_deserialize_without_sample_status() {
+        let json = serde_json::json!({
+            "table_name": "orders",
+            "schema_name": "public",
+            "rows": [],
+            "sample_size": 0,
+            "total_rows": null,
+            "sampling_strategy": "None",
+            "collected_at": "2025-01-01T00:00:00Z",
+            "warnings": []
+        });
+
+        let sample: TableSample = serde_json::from_value(json).unwrap();
+        assert!(
+            sample.sample_status.is_none(),
+            "sample_status should default to None when absent in JSON"
+        );
+    }
+
+    #[test]
+    fn test_table_sample_deserialize_sample_status_complete() {
+        let json = serde_json::json!({
+            "table_name": "orders",
+            "schema_name": "public",
+            "rows": [],
+            "sample_size": 5,
+            "total_rows": 100,
+            "sampling_strategy": {"MostRecent": {"limit": 5}},
+            "collected_at": "2025-01-01T00:00:00Z",
+            "warnings": [],
+            "sample_status": "Complete"
+        });
+
+        let sample: TableSample = serde_json::from_value(json).unwrap();
+        assert!(matches!(sample.sample_status, Some(SampleStatus::Complete)));
+    }
+
+    #[test]
+    fn test_table_sample_deserialize_sample_status_partial_retry() {
+        let json = serde_json::json!({
+            "table_name": "orders",
+            "schema_name": null,
+            "rows": [],
+            "sample_size": 3,
+            "total_rows": 100,
+            "sampling_strategy": {"MostRecent": {"limit": 10}},
+            "collected_at": "2025-01-01T00:00:00Z",
+            "warnings": [],
+            "sample_status": {"PartialRetry": {"original_limit": 10}}
+        });
+
+        let sample: TableSample = serde_json::from_value(json).unwrap();
+        assert!(matches!(
+            sample.sample_status,
+            Some(SampleStatus::PartialRetry { original_limit: 10 })
+        ));
+    }
+
+    #[test]
+    fn test_table_sample_deserialize_sample_status_skipped() {
+        let json = serde_json::json!({
+            "table_name": "large_table",
+            "schema_name": null,
+            "rows": [],
+            "sample_size": 0,
+            "total_rows": 1000000,
+            "sampling_strategy": "None",
+            "collected_at": "2025-01-01T00:00:00Z",
+            "warnings": [],
+            "sample_status": {"Skipped": {"reason": "table too large"}}
+        });
+
+        let sample: TableSample = serde_json::from_value(json).unwrap();
+        match &sample.sample_status {
+            Some(SampleStatus::Skipped { reason }) => {
+                assert_eq!(reason, "table too large");
+            }
+            other => panic!("Expected Skipped variant, got {:?}", other),
+        }
     }
 }

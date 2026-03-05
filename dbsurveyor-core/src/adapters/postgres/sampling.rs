@@ -19,7 +19,7 @@
 
 use crate::adapters::config::SamplingConfig;
 use crate::error::DbSurveyorError;
-use crate::models::{OrderingStrategy, SamplingStrategy, SortDirection, TableSample};
+use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
@@ -378,11 +378,15 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
 /// ```
 pub async fn sample_table(
     pool: &PgPool,
-    schema: &str,
+    schema: Option<&str>,
     table: &str,
     config: &SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
     let mut warnings = Vec::new();
+    let display_name = match schema {
+        Some(s) => format!("{}.{}", s, table),
+        None => table.to_string(),
+    };
 
     // Apply rate limiting delay if configured
     if let Some(throttle_ms) = config.throttle_ms {
@@ -390,8 +394,10 @@ pub async fn sample_table(
         tokio::time::sleep(delay).await;
     }
 
-    // Detect ordering strategy for this table
-    let strategy = detect_ordering_strategy(pool, schema, table).await?;
+    // For ordering detection, default to "public" when schema is None since
+    // pg system catalogs require a schema for lookups
+    let detection_schema = schema.unwrap_or("public");
+    let strategy = detect_ordering_strategy(pool, detection_schema, table).await?;
 
     // Determine sampling strategy and add warnings for unordered tables
     let (sampling_strategy, is_random) = match &strategy {
@@ -416,6 +422,7 @@ pub async fn sample_table(
     };
 
     // Get total row count estimate from pg_class (fast approximate count)
+    // Uses detection_schema for the catalog lookup
     let count_query = r#"
         SELECT reltuples::bigint AS estimated_count
         FROM pg_class c
@@ -424,31 +431,34 @@ pub async fn sample_table(
     "#;
 
     let total_rows: Option<i64> = sqlx::query_scalar(count_query)
-        .bind(schema)
+        .bind(detection_schema)
         .bind(table)
         .fetch_optional(pool)
         .await
         .map_err(|e| {
             DbSurveyorError::collection_failed(
-                format!("Failed to get row count for table '{}.{}'", schema, table),
+                format!("Failed to get row count for table '{}'", display_name),
                 e,
             )
         })?;
 
     // Build sample query with ordering
-    // Use row_to_json to convert rows to JSON for easy serialization
     let order_clause = generate_order_by_clause(&strategy, true); // DESC for most recent
 
-    // Note: We use row_to_json(t.*) to get all columns as a JSON object
+    // Build FROM clause: schema-qualified when schema is present, table-only otherwise
+    let from_clause = match schema {
+        Some(s) => format!(r#""{}"."{}" t"#, s, table),
+        None => format!(r#""{}" t"#, table),
+    };
+
     let sample_query = format!(
-        r#"SELECT row_to_json(t.*) AS row_data FROM "{}"."{}" t {} LIMIT $1"#,
-        schema, table, order_clause
+        "SELECT row_to_json(t.*) AS row_data FROM {} {} LIMIT $1",
+        from_clause, order_clause
     );
 
     tracing::debug!(
-        "Sampling {}.{} with query: {} (limit: {})",
-        schema,
-        table,
+        "Sampling {} with query: {} (limit: {})",
+        display_name,
         sample_query,
         config.sample_size
     );
@@ -460,7 +470,7 @@ pub async fn sample_table(
         .await
         .map_err(|e| {
             DbSurveyorError::collection_failed(
-                format!("Failed to sample data from table '{}.{}'", schema, table),
+                format!("Failed to sample data from table '{}'", display_name),
                 e,
             )
         })?;
@@ -470,9 +480,8 @@ pub async fn sample_table(
     // Add warning if we got fewer rows than requested (table has fewer rows)
     if actual_sample_size < config.sample_size && !is_random {
         tracing::debug!(
-            "Table {}.{} has only {} rows, less than requested sample size of {}",
-            schema,
-            table,
+            "Table {} has only {} rows, less than requested sample size of {}",
+            display_name,
             actual_sample_size,
             config.sample_size
         );
@@ -480,13 +489,14 @@ pub async fn sample_table(
 
     Ok(TableSample {
         table_name: table.to_string(),
-        schema_name: Some(schema.to_string()),
+        schema_name: schema.map(str::to_string),
         rows,
         sample_size: actual_sample_size,
         total_rows: total_rows.map(|t| t.max(0) as u64),
         sampling_strategy,
         collected_at: chrono::Utc::now(),
         warnings,
+        sample_status: Some(SampleStatus::Complete),
     })
 }
 

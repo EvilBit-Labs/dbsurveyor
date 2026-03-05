@@ -14,7 +14,7 @@
 
 use crate::adapters::config::SamplingConfig;
 use crate::error::DbSurveyorError;
-use crate::models::{OrderingStrategy, SamplingStrategy, SortDirection, TableSample};
+use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use serde_json::Value as JsonValue;
 use sqlx::{Row, SqlitePool};
 use std::time::Duration;
@@ -357,6 +357,7 @@ pub async fn sample_table(
         sampling_strategy,
         collected_at: chrono::Utc::now(),
         warnings,
+        sample_status: Some(SampleStatus::Complete),
     })
 }
 
