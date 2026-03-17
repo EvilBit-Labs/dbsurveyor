@@ -77,7 +77,7 @@ rpassword = { workspace = true }
 zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
-tempfile = "3.25.0"
+tempfile = "3.27.0"
 temp-env = "0.3.6"
 testcontainers-modules = { workspace = true, features = ["mongo"] }
 criterion = { workspace = true }
