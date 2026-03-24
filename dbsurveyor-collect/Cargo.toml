@@ -81,7 +81,7 @@ tempfile = "3.27.0"
 temp-env = "0.3.6"
 testcontainers-modules = { workspace = true, features = ["mongo"] }
 criterion = { workspace = true }
-proptest = "1.10.0"
+proptest = "1.11.0"
 
 # Nextest configuration for collector crate
 [package.metadata.nextest]
