@@ -35,7 +35,7 @@ thiserror = "2.0.18"
 anyhow = "1.0.102"
 async-trait = "0.1.89"
 url = "2.5.8"
-uuid = { version = "1.22.0", features = ["v4", "serde"] }
+uuid = { version = "1.23.0", features = ["v4", "serde"] }
 chrono = { version = "0.4.44", features = ["serde"] }
 
 # CLI dependencies
