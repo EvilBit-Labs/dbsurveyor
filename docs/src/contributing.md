@@ -37,7 +37,7 @@ dbsurveyor/
 ├── dbsurveyor-collect/  # Collection binary
 ├── dbsurveyor/          # Documentation binary
 ├── docs/                # Documentation source
-├── .cursor/rules/       # AI assistant guidelines
+│   └── solutions/       # Documented solutions to past problems
 └── justfile            # Development tasks
 ```
 
@@ -66,7 +66,7 @@ just pre-commit
 DBSurveyor enforces strict quality standards:
 
 - **Zero Warnings**: `cargo clippy -- -D warnings` must pass
-- **Test Coverage**: >80% coverage required
+- **Test Coverage**: 55% minimum coverage required (target: 80%, to be raised incrementally)
 - **Security First**: All code must pass security validation
 - **Documentation**: All public APIs must have `///` documentation
 
@@ -459,7 +459,7 @@ RUST_LOG=debug cargo test test_name
 cargo clippy --fix --allow-dirty
 
 # Check specific warnings
-cargo clippy -- -D warnings
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 ```
 
 ### Getting Help

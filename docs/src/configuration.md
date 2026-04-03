@@ -81,7 +81,8 @@ dbsurveyor-collect --max-connections 5 postgres://localhost/db
 #### Data Collection Settings
 
 ```bash
-# Sample size per table (default: 100, 0 to disable)
+# Sample size per table (default: 100, max: 10,000)
+# Values above 10,000 are capped to prevent resource exhaustion
 dbsurveyor-collect --sample 50 postgres://localhost/db
 
 # Throttle delay between operations in milliseconds
@@ -147,7 +148,7 @@ Create a `.dbsurveyor.toml` file in your project root:
 connect_timeout = "30s"
 query_timeout = "30s"
 max_connections = 10
-sample_size = 100
+sample_size = 100  # Max: 10,000 (values above are clamped)
 throttle_ms = 0
 
 # Object collection settings

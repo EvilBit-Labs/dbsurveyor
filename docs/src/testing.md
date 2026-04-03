@@ -5,7 +5,7 @@ DBSurveyor uses a comprehensive testing strategy to ensure security, reliability
 ## Testing Philosophy
 
 - **Security-First Testing**: All tests must verify security guarantees
-- **Comprehensive Coverage**: >80% test coverage with `cargo llvm-cov`
+- **Comprehensive Coverage**: 55% minimum test coverage with `cargo llvm-cov` (target: 80%, to be raised incrementally)
 - **Real Database Integration**: Use testcontainers for authentic testing
 - **Zero Warnings**: All test code must pass `cargo clippy -- -D warnings`
 
@@ -105,7 +105,7 @@ RUST_LOG=debug cargo nextest run
 ### Coverage Testing
 
 ```bash
-# Generate coverage report (>80% required)
+# Generate coverage report (55% minimum required, target: 80%)
 just coverage
 
 # Generate HTML coverage report
