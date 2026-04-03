@@ -2,8 +2,7 @@
 
 ## Project Maintainer
 
-**Primary Maintainer**: UncleSp1d3r
-**Role**: Single maintainer and project owner
+**Primary Maintainer**: UncleSp1d3r **Role**: Single maintainer and project owner
 
 ## Contribution Workflow
 

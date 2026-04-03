@@ -1,16 +1,10 @@
 # DBSurveyor
 
-[![License][license-badge]][license]
-[![Sponsors][sponsors-badge]][sponsors]
+[![License][license-badge]][license] [![Sponsors][sponsors-badge]][sponsors]
 
-[![CI][ci-badge]][ci]
-[![dependency status][deps-badge]][deps]
+[![CI][ci-badge]][ci] [![dependency status][deps-badge]][deps]
 
-[![codecov][codecov-badge]][codecov]
-[![Issues][issues-badge]][issues]
-[![Last Commit][commits-badge]][commits]
-[![OpenSSF Scorecard][scorecard-badge]][scorecard]
-[![OpenSSF Best Practices][bestpractices-badge]][bestpractices]
+[![codecov][codecov-badge]][codecov] [![Issues][issues-badge]][issues] [![Last Commit][commits-badge]][commits] [![OpenSSF Scorecard][scorecard-badge]][scorecard] [![OpenSSF Best Practices][bestpractices-badge]][bestpractices]
 
 ## Overview
 
@@ -131,13 +125,7 @@ For details, see [docs/src/security.md](docs/src/security.md) and [SECURITY.md](
 
 Full documentation is available at **[evilbitlabs.io/dbsurveyor](https://evilbitlabs.io/dbsurveyor)**.
 
-Quick links:
-[Installation](docs/src/installation.md) |
-[Quick Start](docs/src/quick-start.md) |
-[CLI Reference](docs/src/cli-reference.md) |
-[Database Support](docs/src/database-support.md) |
-[Security](docs/src/security.md) |
-[Troubleshooting](docs/src/troubleshooting.md)
+Quick links: [Installation](docs/src/installation.md) | [Quick Start](docs/src/quick-start.md) | [CLI Reference](docs/src/cli-reference.md) | [Database Support](docs/src/database-support.md) | [Security](docs/src/security.md) | [Troubleshooting](docs/src/troubleshooting.md)
 
 ## Development
 

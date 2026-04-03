@@ -2,13 +2,9 @@
 
 ## Overview
 
-DBSurveyor releases are automated through [GoReleaser](https://goreleaser.com/) with
-cross-compilation via [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild).
-Pushing a semver tag triggers the full pipeline.
+DBSurveyor releases are automated through [GoReleaser](https://goreleaser.com/) with cross-compilation via [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild). Pushing a semver tag triggers the full pipeline.
 
-Each release produces **multiple variants** of the `dbsurveyor-collect` binary, one per
-database driver, plus an all-features build. This lets operators download only the
-driver they need.
+Each release produces **multiple variants** of the `dbsurveyor-collect` binary, one per database driver, plus an all-features build. This lets operators download only the driver they need.
 
 ## How to Release
 
@@ -27,9 +23,7 @@ driver they need.
 
 ## Release Variants
 
-Each variant archive contains both `dbsurveyor` (postprocessor) and `dbsurveyor-collect`
-(collector). The collector is built with the specified database driver(s). All variants
-include compression and encryption support.
+Each variant archive contains both `dbsurveyor` (postprocessor) and `dbsurveyor-collect` (collector). The collector is built with the specified database driver(s). All variants include compression and encryption support.
 
 | Variant      | Database Drivers                          | Archive Name Pattern                |
 | ------------ | ----------------------------------------- | ----------------------------------- |
@@ -97,9 +91,7 @@ This installs the **all-features** variant with every database driver.
 
 ### Download Binary
 
-Download the archive for your platform and desired database variant from the
-[latest release](https://github.com/EvilBit-Labs/dbsurveyor/releases/latest)
-and extract it.
+Download the archive for your platform and desired database variant from the [latest release](https://github.com/EvilBit-Labs/dbsurveyor/releases/latest) and extract it.
 
 ### Linux Packages
 
@@ -132,8 +124,7 @@ Validate the GoReleaser configuration:
 goreleaser check
 ```
 
-Build a snapshot locally (no publish). This builds all 42 binaries
-(1 postprocessor + 6 collector variants, each for 6 targets):
+Build a snapshot locally (no publish). This builds all 42 binaries (1 postprocessor + 6 collector variants, each for 6 targets):
 
 ```bash
 goreleaser build --snapshot --clean
