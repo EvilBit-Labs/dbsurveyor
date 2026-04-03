@@ -12,34 +12,14 @@
 //! 4. ROWID (SQLite's built-in row identifier)
 //! 5. Fallback to unordered (uses RANDOM() for sampling)
 
+use super::{escape_identifier, escape_pragma_arg};
 use crate::adapters::config::SamplingConfig;
+use crate::adapters::helpers::TIMESTAMP_COLUMN_NAMES;
 use crate::error::DbSurveyorError;
 use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use serde_json::Value as JsonValue;
 use sqlx::{Row, SqlitePool};
 use std::time::Duration;
-
-/// Common timestamp column names used for ordering by "most recent"
-const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
-    "created_at",
-    "updated_at",
-    "modified_at",
-    "inserted_at",
-    "timestamp",
-    "created",
-    "updated",
-    "modified",
-    "date_created",
-    "date_updated",
-    "date_modified",
-    "createdat",
-    "updatedat",
-    "modifiedat",
-    "creation_time",
-    "modification_time",
-    "update_time",
-    "create_time",
-];
 
 /// Detect the best ordering strategy for a SQLite table.
 pub async fn detect_ordering_strategy(
@@ -99,7 +79,7 @@ async fn detect_primary_key(
     pool: &SqlitePool,
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
-    let pk_query = format!("PRAGMA table_info('{}')", table.replace('\'', "''"));
+    let pk_query = format!("PRAGMA table_info({})", escape_pragma_arg(table));
 
     let rows = sqlx::query(&pk_query).fetch_all(pool).await.map_err(|e| {
         DbSurveyorError::collection_failed(
@@ -138,7 +118,7 @@ async fn detect_timestamp_column(
     pool: &SqlitePool,
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
-    let columns_query = format!("PRAGMA table_info('{}')", table.replace('\'', "''"));
+    let columns_query = format!("PRAGMA table_info({})", escape_pragma_arg(table));
 
     let rows = sqlx::query(&columns_query)
         .fetch_all(pool)
@@ -208,7 +188,7 @@ async fn detect_auto_increment_column(
     pool: &SqlitePool,
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
-    let columns_query = format!("PRAGMA table_info('{}')", table.replace('\'', "''"));
+    let columns_query = format!("PRAGMA table_info({})", escape_pragma_arg(table));
 
     let rows = sqlx::query(&columns_query)
         .fetch_all(pool)
@@ -243,7 +223,7 @@ async fn detect_rowid(
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
     // Try to query rowid to check if it exists
-    let test_query = format!("SELECT rowid FROM \"{}\" LIMIT 1", escape_identifier(table));
+    let test_query = format!("SELECT rowid FROM {} LIMIT 1", escape_identifier(table));
 
     match sqlx::query(&test_query).fetch_optional(pool).await {
         Ok(_) => Ok(Some(OrderingStrategy::SystemRowId {
@@ -262,13 +242,6 @@ async fn detect_rowid(
     }
 }
 
-/// Escapes a SQL identifier for use in double-quoted SQLite identifiers.
-///
-/// SQLite escapes embedded double quotes by doubling them.
-fn escape_identifier(ident: &str) -> String {
-    ident.replace('"', "\"\"")
-}
-
 /// Generate an ORDER BY clause for the given ordering strategy (SQLite syntax).
 pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -> String {
     let direction = if descending { "DESC" } else { "ASC" };
@@ -277,18 +250,18 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
         OrderingStrategy::PrimaryKey { columns } => {
             let cols: Vec<String> = columns
                 .iter()
-                .map(|c| format!("\"{}\" {}", escape_identifier(c), direction))
+                .map(|c| format!("{} {}", escape_identifier(c), direction))
                 .collect();
             format!("ORDER BY {}", cols.join(", "))
         }
         OrderingStrategy::Timestamp { column, .. } => {
-            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
+            format!("ORDER BY {} {}", escape_identifier(column), direction)
         }
         OrderingStrategy::AutoIncrement { column } => {
-            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
+            format!("ORDER BY {} {}", escape_identifier(column), direction)
         }
         OrderingStrategy::SystemRowId { column } => {
-            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
+            format!("ORDER BY {} {}", escape_identifier(column), direction)
         }
         OrderingStrategy::Unordered => {
             // For unordered tables, use RANDOM() for fair sampling
@@ -319,7 +292,7 @@ pub async fn sample_table(
     // Build and execute the sample query.
     // Identifiers are escaped to prevent SQL injection from embedded quotes.
     let query = format!(
-        "SELECT * FROM \"{}\" {} LIMIT ?",
+        "SELECT * FROM {} {} LIMIT ?",
         escape_identifier(table),
         order_by
     );
@@ -343,7 +316,7 @@ pub async fn sample_table(
     }
 
     // Get total row count
-    let count_query = format!("SELECT COUNT(*) FROM \"{}\"", escape_identifier(table));
+    let count_query = format!("SELECT COUNT(*) FROM {}", escape_identifier(table));
     let total_rows: Option<i64> = match sqlx::query_scalar(&count_query).fetch_one(pool).await {
         Ok(count) => Some(count),
         Err(e) => {
@@ -381,7 +354,7 @@ pub async fn sample_table(
         table_name: table.to_string(),
         schema_name: None,
         rows: json_rows,
-        sample_size: rows.len() as u32,
+        sample_size: u32::try_from(rows.len()).unwrap_or(u32::MAX),
         total_rows: total_rows.map(|t| t.max(0) as u64),
         sampling_strategy,
         collected_at: chrono::Utc::now(),

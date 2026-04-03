@@ -207,7 +207,8 @@ impl MongoAdapter {
             quality_metrics: None,
             collection_metadata: CollectionMetadata {
                 collected_at: chrono::Utc::now(),
-                collection_duration_ms: collection_duration.as_millis() as u64,
+                collection_duration_ms: u64::try_from(collection_duration.as_millis())
+                    .unwrap_or(u64::MAX),
                 collector_version: env!("CARGO_PKG_VERSION").to_string(),
                 warnings,
             },
@@ -234,7 +235,7 @@ impl MongoAdapter {
             .as_ref()
             .and_then(|info| info.get_str("version").ok().map(|s| s.to_string()));
 
-        let size_bytes = stats.get_i64("dataSize").ok().map(|s| s as u64);
+        let size_bytes = stats.get_i64("dataSize").ok().map(|s| s.max(0) as u64);
 
         // Check if this is a system database
         let is_system_database =
@@ -271,7 +272,7 @@ impl MongoAdapter {
 
         let row_count = stats
             .as_ref()
-            .and_then(|s| s.get_i64("count").ok().map(|c| c as u64));
+            .and_then(|s| s.get_i64("count").ok().map(|c| c.max(0) as u64));
 
         // Sample documents to infer schema
         let mut inferrer = SchemaInferrer::new();

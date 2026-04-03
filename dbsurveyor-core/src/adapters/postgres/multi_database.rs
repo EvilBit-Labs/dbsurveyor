@@ -285,7 +285,7 @@ pub async fn collect_all_databases(
 
     let collection_metadata = MultiDatabaseMetadata {
         started_at,
-        total_duration_ms: total_duration.as_millis() as u64,
+        total_duration_ms: u64::try_from(total_duration.as_millis()).unwrap_or(u64::MAX),
         databases_discovered,
         databases_filtered,
         databases_collected,
@@ -595,7 +595,7 @@ async fn collect_single_database(
     Ok(DatabaseCollectionResult {
         database_name: database_name.to_string(),
         schema,
-        collection_duration_ms: duration.as_millis() as u64,
+        collection_duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX),
     })
 }
 

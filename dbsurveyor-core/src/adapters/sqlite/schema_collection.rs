@@ -10,8 +10,8 @@
 //! - `PRAGMA index_list()`: Returns index information
 //! - `PRAGMA index_info()`: Returns columns in an index
 
-use super::SqliteAdapter;
 use super::type_mapping::map_sqlite_type;
+use super::{SqliteAdapter, escape_identifier, escape_pragma_arg};
 use crate::Result;
 use crate::models::*;
 use sqlx::Row;
@@ -119,7 +119,8 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
         quality_metrics: None,
         collection_metadata: CollectionMetadata {
             collected_at: chrono::Utc::now(),
-            collection_duration_ms: collection_duration.as_millis() as u64,
+            collection_duration_ms: u64::try_from(collection_duration.as_millis())
+                .unwrap_or(u64::MAX),
             collector_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
         },
@@ -147,7 +148,7 @@ async fn collect_database_info(adapter: &SqliteAdapter, db_name: &str) -> Result
             .fetch_one(&adapter.pool)
             .await
             .unwrap_or(4096);
-        Some((page_count * page_size) as u64)
+        Some(page_count.max(0) as u64 * page_size.max(0) as u64)
     } else {
         None
     };
@@ -243,7 +244,7 @@ async fn collect_tables(adapter: &SqliteAdapter) -> Result<Vec<Table>> {
 /// Collects column metadata for a specific table.
 async fn collect_table_columns(adapter: &SqliteAdapter, table_name: &str) -> Result<Vec<Column>> {
     // Use PRAGMA table_info to get column details
-    let columns_query = format!("PRAGMA table_info('{}')", table_name.replace('\'', "''"));
+    let columns_query = format!("PRAGMA table_info({})", escape_pragma_arg(table_name));
 
     let column_rows = sqlx::query(&columns_query)
         .fetch_all(&adapter.pool)
@@ -285,7 +286,7 @@ async fn collect_table_columns(adapter: &SqliteAdapter, table_name: &str) -> Res
             is_auto_increment,
             default_value,
             comment: None, // SQLite doesn't support column comments
-            ordinal_position: (cid + 1) as u32,
+            ordinal_position: u32::try_from(cid + 1).unwrap_or(0),
         };
 
         columns.push(column);
@@ -317,10 +318,7 @@ async fn collect_table_foreign_keys(
     adapter: &SqliteAdapter,
     table_name: &str,
 ) -> Result<Vec<ForeignKey>> {
-    let fk_query = format!(
-        "PRAGMA foreign_key_list('{}')",
-        table_name.replace('\'', "''")
-    );
+    let fk_query = format!("PRAGMA foreign_key_list({})", escape_pragma_arg(table_name));
 
     let fk_rows = sqlx::query(&fk_query)
         .fetch_all(&adapter.pool)
@@ -381,7 +379,7 @@ fn parse_referential_action(action: &str) -> Option<ReferentialAction> {
 
 /// Collects indexes for a table.
 async fn collect_table_indexes(adapter: &SqliteAdapter, table_name: &str) -> Result<Vec<Index>> {
-    let index_list_query = format!("PRAGMA index_list('{}')", table_name.replace('\'', "''"));
+    let index_list_query = format!("PRAGMA index_list({})", escape_pragma_arg(table_name));
 
     let index_rows = sqlx::query(&index_list_query)
         .fetch_all(&adapter.pool)
@@ -427,7 +425,7 @@ async fn collect_index_columns(
     adapter: &SqliteAdapter,
     index_name: &str,
 ) -> Result<Vec<IndexColumn>> {
-    let index_info_query = format!("PRAGMA index_info('{}')", index_name.replace('\'', "''"));
+    let index_info_query = format!("PRAGMA index_info({})", escape_pragma_arg(index_name));
 
     let column_rows = sqlx::query(&index_info_query)
         .fetch_all(&adapter.pool)
@@ -479,10 +477,7 @@ fn collect_table_constraints(columns: &[Column], table_name: &str) -> Vec<Constr
 async fn get_table_row_count(adapter: &SqliteAdapter, table_name: &str) -> Result<u64> {
     // Use a simple COUNT(*) for small tables
     // For larger tables, this could be slow, but SQLite doesn't have table statistics
-    let query = format!(
-        "SELECT COUNT(*) FROM \"{}\"",
-        table_name.replace('"', "\"\"")
-    );
+    let query = format!("SELECT COUNT(*) FROM {}", escape_identifier(table_name));
 
     let count: i64 = sqlx::query_scalar(&query)
         .fetch_one(&adapter.pool)
@@ -494,7 +489,7 @@ async fn get_table_row_count(adapter: &SqliteAdapter, table_name: &str) -> Resul
             )
         })?;
 
-    Ok(count as u64)
+    Ok(count.max(0) as u64)
 }
 
 /// Collects views from the SQLite database.

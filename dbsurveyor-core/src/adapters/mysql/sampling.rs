@@ -12,33 +12,12 @@
 //! 4. Fallback to unordered (will use RAND() for sampling)
 
 use crate::adapters::config::SamplingConfig;
+use crate::adapters::helpers::TIMESTAMP_COLUMN_NAMES;
 use crate::error::DbSurveyorError;
 use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use serde_json::Value as JsonValue;
 use sqlx::{MySqlPool, Row};
 use std::time::Duration;
-
-/// Common timestamp column names used for ordering by "most recent"
-const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
-    "created_at",
-    "updated_at",
-    "modified_at",
-    "inserted_at",
-    "timestamp",
-    "created",
-    "updated",
-    "modified",
-    "date_created",
-    "date_updated",
-    "date_modified",
-    "createdat",
-    "updatedat",
-    "modifiedat",
-    "creation_time",
-    "modification_time",
-    "update_time",
-    "create_time",
-];
 
 /// Detect the best ordering strategy for a MySQL table.
 pub async fn detect_ordering_strategy(
@@ -367,7 +346,7 @@ pub async fn sample_table(
         table_name: table.to_string(),
         schema_name: Some(db_name.to_string()),
         rows: json_rows,
-        sample_size: rows.len() as u32,
+        sample_size: u32::try_from(rows.len()).unwrap_or(u32::MAX),
         total_rows: total_rows.map(|t| t.max(0) as u64),
         sampling_strategy,
         collected_at: chrono::Utc::now(),

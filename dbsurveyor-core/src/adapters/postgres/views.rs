@@ -159,7 +159,7 @@ async fn collect_view_columns(
             is_auto_increment: false,
             default_value: column_default,
             comment: column_comment,
-            ordinal_position: ordinal_position as u32,
+            ordinal_position: u32::try_from(ordinal_position).unwrap_or(0),
         });
     }
 

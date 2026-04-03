@@ -378,17 +378,22 @@ async fn load_json_schema(data: &[u8]) -> Result<DatabaseSchema> {
 /// Loads compressed schema
 #[cfg(feature = "compression")]
 async fn load_compressed_schema(data: &[u8]) -> Result<DatabaseSchema> {
-    use std::io::Read;
-
-    let mut decoder = zstd::Decoder::new(data).map_err(|e| {
+    let owned_data = data.to_vec();
+    let decompressed = tokio::task::spawn_blocking(move || -> std::io::Result<String> {
+        use std::io::Read;
+        let mut decoder = zstd::Decoder::new(owned_data.as_slice())?;
+        let mut buf = String::new();
+        decoder.read_to_string(&mut buf)?;
+        Ok(buf)
+    })
+    .await
+    .map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Failed to create decompressor: {}",
+            "Decompression task failed: {}",
             e
         ))
-    })?;
-
-    let mut decompressed = String::new();
-    decoder.read_to_string(&mut decompressed).map_err(|e| {
+    })?
+    .map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::configuration(format!(
             "Decompression failed: {}",
             e

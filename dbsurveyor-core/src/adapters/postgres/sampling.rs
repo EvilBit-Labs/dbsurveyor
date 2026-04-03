@@ -18,33 +18,12 @@
 //! - Respects connection pool timeout settings
 
 use crate::adapters::config::SamplingConfig;
+use crate::adapters::helpers::TIMESTAMP_COLUMN_NAMES;
 use crate::error::DbSurveyorError;
 use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
-
-/// Common timestamp column names used for ordering by "most recent"
-const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
-    "created_at",
-    "updated_at",
-    "modified_at",
-    "inserted_at",
-    "timestamp",
-    "created",
-    "updated",
-    "modified",
-    "date_created",
-    "date_updated",
-    "date_modified",
-    "createdat",
-    "updatedat",
-    "modifiedat",
-    "creation_time",
-    "modification_time",
-    "update_time",
-    "create_time",
-];
 
 /// Detect the best ordering strategy for a table.
 ///
@@ -501,7 +480,7 @@ pub async fn sample_table(
             )
         })?;
 
-    let actual_sample_size = rows.len() as u32;
+    let actual_sample_size = u32::try_from(rows.len()).unwrap_or(u32::MAX);
 
     // Add warning if we got fewer rows than requested (table has fewer rows)
     if actual_sample_size < config.sample_size && !is_random {

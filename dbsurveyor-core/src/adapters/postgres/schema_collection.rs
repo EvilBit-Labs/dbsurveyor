@@ -185,7 +185,8 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         quality_metrics: None,
         collection_metadata: CollectionMetadata {
             collected_at: chrono::Utc::now(),
-            collection_duration_ms: collection_duration.as_millis() as u64,
+            collection_duration_ms: u64::try_from(collection_duration.as_millis())
+                .unwrap_or(u64::MAX),
             collector_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
         },
@@ -242,7 +243,7 @@ impl PostgresAdapter {
         Ok(DatabaseInfo {
             name,
             version: Some(version),
-            size_bytes: size_bytes.map(|s| s as u64),
+            size_bytes: size_bytes.map(|s| s.max(0) as u64),
             encoding,
             collation,
             owner,
@@ -399,7 +400,7 @@ impl PostgresAdapter {
                 indexes,
                 constraints,
                 comment: table_comment,
-                row_count: estimated_rows.map(|r| r as u64),
+                row_count: estimated_rows.map(|r| r.max(0) as u64),
             };
 
             tracing::debug!(
@@ -535,7 +536,7 @@ impl PostgresAdapter {
                 is_auto_increment,
                 default_value: column_default,
                 comment: column_comment,
-                ordinal_position: ordinal_position as u32,
+                ordinal_position: u32::try_from(ordinal_position).unwrap_or(0),
             });
         }
 

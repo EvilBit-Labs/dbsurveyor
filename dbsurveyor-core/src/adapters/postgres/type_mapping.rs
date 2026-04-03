@@ -32,10 +32,10 @@ impl PostgresAdapter {
         let unified_type = match data_type.to_lowercase().as_str() {
             // String/Character types
             "character varying" | "varchar" => UnifiedDataType::String {
-                max_length: character_maximum_length.map(|l| l as u32),
+                max_length: character_maximum_length.and_then(|l| u32::try_from(l).ok()),
             },
             "character" | "char" => UnifiedDataType::String {
-                max_length: character_maximum_length.map(|l| l as u32),
+                max_length: character_maximum_length.and_then(|l| u32::try_from(l).ok()),
             },
             "text" => UnifiedDataType::String { max_length: None },
 
@@ -209,7 +209,7 @@ pub fn map_postgresql_type(
     let unified_type = match pg_type {
         // String types
         "character varying" | "varchar" => UnifiedDataType::String {
-            max_length: char_max_length.map(|l| l as u32),
+            max_length: char_max_length.and_then(|l| u32::try_from(l).ok()),
         },
         "text" | "character" | "char" => UnifiedDataType::String { max_length: None },
 

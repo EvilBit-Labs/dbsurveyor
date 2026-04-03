@@ -500,24 +500,22 @@ async fn save_json(json_data: &str, output_path: &PathBuf) -> Result<()> {
 /// Saves compressed JSON data
 #[cfg(feature = "compression")]
 async fn save_compressed(json_data: &str, output_path: &PathBuf) -> Result<()> {
-    use std::io::Write;
-
-    let mut encoder = zstd::Encoder::new(Vec::new(), 3).map_err(|e| {
+    let json_bytes = json_data.as_bytes().to_vec();
+    let compressed_data = tokio::task::spawn_blocking(move || -> std::io::Result<Vec<u8>> {
+        use std::io::Write;
+        let mut encoder = zstd::Encoder::new(Vec::new(), 3)?;
+        encoder.write_all(&json_bytes)?;
+        encoder.finish()
+    })
+    .await
+    .map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Failed to create compressor: {}",
+            "Compression task failed: {}",
             e
         ))
-    })?;
-
-    encoder.write_all(json_data.as_bytes()).map_err(|e| {
+    })?
+    .map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::configuration(format!("Compression failed: {}", e))
-    })?;
-
-    let compressed_data = encoder.finish().map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Compression finalization failed: {}",
-            e
-        ))
     })?;
 
     tokio::fs::write(output_path, compressed_data)

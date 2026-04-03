@@ -247,7 +247,7 @@ pub async fn sample_collection(
         .map(|doc| bson_doc_to_json(&doc))
         .collect();
 
-    let actual_sample_size = rows.len() as u32;
+    let actual_sample_size = u32::try_from(rows.len()).unwrap_or(u32::MAX);
 
     if actual_sample_size < config.sample_size && !use_random {
         tracing::debug!(

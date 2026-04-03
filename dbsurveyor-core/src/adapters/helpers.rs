@@ -69,6 +69,31 @@ impl ValidationPatterns {
     }
 }
 
+/// Common timestamp column names used for ordering by "most recent" rows.
+///
+/// Shared across all database adapters to detect timestamp-like columns
+/// for intelligent sampling order.
+pub(crate) const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
+    "created_at",
+    "updated_at",
+    "modified_at",
+    "inserted_at",
+    "timestamp",
+    "created",
+    "updated",
+    "modified",
+    "date_created",
+    "date_updated",
+    "date_modified",
+    "createdat",
+    "updatedat",
+    "modifiedat",
+    "creation_time",
+    "modification_time",
+    "update_time",
+    "create_time",
+];
+
 /// Macro for reducing boilerplate error handling when querying database metadata.
 ///
 /// # Example

@@ -35,6 +35,22 @@ use sqlx::SqlitePool;
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
 pub use type_mapping::map_sqlite_type;
 
+/// Escapes a SQLite identifier by double-quoting (for use in DML statements).
+///
+/// Embedded double quotes are doubled per the SQL standard, so a column named
+/// `weird"col` becomes `"weird""col"`.
+pub(crate) fn escape_identifier(name: &str) -> String {
+    format!("\"{}\"", name.replace('"', "\"\""))
+}
+
+/// Escapes a value for use in PRAGMA arguments (single-quoting).
+///
+/// Embedded single quotes are doubled, so a table named `it's` becomes
+/// `'it''s'`.
+pub(crate) fn escape_pragma_arg(name: &str) -> String {
+    format!("'{}'", name.replace('\'', "''"))
+}
+
 /// SQLite database adapter with schema collection and data sampling.
 ///
 /// SQLite uses file-based databases, so this adapter works differently from
@@ -203,5 +219,40 @@ impl SqliteAdapter {
         config: &super::SamplingConfig,
     ) -> Result<crate::models::TableSample> {
         sampling::sample_table(&self.pool, table, config).await
+    }
+}
+
+#[cfg(test)]
+mod escape_tests {
+    use super::*;
+
+    #[test]
+    fn test_escape_identifier_plain() {
+        assert_eq!(escape_identifier("users"), "\"users\"");
+    }
+
+    #[test]
+    fn test_escape_identifier_with_double_quote() {
+        assert_eq!(escape_identifier("weird\"col"), "\"weird\"\"col\"");
+    }
+
+    #[test]
+    fn test_escape_identifier_empty() {
+        assert_eq!(escape_identifier(""), "\"\"");
+    }
+
+    #[test]
+    fn test_escape_pragma_arg_plain() {
+        assert_eq!(escape_pragma_arg("users"), "'users'");
+    }
+
+    #[test]
+    fn test_escape_pragma_arg_with_single_quote() {
+        assert_eq!(escape_pragma_arg("it's"), "'it''s'");
+    }
+
+    #[test]
+    fn test_escape_pragma_arg_empty() {
+        assert_eq!(escape_pragma_arg(""), "''");
     }
 }
