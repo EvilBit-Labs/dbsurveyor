@@ -215,6 +215,18 @@ impl ConnectionConfig {
         self.username = Some(username);
         self
     }
+
+    /// Builder method to set maximum number of connections in the pool.
+    pub fn with_max_connections(mut self, max_connections: u32) -> Self {
+        self.max_connections = max_connections;
+        self
+    }
+
+    /// Builder method to set minimum number of idle connections.
+    pub fn with_min_idle_connections(mut self, min_idle: u32) -> Self {
+        self.min_idle_connections = min_idle;
+        self
+    }
 }
 
 #[cfg(test)]

@@ -70,9 +70,17 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         }
     };
 
-    // Collect views
-    tracing::debug!("Enumerating database views");
-    let collected_views = match views::collect_views(&adapter.pool).await {
+    // Collect views, functions, procedures, and triggers concurrently
+    // These are independent queries that can safely run in parallel
+    tracing::debug!("Enumerating views, functions, procedures, and triggers concurrently");
+    let (views_result, functions_result, procedures_result, triggers_result) = tokio::join!(
+        views::collect_views(&adapter.pool),
+        routines::collect_functions(&adapter.pool),
+        routines::collect_procedures(&adapter.pool),
+        triggers::collect_triggers(&adapter.pool),
+    );
+
+    let collected_views = match views_result {
         Ok(v) => {
             tracing::info!("Successfully collected {} views", v.len());
             v
@@ -85,9 +93,7 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         }
     };
 
-    // Collect functions
-    tracing::debug!("Enumerating database functions");
-    let functions = match routines::collect_functions(&adapter.pool).await {
+    let functions = match functions_result {
         Ok(f) => {
             tracing::info!("Successfully collected {} functions", f.len());
             f
@@ -100,9 +106,7 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         }
     };
 
-    // Collect procedures
-    tracing::debug!("Enumerating database procedures");
-    let procedures = match routines::collect_procedures(&adapter.pool).await {
+    let procedures = match procedures_result {
         Ok(p) => {
             tracing::info!("Successfully collected {} procedures", p.len());
             p
@@ -115,9 +119,7 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         }
     };
 
-    // Collect triggers
-    tracing::debug!("Enumerating database triggers");
-    let collected_triggers = match triggers::collect_triggers(&adapter.pool).await {
+    let collected_triggers = match triggers_result {
         Ok(t) => {
             tracing::info!("Successfully collected {} triggers", t.len());
             t

@@ -557,6 +557,10 @@ async fn collect_databases_concurrent(
 }
 
 /// Collects schema from a single database.
+///
+/// Uses a reduced connection pool (max 2 connections, 0 min idle) to prevent
+/// connection exhaustion when scanning many databases concurrently. The pool
+/// is explicitly closed after collection to release connections promptly.
 async fn collect_single_database(
     adapter: &PostgresAdapter,
     database_name: &str,
@@ -565,14 +569,28 @@ async fn collect_single_database(
 
     tracing::debug!("Connecting to database: {}", database_name);
 
-    // Create a new adapter for this database
-    let db_adapter = adapter.connect_to_database(database_name).await?;
+    // Build connection URL for this database
+    let db_url = adapter.connection_url_for_database(database_name)?;
+
+    // Create a reduced-pool config for per-database connections to prevent
+    // connection exhaustion when scanning many databases concurrently.
+    // Only 1-2 queries run at a time per database, so 2 max connections suffice.
+    let reduced_config = adapter
+        .config
+        .clone()
+        .with_max_connections(2)
+        .with_min_idle_connections(0);
+
+    let db_adapter = PostgresAdapter::with_config(&db_url, reduced_config).await?;
 
     // Collect schema
     tracing::debug!("Collecting schema from database: {}", database_name);
     let schema = db_adapter.collect_schema().await?;
 
     let duration = start.elapsed();
+
+    // Explicitly close the pool to release connections promptly
+    db_adapter.close().await;
 
     Ok(DatabaseCollectionResult {
         database_name: database_name.to_string(),

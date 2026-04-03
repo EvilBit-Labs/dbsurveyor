@@ -206,7 +206,7 @@ just release-snapshot        # Local release dry-run (builds all targets, skips 
 
 - `cargo-deny` duplicate warnings for Windows crates are transitive dependencies and expected
 - Always run `just fmt` before `just ci-check` to avoid fmt-check failures
-- Test Coverage CI uses `--fail-under-lines 80` threshold; failures may be pre-existing
+- Test Coverage CI uses `--fail-under-lines 55` threshold (target: 80%, to be raised incrementally as test coverage improves)
 - Large rebases (80+ commits) may fail on GitHub with "This branch can't be rebased"
   - Workaround: Temporarily enable merge commits via API, merge, then disable
 
