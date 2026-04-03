@@ -18,12 +18,17 @@ repos:
           - id: check-merge-conflict
           - id: check-illegal-windows-names
           - id: check-json
+            types: [json]
           - id: check-toml
+            types: [toml]
           - id: check-yaml
+            types: [yaml]
             args: [--allow-multiple-documents]
           - id: check-xml
+            types: [xml]
           - id: mixed-line-ending
             args: [--fix=auto]
+            types: [text]
           - id: check-vcs-permalinks
 
     # 🦀 Rust clippy linting
@@ -50,9 +55,10 @@ repos:
 
     # 🧪 GitHub Actions validation
     - repo: https://github.com/rhysd/actionlint
-      rev: v1.7.7
+      rev: v1.7.12
       hooks:
           - id: actionlint
+            types: [yaml]
             files: ".github/workflows/"
             exclude: ^.github/workflows/release.yml$
 
@@ -61,23 +67,18 @@ repos:
       rev: v0.11.0
       hooks:
           - id: shellcheck
+            types: [shell]
             exclude: ^.github/workflows/release.yml$
-
-    # 📝 Commit message linting (commit-msg only, not blocking push)
-    - repo: https://github.com/commitizen-tools/commitizen
-      rev: v4.8.3
-      hooks:
-          - id: commitizen
-            stages: [commit-msg]
 
     - repo: https://github.com/bnjbvr/cargo-machete
       rev: v0.9.1
       hooks:
           - id: cargo-machete
+            types: [cargo, cargo-lock]
 
     # 📝 Markdown formatting and linting (temporarily disabled in CI due to path issues)
-    - repo: https://github.com/hukkin/mdformat
-      rev: 0.7.22
+    - repo: https://github.com/executablebooks/mdformat
+      rev: 1.0.0
       hooks:
           - id: mdformat
             additional_dependencies:
@@ -85,20 +86,13 @@ repos:
                 - mdformat-admon
                 - mdformat-config
                 - mdformat-footnote
-                - mdformat-frontmatter
                 - mdformat-simple-breaks
-                - mdformat-tables
                 - mdformat-web
-                - mdformat-wikilink
                 - mdformat-ruff
                 - mdformat-gfm-alerts
-                - mdformat-rustfmt
                 - mdformat-toc
-    # - repo: https://github.com/DavidAnson/markdownlint-cli2
-    #   rev: v0.18.1
-    #   hooks:
-    #     - id: markdownlint-cli2
-    #       args: ["-c", ".markdownlint-cli2.jsonc"]
+                - mdformat-front-matters
+            types: [markdown]
 
     # 🔒 Security audit for Rust dependencies (moved to CI)
     - repo: local
@@ -109,3 +103,4 @@ repos:
             language: system
             pass_filenames: false
             always_run: true
+            types: [cargo, cargo-lock]
