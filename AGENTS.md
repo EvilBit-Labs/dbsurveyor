@@ -335,3 +335,7 @@ gh api repos/{owner}/{repo}/pulls/<number>/reviews
 6. **Documentation**: Comprehensive docs for all public APIs and CLI usage
 
 This document serves as the authoritative guide for AI assistants working on the DBSurveyor project, ensuring consistent, secure, and high-quality development practices.
+
+## Agent Rules <!-- tessl-managed -->
+
+@.tessl/RULES.md follow the [instructions](.tessl/RULES.md)
