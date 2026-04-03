@@ -25,6 +25,7 @@ The project follows a Rust workspace structure with clear separation of concerns
 ├── .github/
 │   ├── workflows/             # GitHub Actions CI/CD
 │   └── dependabot.yml         # Dependency management
+├── docs/solutions/            # Documented solutions to past problems, organized by category with YAML frontmatter (module, tags, problem_type)
 ├── project_specs/             # Project specifications
 ├── justfile                   # Task runner configuration
 ├── .goreleaser.yaml           # GoReleaser release configuration
