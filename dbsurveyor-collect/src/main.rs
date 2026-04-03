@@ -560,6 +560,12 @@ async fn save_encrypted(json_data: &str, output_path: &PathBuf) -> Result<()> {
         ));
     }
 
+    if password.len() < 8 {
+        return Err(dbsurveyor_core::error::DbSurveyorError::configuration(
+            "Encryption password must be at least 8 characters",
+        ));
+    }
+
     // Confirm password to prevent typos
     print!("Confirm encryption password: ");
     io::stdout().flush().map_err(|e| {

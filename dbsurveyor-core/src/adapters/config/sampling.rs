@@ -141,24 +141,28 @@ impl SamplingConfig {
     /// Builder method to set sample size.
     ///
     /// Values exceeding [`MAX_SAMPLE_SIZE`] are clamped to the maximum.
+    #[must_use]
     pub fn with_sample_size(mut self, size: u32) -> Self {
         self.sample_size = size.min(MAX_SAMPLE_SIZE);
         self
     }
 
     /// Builder method to set throttle delay.
+    #[must_use]
     pub fn with_throttle_ms(mut self, ms: u64) -> Self {
         self.throttle_ms = Some(ms);
         self
     }
 
     /// Builder method to set query timeout.
+    #[must_use]
     pub fn with_query_timeout_secs(mut self, secs: u64) -> Self {
         self.query_timeout_secs = secs;
         self
     }
 
     /// Builder method to enable/disable sensitive data warnings.
+    #[must_use]
     pub fn with_sensitive_warnings(mut self, enabled: bool) -> Self {
         self.warn_sensitive = enabled;
         self
@@ -170,6 +174,7 @@ impl SamplingConfig {
     /// If the regex is invalid, a warning is printed and the pattern is
     /// still stored in `sensitive_detection_patterns` but will not be
     /// included in `compiled_patterns`.
+    #[must_use]
     pub fn add_sensitive_pattern(mut self, pattern: SensitivePattern) -> Self {
         match Regex::new(&pattern.pattern) {
             Ok(regex) => {

@@ -438,7 +438,9 @@ impl PostgresAdapter {
             match key.as_ref() {
                 // Note: SSL disabled - we don't log this to avoid information disclosure
                 "sslmode" if value == "disable" => {
-                    // SSL disabled - consider enabling for security
+                    tracing::warn!(
+                        "SSL is disabled (sslmode=disable). Consider enabling SSL for secure connections."
+                    );
                 }
                 // Validate statement timeout if specified
                 "statement_timeout" => {

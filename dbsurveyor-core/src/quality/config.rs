@@ -58,12 +58,14 @@ impl AnomalyConfig {
     }
 
     /// Builder method to enable/disable anomaly detection.
+    #[must_use]
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
     /// Builder method to set sensitivity level.
+    #[must_use]
     pub fn with_sensitivity(mut self, sensitivity: AnomalySensitivity) -> Self {
         self.sensitivity = sensitivity;
         self
@@ -120,12 +122,14 @@ impl QualityConfig {
     }
 
     /// Builder method to enable/disable quality analysis.
+    #[must_use]
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
     /// Builder method to set completeness threshold.
+    #[must_use]
     pub fn with_completeness_min(mut self, threshold: f64) -> Self {
         if !(0.0..=1.0).contains(&threshold) {
             tracing::warn!(
@@ -138,6 +142,7 @@ impl QualityConfig {
     }
 
     /// Builder method to set uniqueness threshold.
+    #[must_use]
     pub fn with_uniqueness_min(mut self, threshold: f64) -> Self {
         if !(0.0..=1.0).contains(&threshold) {
             tracing::warn!(
@@ -150,6 +155,7 @@ impl QualityConfig {
     }
 
     /// Builder method to set consistency threshold.
+    #[must_use]
     pub fn with_consistency_min(mut self, threshold: f64) -> Self {
         if !(0.0..=1.0).contains(&threshold) {
             tracing::warn!(
@@ -162,6 +168,7 @@ impl QualityConfig {
     }
 
     /// Builder method to set anomaly detection config.
+    #[must_use]
     pub fn with_anomaly_detection(mut self, config: AnomalyConfig) -> Self {
         self.anomaly_detection = config;
         self

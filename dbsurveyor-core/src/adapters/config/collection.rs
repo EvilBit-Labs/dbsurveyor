@@ -125,12 +125,14 @@ impl CollectionConfig {
     }
 
     /// Builder method to set connection config.
+    #[must_use]
     pub fn with_connection(mut self, connection: ConnectionConfig) -> Self {
         self.connection = connection;
         self
     }
 
     /// Builder method to set sampling config.
+    #[must_use]
     pub fn with_sampling(mut self, sampling: SamplingConfig) -> Self {
         self.sampling = sampling;
         self
@@ -148,72 +150,84 @@ impl CollectionConfig {
     }
 
     /// Builder method to enable/disable views collection.
+    #[must_use]
     pub fn with_views(mut self, include: bool) -> Self {
         self.include_views = include;
         self
     }
 
     /// Builder method to enable/disable procedures collection.
+    #[must_use]
     pub fn with_procedures(mut self, include: bool) -> Self {
         self.include_procedures = include;
         self
     }
 
     /// Builder method to enable/disable functions collection.
+    #[must_use]
     pub fn with_functions(mut self, include: bool) -> Self {
         self.include_functions = include;
         self
     }
 
     /// Builder method to enable/disable triggers collection.
+    #[must_use]
     pub fn with_triggers(mut self, include: bool) -> Self {
         self.include_triggers = include;
         self
     }
 
     /// Builder method to enable/disable indexes collection.
+    #[must_use]
     pub fn with_indexes(mut self, include: bool) -> Self {
         self.include_indexes = include;
         self
     }
 
     /// Builder method to enable/disable constraints collection.
+    #[must_use]
     pub fn with_constraints(mut self, include: bool) -> Self {
         self.include_constraints = include;
         self
     }
 
     /// Builder method to enable/disable custom types collection.
+    #[must_use]
     pub fn with_custom_types(mut self, include: bool) -> Self {
         self.include_custom_types = include;
         self
     }
 
     /// Builder method to enable/disable data sampling.
+    #[must_use]
     pub fn with_data_sampling(mut self, enabled: bool) -> Self {
         self.enable_data_sampling = enabled;
         self
     }
 
     /// Builder method to set output format.
+    #[must_use]
     pub fn with_output_format(mut self, format: OutputFormat) -> Self {
         self.output_format = format;
         self
     }
 
     /// Builder method to enable/disable compression.
+    #[must_use]
     pub fn with_compression(mut self, enabled: bool) -> Self {
         self.compression_enabled = enabled;
         self
     }
 
     /// Builder method to enable/disable encryption.
+    #[must_use]
     pub fn with_encryption(mut self, enabled: bool) -> Self {
         self.encryption_enabled = enabled;
         self
     }
 
     /// Builder method to exclude specific databases.
+    #[must_use]
     pub fn exclude_database(mut self, database: impl Into<String>) -> Self {
         self.exclude_databases.push(database.into());
         self

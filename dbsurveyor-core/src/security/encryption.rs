@@ -116,15 +116,15 @@ const ARGON2_PARALLELISM: u32 = 4;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KdfParams {
     /// Random salt (16 bytes as per requirements)
-    pub salt: Vec<u8>,
+    pub(crate) salt: Vec<u8>,
     /// Memory cost in KiB (64 MiB = 65536 KiB)
-    pub memory_cost: u32,
+    pub(crate) memory_cost: u32,
     /// Time cost (iterations)
-    pub time_cost: u32,
+    pub(crate) time_cost: u32,
     /// Parallelism factor
-    pub parallelism: u32,
+    pub(crate) parallelism: u32,
     /// Argon2 version (always 1.3 for Argon2id)
-    pub version: String,
+    pub(crate) version: String,
 }
 
 impl Default for KdfParams {
@@ -183,6 +183,31 @@ impl KdfParams {
             ));
         }
         Ok(())
+    }
+
+    /// Returns the salt bytes.
+    pub fn salt(&self) -> &[u8] {
+        &self.salt
+    }
+
+    /// Returns the memory cost in KiB.
+    pub fn memory_cost(&self) -> u32 {
+        self.memory_cost
+    }
+
+    /// Returns the time cost (number of iterations).
+    pub fn time_cost(&self) -> u32 {
+        self.time_cost
+    }
+
+    /// Returns the parallelism factor.
+    pub fn parallelism(&self) -> u32 {
+        self.parallelism
+    }
+
+    /// Returns the Argon2 version string.
+    pub fn version(&self) -> &str {
+        &self.version
     }
 }
 
