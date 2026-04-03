@@ -510,7 +510,7 @@ mod tests {
             column: "rowid".to_string(),
         };
         let clause = generate_order_by_clause(&strategy, true);
-        assert_eq!(clause, "ORDER BY rowid DESC");
+        assert_eq!(clause, "ORDER BY \"rowid\" DESC");
     }
 
     #[test]

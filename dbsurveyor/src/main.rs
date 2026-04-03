@@ -26,11 +26,9 @@ This tool processes database schema files collected by dbsurveyor-collect
 and generates comprehensive documentation and analysis reports.
 
 FEATURES:
-- Markdown and HTML report generation
-- SQL DDL reconstruction
-- Entity Relationship Diagrams (ERD)
+- Markdown report generation
+- JSON analysis reports
 - Data classification and analysis
-- Privacy-compliant data redaction
 
 INPUT FORMATS:
 - .dbsurveyor.json (standard JSON)
@@ -39,14 +37,11 @@ INPUT FORMATS:
 
 OUTPUT FORMATS:
 - Markdown documentation
-- HTML reports with search
-- SQL DDL scripts
-- Mermaid ERD diagrams
+- JSON analysis reports
 
 EXAMPLES:
   dbsurveyor generate schema.dbsurveyor.json
-  dbsurveyor --format html --output report.html schema.json
-  dbsurveyor --redact-mode conservative schema.enc
+  dbsurveyor --format json --output analysis.json schema.json
 ")]
 pub struct Cli {
     #[command(flatten)]
@@ -187,11 +182,13 @@ pub struct GlobalArgs {
 pub enum OutputFormat {
     /// Markdown documentation
     Markdown,
-    /// HTML report with search
+    /// HTML report with search (not yet implemented)
+    #[value(skip)]
     Html,
     /// JSON analysis report
     Json,
-    /// Mermaid ERD diagram
+    /// Mermaid ERD diagram (not yet implemented)
+    #[value(skip)]
     Mermaid,
 }
 
@@ -462,8 +459,16 @@ async fn generate_documentation(
     input_path: &PathBuf,
     format: OutputFormat,
     output_path: Option<&PathBuf>,
-    _cli: &Cli,
+    cli: &Cli,
 ) -> Result<()> {
+    // Warn about unimplemented redaction options
+    if cli.no_redact {
+        eprintln!("Warning: --no-redact is not yet implemented and will be ignored.");
+    }
+    if !matches!(cli.redact_mode, RedactionMode::Balanced) {
+        eprintln!("Warning: --redact-mode is not yet implemented and will be ignored.");
+    }
+
     let schema = load_schema(input_path).await?;
 
     info!("Loaded schema for database: {}", schema.database_info.name);
@@ -625,6 +630,8 @@ async fn generate_sql(
     _dialect: SqlDialect,
     output_path: Option<&PathBuf>,
 ) -> Result<()> {
+    eprintln!("Warning: SQL DDL generation is not yet fully implemented. Output will be minimal.");
+    eprintln!("Warning: --dialect is not yet implemented and will be ignored.");
     let schema = load_schema(input_path).await?;
 
     let sql_content = format!(

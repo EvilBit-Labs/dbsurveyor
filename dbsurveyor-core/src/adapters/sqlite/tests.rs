@@ -276,7 +276,7 @@ fn test_generate_order_by_clause_variants() {
     };
     assert_eq!(
         generate_order_by_clause(&strategy, true),
-        "ORDER BY rowid DESC"
+        "ORDER BY \"rowid\" DESC"
     );
 
     // Unordered

@@ -160,25 +160,25 @@ impl KdfParams {
     /// Returns error if parameters don't meet minimum security thresholds
     pub fn validate(&self) -> crate::Result<()> {
         if self.salt.len() < ARGON2_SALT_SIZE {
-            return Err(crate::error::DbSurveyorError::configuration(format!(
+            return Err(crate::error::DbSurveyorError::encryption_error(format!(
                 "Salt must be at least {} bytes",
                 ARGON2_SALT_SIZE
             )));
         }
         if self.memory_cost < ARGON2_MEMORY_COST {
-            return Err(crate::error::DbSurveyorError::configuration(format!(
+            return Err(crate::error::DbSurveyorError::encryption_error(format!(
                 "Memory cost must be at least {} KiB (64 MiB)",
                 ARGON2_MEMORY_COST
             )));
         }
         if self.time_cost < ARGON2_TIME_COST {
-            return Err(crate::error::DbSurveyorError::configuration(format!(
+            return Err(crate::error::DbSurveyorError::encryption_error(format!(
                 "Time cost must be at least {} iterations",
                 ARGON2_TIME_COST
             )));
         }
         if self.parallelism < 1 {
-            return Err(crate::error::DbSurveyorError::configuration(
+            return Err(crate::error::DbSurveyorError::encryption_error(
                 "Parallelism must be at least 1",
             ));
         }
@@ -218,7 +218,7 @@ pub struct EncryptedData {
 fn validate_encrypted_data(encrypted: &EncryptedData) -> crate::Result<()> {
     // Validate algorithm
     if encrypted.algorithm != "AES-GCM-256" {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Unsupported encryption algorithm: {}",
             encrypted.algorithm
         )));
@@ -226,7 +226,7 @@ fn validate_encrypted_data(encrypted: &EncryptedData) -> crate::Result<()> {
 
     // Validate nonce length
     if encrypted.nonce.len() != AES_GCM_NONCE_SIZE {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Invalid nonce length: expected {}, got {}",
             AES_GCM_NONCE_SIZE,
             encrypted.nonce.len()
@@ -235,7 +235,7 @@ fn validate_encrypted_data(encrypted: &EncryptedData) -> crate::Result<()> {
 
     // Validate auth tag length
     if encrypted.auth_tag.len() != AES_GCM_TAG_SIZE {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Invalid authentication tag length: expected {}, got {}",
             AES_GCM_TAG_SIZE,
             encrypted.auth_tag.len()
@@ -273,7 +273,7 @@ fn derive_key(password: &str, kdf_params: &KdfParams) -> crate::Result<Zeroizing
         Some(AES_KEY_SIZE), // Output length: 32 bytes for AES-256
     )
     .map_err(|e| {
-        crate::error::DbSurveyorError::configuration(format!("Invalid Argon2 parameters: {}", e))
+        crate::error::DbSurveyorError::encryption_error(format!("Invalid Argon2 parameters: {}", e))
     })?;
 
     // Create Argon2id instance
@@ -281,23 +281,23 @@ fn derive_key(password: &str, kdf_params: &KdfParams) -> crate::Result<Zeroizing
 
     // Create salt string from bytes
     let salt_string = SaltString::encode_b64(&kdf_params.salt).map_err(|e| {
-        crate::error::DbSurveyorError::configuration(format!("Invalid salt: {}", e))
+        crate::error::DbSurveyorError::encryption_error(format!("Invalid salt: {}", e))
     })?;
 
     // Derive key
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt_string)
         .map_err(|e| {
-            crate::error::DbSurveyorError::configuration(format!("Key derivation failed: {}", e))
+            crate::error::DbSurveyorError::encryption_error(format!("Key derivation failed: {}", e))
         })?;
 
     // Extract the hash bytes (32 bytes for AES-256)
     let hash_bytes = password_hash.hash.ok_or_else(|| {
-        crate::error::DbSurveyorError::configuration("Key derivation produced no output")
+        crate::error::DbSurveyorError::encryption_error("Key derivation produced no output")
     })?;
 
     if hash_bytes.as_bytes().len() != AES_KEY_SIZE {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Key derivation produced incorrect key length: expected {}, got {}",
             AES_KEY_SIZE,
             hash_bytes.as_bytes().len()
@@ -352,13 +352,13 @@ pub fn encrypt_data(data: &[u8], password: &str) -> crate::Result<EncryptedData>
 
     // Encrypt data
     let ciphertext = cipher.encrypt(&nonce, data).map_err(|e| {
-        crate::error::DbSurveyorError::configuration(format!("Encryption failed: {}", e))
+        crate::error::DbSurveyorError::encryption_error(format!("Encryption failed: {}", e))
     })?;
 
     // Split ciphertext and auth tag
     // AES-GCM appends the 16-byte auth tag to the ciphertext
     if ciphertext.len() < AES_GCM_TAG_SIZE {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Encrypted data too short (minimum {} bytes for auth tag)",
             AES_GCM_TAG_SIZE
         )));
@@ -427,7 +427,7 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> crate::Result<
     let plaintext = cipher
         .decrypt(nonce, full_ciphertext.as_slice())
         .map_err(|e| {
-            crate::error::DbSurveyorError::configuration(format!(
+            crate::error::DbSurveyorError::encryption_error(format!(
                 "Decryption failed (wrong password or corrupted data): {}",
                 e
             ))

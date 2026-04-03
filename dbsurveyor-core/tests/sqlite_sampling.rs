@@ -265,7 +265,7 @@ async fn test_generate_order_by_clause() -> Result<()> {
         column: "rowid".to_string(),
     };
     let clause = adapter.generate_order_by(&rowid_strategy, true);
-    assert_eq!(clause, "ORDER BY rowid DESC");
+    assert_eq!(clause, "ORDER BY \"rowid\" DESC");
 
     // Test unordered
     let unordered = OrderingStrategy::Unordered;
