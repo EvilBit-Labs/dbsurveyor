@@ -120,7 +120,7 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn sample_table(
         &self,
         table_ref: TableRef<'_>,
-        config: &super::SamplingConfig,
+        config: &mut super::SamplingConfig,
     ) -> Result<TableSample> {
         sampling::sample_table(&self.pool, table_ref.table_name, config).await
     }
@@ -216,7 +216,7 @@ impl SqliteAdapter {
     pub async fn sample_table(
         &self,
         table: &str,
-        config: &super::SamplingConfig,
+        config: &mut super::SamplingConfig,
     ) -> Result<crate::models::TableSample> {
         sampling::sample_table(&self.pool, table, config).await
     }

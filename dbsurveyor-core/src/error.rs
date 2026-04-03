@@ -227,8 +227,11 @@ impl DbSurveyorError {
     pub fn encryption_error(context: impl Into<String>) -> Self {
         let msg = context.into();
         Self::Encryption {
-            context: msg.clone(),
-            source: Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, msg)),
+            context: msg,
+            source: Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "encryption operation failed",
+            )),
         }
     }
 }

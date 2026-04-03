@@ -85,7 +85,7 @@ impl DatabaseAdapter for MongoAdapter {
     async fn sample_table(
         &self,
         table_ref: TableRef<'_>,
-        config: &SamplingConfig,
+        config: &mut SamplingConfig,
     ) -> Result<TableSample> {
         let database = table_ref.schema_name.ok_or_else(|| {
             crate::error::DbSurveyorError::configuration(
@@ -150,7 +150,7 @@ impl MongoAdapter {
         // Collect schema for each collection
         let mut tables = Vec::new();
         let mut all_indexes = Vec::new();
-        let sampling_config = SamplingConfig::default();
+        let mut sampling_config = SamplingConfig::default();
 
         for collection_info in &collections {
             // Skip views - they don't have their own schema
@@ -160,7 +160,11 @@ impl MongoAdapter {
             }
 
             match self
-                .collect_collection_schema(&database_name, &collection_info.name, &sampling_config)
+                .collect_collection_schema(
+                    &database_name,
+                    &collection_info.name,
+                    &mut sampling_config,
+                )
                 .await
             {
                 Ok((table, indexes)) => {
@@ -259,7 +263,7 @@ impl MongoAdapter {
         &self,
         database_name: &str,
         collection_name: &str,
-        sampling_config: &SamplingConfig,
+        sampling_config: &mut SamplingConfig,
     ) -> Result<(Table, Vec<Index>)> {
         let db = self.client.database(database_name);
         let collection = db.collection::<mongodb::bson::Document>(collection_name);
@@ -447,7 +451,7 @@ impl MongoAdapter {
         &self,
         database: &str,
         collection: &str,
-        config: &SamplingConfig,
+        config: &mut SamplingConfig,
     ) -> Result<TableSample> {
         sampling::sample_collection(&self.client, database, collection, config).await
     }

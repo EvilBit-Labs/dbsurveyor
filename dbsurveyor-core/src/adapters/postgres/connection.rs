@@ -436,7 +436,6 @@ impl PostgresAdapter {
         // Check for potentially unsafe query parameters
         for (key, value) in url.query_pairs() {
             match key.as_ref() {
-                // Note: SSL disabled - we don't log this to avoid information disclosure
                 "sslmode" if value == "disable" => {
                     tracing::warn!(
                         "SSL is disabled (sslmode=disable). Consider enabling SSL for secure connections."

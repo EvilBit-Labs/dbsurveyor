@@ -259,8 +259,9 @@ pub async fn sample_table(
     pool: &MySqlPool,
     db_name: &str,
     table: &str,
-    config: &SamplingConfig,
+    config: &mut SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
+    config.validate()?;
     let mut warnings = Vec::new();
     let _sample_start = std::time::Instant::now();
 

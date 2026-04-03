@@ -95,7 +95,7 @@ impl DatabaseAdapter for MySqlAdapter {
     async fn sample_table(
         &self,
         table_ref: TableRef<'_>,
-        config: &super::SamplingConfig,
+        config: &mut super::SamplingConfig,
     ) -> Result<TableSample> {
         let db_name = match table_ref.schema_name {
             Some(s) => s.to_string(),
@@ -203,7 +203,7 @@ impl MySqlAdapter {
         &self,
         db_name: &str,
         table: &str,
-        config: &super::SamplingConfig,
+        config: &mut super::SamplingConfig,
     ) -> Result<crate::models::TableSample> {
         sampling::sample_table(&self.pool, db_name, table, config).await
     }

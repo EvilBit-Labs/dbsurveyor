@@ -368,8 +368,9 @@ pub async fn sample_table(
     pool: &PgPool,
     schema: Option<&str>,
     table: &str,
-    config: &SamplingConfig,
+    config: &mut SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
+    config.validate()?;
     let mut warnings = Vec::new();
     let display_name = match schema {
         Some(s) => format!("{}.{}", s, table),

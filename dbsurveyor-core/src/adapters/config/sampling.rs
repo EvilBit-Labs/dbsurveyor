@@ -68,10 +68,7 @@ fn compile_sensitive_patterns(patterns: &[SensitivePattern]) -> Vec<(Regex, Stri
         .filter_map(|p| match Regex::new(&p.pattern) {
             Ok(regex) => Some((regex, p.description.clone())),
             Err(e) => {
-                eprintln!(
-                    "WARNING: skipping invalid sensitive pattern '{}': {e}",
-                    p.pattern
-                );
+                tracing::warn!("Skipping invalid sensitive pattern '{}': {e}", p.pattern);
                 None
             }
         })
@@ -119,7 +116,7 @@ impl SamplingConfig {
     }
 
     /// Validates sampling configuration parameters.
-    pub fn validate(&self) -> crate::Result<()> {
+    pub fn validate(&mut self) -> crate::Result<()> {
         if self.sample_size == 0 {
             return Err(crate::error::DbSurveyorError::configuration(
                 "sample_size must be at least 1",
@@ -135,6 +132,11 @@ impl SamplingConfig {
                 "query_timeout_secs must be at least 1",
             ));
         }
+        // Ensure compiled_patterns are populated (they are #[serde(skip)]
+        // and will be empty after deserialization).
+        if self.compiled_patterns.is_empty() && !self.sensitive_detection_patterns.is_empty() {
+            self.compiled_patterns = compile_sensitive_patterns(&self.sensitive_detection_patterns);
+        }
         Ok(())
     }
 
@@ -143,6 +145,13 @@ impl SamplingConfig {
     /// Values exceeding [`MAX_SAMPLE_SIZE`] are clamped to the maximum.
     #[must_use]
     pub fn with_sample_size(mut self, size: u32) -> Self {
+        if size > MAX_SAMPLE_SIZE {
+            tracing::warn!(
+                "Requested sample_size {} exceeds maximum {}; clamped",
+                size,
+                MAX_SAMPLE_SIZE
+            );
+        }
         self.sample_size = size.min(MAX_SAMPLE_SIZE);
         self
     }
@@ -182,8 +191,8 @@ impl SamplingConfig {
                     .push((regex, pattern.description.clone()));
             }
             Err(e) => {
-                eprintln!(
-                    "WARNING: skipping invalid sensitive pattern '{}': {e}",
+                tracing::warn!(
+                    "Skipping invalid sensitive pattern '{}': {e}",
                     pattern.pattern
                 );
             }
@@ -239,14 +248,14 @@ mod tests {
 
     #[test]
     fn test_validate_default_config() {
-        let config = SamplingConfig::default();
+        let mut config = SamplingConfig::default();
         assert!(config.validate().is_ok());
     }
 
     #[test]
     fn test_validate_zero_sample_size() {
         // Construct directly to bypass the clamp in with_sample_size.
-        let config = SamplingConfig {
+        let mut config = SamplingConfig {
             sample_size: 0,
             ..SamplingConfig::default()
         };
@@ -255,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_validate_exceeds_max_sample_size() {
-        let config = SamplingConfig {
+        let mut config = SamplingConfig {
             sample_size: MAX_SAMPLE_SIZE + 1,
             ..SamplingConfig::default()
         };
@@ -264,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_validate_zero_query_timeout() {
-        let config = SamplingConfig {
+        let mut config = SamplingConfig {
             query_timeout_secs: 0,
             ..SamplingConfig::default()
         };
@@ -279,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_validate_at_max_boundary() {
-        let config = SamplingConfig::new().with_sample_size(MAX_SAMPLE_SIZE);
+        let mut config = SamplingConfig::new().with_sample_size(MAX_SAMPLE_SIZE);
         assert_eq!(config.sample_size, MAX_SAMPLE_SIZE);
         assert!(config.validate().is_ok());
     }

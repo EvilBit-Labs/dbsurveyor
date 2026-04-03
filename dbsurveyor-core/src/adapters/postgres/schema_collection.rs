@@ -129,6 +129,18 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         }
     };
 
+    // Escalate if multiple concurrent metadata tasks failed -- likely a systemic issue
+    let metadata_failure_count = collected_views.is_empty() as u8
+        + functions.is_empty() as u8
+        + procedures.is_empty() as u8
+        + collected_triggers.is_empty() as u8;
+    if metadata_failure_count >= 3 {
+        tracing::warn!(
+            "Multiple metadata collection tasks failed ({}/4); check database permissions",
+            metadata_failure_count
+        );
+    }
+
     // Log schema distribution for debugging
     if !schemas.is_empty() && !tables.is_empty() {
         let mut schema_table_counts = HashMap::with_capacity(schemas.len());

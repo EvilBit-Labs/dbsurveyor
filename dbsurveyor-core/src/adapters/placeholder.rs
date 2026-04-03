@@ -100,7 +100,7 @@ macro_rules! define_placeholder_adapter {
             async fn sample_table(
                 &self,
                 _table_ref: $crate::adapters::TableRef<'_>,
-                _config: &$crate::adapters::SamplingConfig,
+                _config: &mut $crate::adapters::SamplingConfig,
             ) -> $crate::Result<$crate::models::TableSample> {
                 Err($crate::error::DbSurveyorError::configuration(concat!(
                     $display_name,

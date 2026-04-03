@@ -13,7 +13,7 @@
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use dbsurveyor_core::{Result, init_logging, models::DatabaseSchema};
 use std::path::PathBuf;
-use tracing::info;
+use tracing::{info, warn};
 
 #[derive(Parser)]
 #[command(name = "dbsurveyor")]
@@ -468,10 +468,10 @@ async fn generate_documentation(
 ) -> Result<()> {
     // Warn about unimplemented redaction options
     if cli.no_redact {
-        eprintln!("Warning: --no-redact is not yet implemented and will be ignored.");
+        warn!("--no-redact is not yet implemented and will be ignored");
     }
     if !matches!(cli.redact_mode, RedactionMode::Balanced) {
-        eprintln!("Warning: --redact-mode is not yet implemented and will be ignored.");
+        warn!("--redact-mode is not yet implemented and will be ignored");
     }
 
     let schema = load_schema(input_path).await?;
@@ -635,8 +635,8 @@ async fn generate_sql(
     _dialect: SqlDialect,
     output_path: Option<&PathBuf>,
 ) -> Result<()> {
-    eprintln!("Warning: SQL DDL generation is not yet fully implemented. Output will be minimal.");
-    eprintln!("Warning: --dialect is not yet implemented and will be ignored.");
+    warn!("SQL DDL generation is not yet fully implemented. Output will be minimal.");
+    warn!("--dialect is not yet implemented and will be ignored");
     let schema = load_schema(input_path).await?;
 
     let sql_content = format!(

@@ -303,12 +303,12 @@ async fn test_sample_table_with_rate_limit() -> Result<()> {
     let adapter = create_adapter_with_pool(pool).await;
 
     // Configure sampling with rate limiting
-    let sampling_config = SamplingConfig::new()
+    let mut sampling_config = SamplingConfig::new()
         .with_sample_size(10)
         .with_throttle_ms(10);
 
     let sample = adapter
-        .sample_table("test_sample", &sampling_config)
+        .sample_table("test_sample", &mut sampling_config)
         .await?;
 
     assert_eq!(sample.rows.len(), 10, "Should have sampled 10 rows");
@@ -361,10 +361,10 @@ async fn test_sample_table_returns_json_rows() -> Result<()> {
         .unwrap();
 
     let adapter = create_adapter_with_pool(pool).await;
-    let sampling_config = SamplingConfig::new().with_sample_size(10);
+    let mut sampling_config = SamplingConfig::new().with_sample_size(10);
 
     let sample = adapter
-        .sample_table("test_json_sample", &sampling_config)
+        .sample_table("test_json_sample", &mut sampling_config)
         .await?;
 
     assert_eq!(sample.rows.len(), 3, "Should have sampled all 3 rows");
@@ -400,10 +400,10 @@ async fn test_sample_table_empty() -> Result<()> {
         .unwrap();
 
     let adapter = create_adapter_with_pool(pool).await;
-    let sampling_config = SamplingConfig::new().with_sample_size(10);
+    let mut sampling_config = SamplingConfig::new().with_sample_size(10);
 
     let sample = adapter
-        .sample_table("test_empty_sample", &sampling_config)
+        .sample_table("test_empty_sample", &mut sampling_config)
         .await?;
 
     assert_eq!(sample.rows.len(), 0, "Should have 0 rows for empty table");
@@ -437,10 +437,10 @@ async fn test_sample_table_respects_limit() -> Result<()> {
     let adapter = create_adapter_with_pool(pool).await;
 
     // Request only 5 samples
-    let sampling_config = SamplingConfig::new().with_sample_size(5);
+    let mut sampling_config = SamplingConfig::new().with_sample_size(5);
 
     let sample = adapter
-        .sample_table("test_limit_sample", &sampling_config)
+        .sample_table("test_limit_sample", &mut sampling_config)
         .await?;
 
     assert_eq!(
@@ -471,13 +471,13 @@ async fn test_sample_table_rate_limiting() -> Result<()> {
     let adapter = create_adapter_with_pool(pool).await;
 
     // Configure with 100ms throttle
-    let sampling_config = SamplingConfig::new()
+    let mut sampling_config = SamplingConfig::new()
         .with_sample_size(1)
         .with_throttle_ms(100);
 
     let start = std::time::Instant::now();
     let _sample = adapter
-        .sample_table("test_rate_limit", &sampling_config)
+        .sample_table("test_rate_limit", &mut sampling_config)
         .await?;
     let elapsed = start.elapsed();
 
@@ -518,9 +518,11 @@ async fn test_sample_table_data_types() -> Result<()> {
     .unwrap();
 
     let adapter = create_adapter_with_pool(pool).await;
-    let sampling_config = SamplingConfig::new().with_sample_size(10);
+    let mut sampling_config = SamplingConfig::new().with_sample_size(10);
 
-    let sample = adapter.sample_table("test_types", &sampling_config).await?;
+    let sample = adapter
+        .sample_table("test_types", &mut sampling_config)
+        .await?;
 
     assert_eq!(sample.rows.len(), 1);
     let row = &sample.rows[0];
@@ -561,9 +563,11 @@ async fn test_sample_table_null_values() -> Result<()> {
         .unwrap();
 
     let adapter = create_adapter_with_pool(pool).await;
-    let sampling_config = SamplingConfig::new().with_sample_size(10);
+    let mut sampling_config = SamplingConfig::new().with_sample_size(10);
 
-    let sample = adapter.sample_table("test_nulls", &sampling_config).await?;
+    let sample = adapter
+        .sample_table("test_nulls", &mut sampling_config)
+        .await?;
 
     assert_eq!(sample.rows.len(), 1);
     let row = &sample.rows[0];

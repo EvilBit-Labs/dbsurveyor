@@ -118,7 +118,7 @@ pub trait DatabaseAdapter: Send + Sync {
     async fn sample_table(
         &self,
         table_ref: TableRef<'_>,
-        config: &SamplingConfig,
+        config: &mut SamplingConfig,
     ) -> Result<TableSample>;
 
     /// Returns the database type this adapter handles.

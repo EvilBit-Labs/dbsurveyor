@@ -147,7 +147,7 @@ pub async fn sample_collection(
     client: &Client,
     database: &str,
     collection: &str,
-    config: &SamplingConfig,
+    config: &mut SamplingConfig,
 ) -> Result<TableSample> {
     let mut warnings = Vec::new();
 
