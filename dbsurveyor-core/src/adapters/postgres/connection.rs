@@ -389,7 +389,7 @@ impl PostgresAdapter {
                 crate::error::DbSurveyorError::collection_failed(
                     format!(
                         "Failed to create PostgreSQL connection pool to {}",
-                        crate::adapters::redact_database_url(connection_string)
+                        crate::error::redact_database_url(connection_string)
                     ),
                     e,
                 )

@@ -44,7 +44,7 @@ impl MongoAdapter {
             crate::error::DbSurveyorError::collection_failed(
                 format!(
                     "Failed to create MongoDB client for {}",
-                    crate::adapters::redact_database_url(connection_string)
+                    crate::error::redact_database_url(connection_string)
                 ),
                 e,
             )
@@ -80,7 +80,7 @@ impl MongoAdapter {
             crate::error::DbSurveyorError::collection_failed(
                 format!(
                     "Failed to create MongoDB client for {}",
-                    crate::adapters::redact_database_url(connection_string)
+                    crate::error::redact_database_url(connection_string)
                 ),
                 e,
             )

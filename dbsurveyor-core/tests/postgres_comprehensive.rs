@@ -633,7 +633,7 @@ async fn test_postgres_timeout_handling() -> Result<()> {
 /// Test credential sanitization in all error paths
 #[tokio::test]
 async fn test_postgres_credential_sanitization() {
-    use dbsurveyor_core::adapters::redact_database_url;
+    use dbsurveyor_core::error::redact_database_url;
 
     // Test URL redaction function
     let test_cases = vec![

@@ -337,7 +337,7 @@ async fn create_mysql_connection_pool(
             crate::error::DbSurveyorError::collection_failed(
                 format!(
                     "Failed to create MySQL connection pool to {}",
-                    crate::adapters::redact_database_url(connection_string)
+                    crate::error::redact_database_url(connection_string)
                 ),
                 e,
             )
