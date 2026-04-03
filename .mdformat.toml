@@ -1,13 +1,14 @@
 exclude = [
-  "venv/**",
-  "**/node_modules/**",
-  "**/*.txt",
-  "**/*.mdc",
-  "**/*.tpl.md",
-  "**/CHANGELOG.md",
-  "target/**",
-  "megalinter-reports/**",
-  "THIRD_PARTY_NOTICES",
+    "venv/**",
+    "**/node_modules/**",
+    "**/*.txt",
+    "**/*.mdc",
+    "**/*.tpl.md",
+    "**/CHANGELOG.md",
+    "target/**",
+    "megalinter-reports/**",
+    "THIRD_PARTY_NOTICES",
+    ".kiro/specs/**",
 ]
 validate = true
 number = true
