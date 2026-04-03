@@ -288,7 +288,7 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
             format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
         }
         OrderingStrategy::SystemRowId { column } => {
-            format!("ORDER BY {} {}", column, direction)
+            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
         }
         OrderingStrategy::Unordered => {
             // For unordered tables, use RANDOM() for fair sampling

@@ -45,8 +45,8 @@ pub struct SqliteAdapter {
     pub pool: SqlitePool,
     /// Connection configuration
     pub config: ConnectionConfig,
-    /// Original connection string (kept for reference, public for test access)
-    pub connection_string: String,
+    /// Original connection string (kept for reference)
+    pub(crate) connection_string: String,
 }
 
 impl std::fmt::Debug for SqliteAdapter {

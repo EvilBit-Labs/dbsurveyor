@@ -5,6 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Maximum allowed sample size to prevent OOM from unbounded LIMIT clauses.
+pub const MAX_SAMPLE_SIZE: u32 = 10_000;
+
 /// Pattern for detecting sensitive data fields.
 ///
 /// Used to identify columns that may contain sensitive information
@@ -84,9 +87,31 @@ impl SamplingConfig {
         Self::default()
     }
 
+    /// Validates sampling configuration parameters.
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.sample_size == 0 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "sample_size must be at least 1",
+            ));
+        }
+        if self.sample_size > MAX_SAMPLE_SIZE {
+            return Err(crate::error::DbSurveyorError::configuration(format!(
+                "sample_size must not exceed {MAX_SAMPLE_SIZE}"
+            )));
+        }
+        if self.query_timeout_secs == 0 {
+            return Err(crate::error::DbSurveyorError::configuration(
+                "query_timeout_secs must be at least 1",
+            ));
+        }
+        Ok(())
+    }
+
     /// Builder method to set sample size.
+    ///
+    /// Values exceeding [`MAX_SAMPLE_SIZE`] are clamped to the maximum.
     pub fn with_sample_size(mut self, size: u32) -> Self {
-        self.sample_size = size;
+        self.sample_size = size.min(MAX_SAMPLE_SIZE);
         self
     }
 
@@ -149,6 +174,53 @@ mod tests {
         let pattern = SensitivePattern::new(r"(?i)api_key", "API key detected");
         assert_eq!(pattern.pattern, r"(?i)api_key");
         assert_eq!(pattern.description, "API key detected");
+    }
+
+    #[test]
+    fn test_validate_default_config() {
+        let config = SamplingConfig::default();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_zero_sample_size() {
+        // Construct directly to bypass the clamp in with_sample_size.
+        let config = SamplingConfig {
+            sample_size: 0,
+            ..SamplingConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_exceeds_max_sample_size() {
+        let config = SamplingConfig {
+            sample_size: MAX_SAMPLE_SIZE + 1,
+            ..SamplingConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_zero_query_timeout() {
+        let config = SamplingConfig {
+            query_timeout_secs: 0,
+            ..SamplingConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_with_sample_size_clamps_to_max() {
+        let config = SamplingConfig::new().with_sample_size(u32::MAX);
+        assert_eq!(config.sample_size, MAX_SAMPLE_SIZE);
+    }
+
+    #[test]
+    fn test_validate_at_max_boundary() {
+        let config = SamplingConfig::new().with_sample_size(MAX_SAMPLE_SIZE);
+        assert_eq!(config.sample_size, MAX_SAMPLE_SIZE);
+        assert!(config.validate().is_ok());
     }
 
     #[test]

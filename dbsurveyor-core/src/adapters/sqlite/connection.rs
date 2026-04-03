@@ -65,6 +65,17 @@ impl SqliteAdapter {
         })
     }
 
+    /// Creates a new SQLite adapter from an existing pool (for testing).
+    ///
+    /// This allows tests to pre-populate a database before creating the adapter.
+    pub fn from_pool(pool: SqlitePool, connection_string: &str, config: ConnectionConfig) -> Self {
+        Self {
+            pool,
+            config,
+            connection_string: connection_string.to_string(),
+        }
+    }
+
     /// Checks if the connection is to an in-memory database.
     pub fn is_in_memory(&self) -> bool {
         self.connection_string.contains(":memory:")
