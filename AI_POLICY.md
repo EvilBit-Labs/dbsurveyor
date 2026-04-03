@@ -6,8 +6,7 @@ Think of AI assistance like spellcheck. It catches typos, suggests corrections, 
 
 ## The Rule
 
-**You own every line you submit.** You must be able to explain what
-it does and how it interacts with the rest of the system without asking your AI to explain it back to you.
+**You own every line you submit.** You must be able to explain what it does and how it interacts with the rest of the system without asking your AI to explain it back to you.
 
 Everything else follows from that.
 
