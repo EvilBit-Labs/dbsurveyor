@@ -1,0 +1,9 @@
+{
+    "name": "dbsurveyor",
+    "mode": "vendored",
+    "dependencies": {
+        "tessl-labs/devops-essentials": {
+            "version": "0.1.1"
+        }
+    }
+}
