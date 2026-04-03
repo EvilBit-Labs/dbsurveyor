@@ -406,7 +406,7 @@ async fn load_compressed_schema(data: &[u8]) -> Result<DatabaseSchema> {
 /// Loads encrypted schema
 #[cfg(feature = "encryption")]
 async fn load_encrypted_schema(data: &[u8]) -> Result<DatabaseSchema> {
-    use dbsurveyor_core::security::encryption::{EncryptedData, decrypt_data};
+    use dbsurveyor_core::security::encryption::{EncryptedData, decrypt_data_async};
     use std::io::{self, Write};
 
     let json_str = std::str::from_utf8(data).map_err(|e| {
@@ -438,7 +438,7 @@ async fn load_encrypted_schema(data: &[u8]) -> Result<DatabaseSchema> {
         ))
     })?;
 
-    let decrypted_data = decrypt_data(&encrypted, &password)?;
+    let decrypted_data = decrypt_data_async(&encrypted, &password).await?;
     let decrypted_str = std::str::from_utf8(&decrypted_data).map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::configuration(format!(
             "Invalid UTF-8 in decrypted data: {}",

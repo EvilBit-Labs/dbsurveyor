@@ -436,6 +436,57 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> crate::Result<
     Ok(plaintext)
 }
 
+/// Async wrapper for [`encrypt_data`] that offloads the CPU-intensive
+/// Argon2id key derivation to a blocking thread via [`tokio::task::spawn_blocking`].
+///
+/// Use this from async contexts to avoid blocking the Tokio executor.
+///
+/// # Arguments
+/// * `data` - Data to encrypt
+/// * `password` - Password for key derivation
+///
+/// # Returns
+/// Encrypted data container with all parameters needed for decryption
+pub async fn encrypt_data_async(data: &[u8], password: &str) -> crate::Result<EncryptedData> {
+    let data = data.to_vec();
+    let password = password.to_string();
+    tokio::task::spawn_blocking(move || encrypt_data(&data, &password))
+        .await
+        .map_err(|e| {
+            crate::error::DbSurveyorError::encryption_error(format!(
+                "encryption task failed: {}",
+                e
+            ))
+        })?
+}
+
+/// Async wrapper for [`decrypt_data`] that offloads the CPU-intensive
+/// Argon2id key derivation to a blocking thread via [`tokio::task::spawn_blocking`].
+///
+/// Use this from async contexts to avoid blocking the Tokio executor.
+///
+/// # Arguments
+/// * `encrypted` - Encrypted data container
+/// * `password` - Password for key derivation
+///
+/// # Returns
+/// Decrypted plaintext data
+pub async fn decrypt_data_async(
+    encrypted: &EncryptedData,
+    password: &str,
+) -> crate::Result<Vec<u8>> {
+    let encrypted = encrypted.clone();
+    let password = password.to_string();
+    tokio::task::spawn_blocking(move || decrypt_data(&encrypted, &password))
+        .await
+        .map_err(|e| {
+            crate::error::DbSurveyorError::encryption_error(format!(
+                "decryption task failed: {}",
+                e
+            ))
+        })?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

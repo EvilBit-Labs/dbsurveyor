@@ -5,9 +5,9 @@
 //! foreign keys from PostgreSQL.
 
 use super::PostgresAdapter;
+use super::RowExt;
 use super::{routines, triggers, views};
 use crate::Result;
-use crate::adapters::helpers::RowExt;
 use crate::models::*;
 use sqlx::Row;
 use std::collections::HashMap;

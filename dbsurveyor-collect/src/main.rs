@@ -536,7 +536,7 @@ async fn save_compressed(json_data: &str, output_path: &PathBuf) -> Result<()> {
 /// Saves encrypted JSON data
 #[cfg(feature = "encryption")]
 async fn save_encrypted(json_data: &str, output_path: &PathBuf) -> Result<()> {
-    use dbsurveyor_core::security::encryption::encrypt_data;
+    use dbsurveyor_core::security::encryption::encrypt_data_async;
     use std::io::{self, Write};
 
     // Get password from user
@@ -581,7 +581,7 @@ async fn save_encrypted(json_data: &str, output_path: &PathBuf) -> Result<()> {
         ));
     }
 
-    let encrypted = encrypt_data(json_data.as_bytes(), &password)?;
+    let encrypted = encrypt_data_async(json_data.as_bytes(), &password).await?;
     let encrypted_json = serde_json::to_string_pretty(&encrypted).map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::collection_failed("Encryption serialization", e)
     })?;

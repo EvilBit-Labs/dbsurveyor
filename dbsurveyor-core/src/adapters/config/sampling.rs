@@ -3,6 +3,7 @@
 //! This module provides configuration for data sampling operations
 //! including sample size, throttling, and sensitive data detection.
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 /// Maximum allowed sample size to prevent OOM from unbounded LIMIT clauses.
@@ -48,10 +49,52 @@ pub struct SamplingConfig {
     pub timestamp_columns: Vec<String>,
     /// Patterns for detecting sensitive data fields
     pub sensitive_detection_patterns: Vec<SensitivePattern>,
+    /// Pre-compiled regex patterns paired with their description.
+    ///
+    /// Each entry is `(compiled_regex, description)`. Built from
+    /// `sensitive_detection_patterns` to avoid recompiling on every row.
+    #[serde(skip)]
+    pub compiled_patterns: Vec<(Regex, String)>,
+}
+
+/// Compiles a list of [`SensitivePattern`]s into `(Regex, description)` pairs.
+///
+/// Invalid patterns are logged as warnings and skipped rather than
+/// causing a hard failure, which also eliminates any ReDoS risk from
+/// malformed user-supplied patterns.
+fn compile_sensitive_patterns(patterns: &[SensitivePattern]) -> Vec<(Regex, String)> {
+    patterns
+        .iter()
+        .filter_map(|p| match Regex::new(&p.pattern) {
+            Ok(regex) => Some((regex, p.description.clone())),
+            Err(e) => {
+                eprintln!(
+                    "WARNING: skipping invalid sensitive pattern '{}': {e}",
+                    p.pattern
+                );
+                None
+            }
+        })
+        .collect()
 }
 
 impl Default for SamplingConfig {
     fn default() -> Self {
+        let sensitive_detection_patterns = vec![
+            SensitivePattern {
+                pattern: r"(?i)(password|passwd|pwd)".to_string(),
+                description: "Password field detected".to_string(),
+            },
+            SensitivePattern {
+                pattern: r"(?i)(email|mail)".to_string(),
+                description: "Email field detected".to_string(),
+            },
+            SensitivePattern {
+                pattern: r"(?i)(ssn|social_security)".to_string(),
+                description: "Social Security Number field detected".to_string(),
+            },
+        ];
+        let compiled_patterns = compile_sensitive_patterns(&sensitive_detection_patterns);
         Self {
             sample_size: 100,
             throttle_ms: None,
@@ -63,20 +106,8 @@ impl Default for SamplingConfig {
                 "modified_at".to_string(),
                 "timestamp".to_string(),
             ],
-            sensitive_detection_patterns: vec![
-                SensitivePattern {
-                    pattern: r"(?i)(password|passwd|pwd)".to_string(),
-                    description: "Password field detected".to_string(),
-                },
-                SensitivePattern {
-                    pattern: r"(?i)(email|mail)".to_string(),
-                    description: "Email field detected".to_string(),
-                },
-                SensitivePattern {
-                    pattern: r"(?i)(ssn|social_security)".to_string(),
-                    description: "Social Security Number field detected".to_string(),
-                },
-            ],
+            sensitive_detection_patterns,
+            compiled_patterns,
         }
     }
 }
@@ -134,9 +165,34 @@ impl SamplingConfig {
     }
 
     /// Adds a custom sensitive pattern.
+    ///
+    /// The pattern is compiled immediately and added to `compiled_patterns`.
+    /// If the regex is invalid, a warning is printed and the pattern is
+    /// still stored in `sensitive_detection_patterns` but will not be
+    /// included in `compiled_patterns`.
     pub fn add_sensitive_pattern(mut self, pattern: SensitivePattern) -> Self {
+        match Regex::new(&pattern.pattern) {
+            Ok(regex) => {
+                self.compiled_patterns
+                    .push((regex, pattern.description.clone()));
+            }
+            Err(e) => {
+                eprintln!(
+                    "WARNING: skipping invalid sensitive pattern '{}': {e}",
+                    pattern.pattern
+                );
+            }
+        }
         self.sensitive_detection_patterns.push(pattern);
         self
+    }
+
+    /// Recompiles all `compiled_patterns` from `sensitive_detection_patterns`.
+    ///
+    /// Call this after deserializing a `SamplingConfig` (since `compiled_patterns`
+    /// is `#[serde(skip)]` and will be empty after deserialization).
+    pub fn recompile_patterns(&mut self) {
+        self.compiled_patterns = compile_sensitive_patterns(&self.sensitive_detection_patterns);
     }
 }
 
@@ -231,5 +287,52 @@ mod tests {
             .add_sensitive_pattern(SensitivePattern::new(r"(?i)api_key", "API key detected"));
 
         assert_eq!(config.sensitive_detection_patterns.len(), initial_count + 1);
+    }
+
+    #[test]
+    fn test_compiled_patterns_populated_on_default() {
+        let config = SamplingConfig::default();
+        assert_eq!(
+            config.compiled_patterns.len(),
+            config.sensitive_detection_patterns.len()
+        );
+    }
+
+    #[test]
+    fn test_compiled_patterns_updated_on_add() {
+        let config = SamplingConfig::new()
+            .add_sensitive_pattern(SensitivePattern::new(r"(?i)api_key", "API key detected"));
+
+        assert_eq!(
+            config.compiled_patterns.len(),
+            config.sensitive_detection_patterns.len()
+        );
+    }
+
+    #[test]
+    fn test_invalid_pattern_skipped_in_compiled() {
+        let config = SamplingConfig::new()
+            .add_sensitive_pattern(SensitivePattern::new(r"[invalid", "Bad pattern"));
+
+        // The raw pattern is still stored
+        let last = config.sensitive_detection_patterns.last();
+        assert!(last.is_some());
+        // But compiled_patterns should not include the invalid one
+        // (3 defaults + 0 for the invalid = 3)
+        assert_eq!(config.compiled_patterns.len(), 3);
+    }
+
+    #[test]
+    fn test_recompile_patterns() {
+        let mut config = SamplingConfig::default();
+        // Simulate deserialization clearing compiled_patterns
+        config.compiled_patterns.clear();
+        assert!(config.compiled_patterns.is_empty());
+
+        config.recompile_patterns();
+        assert_eq!(
+            config.compiled_patterns.len(),
+            config.sensitive_detection_patterns.len()
+        );
     }
 }

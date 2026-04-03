@@ -21,6 +21,7 @@ mod connection;
 mod enumeration;
 mod multi_database;
 mod routines;
+mod row_ext;
 mod sampling;
 mod schema_collection;
 mod triggers;
@@ -45,6 +46,7 @@ pub use multi_database::{
     DatabaseCollectionResult, DatabaseFailure, MultiDatabaseConfig, MultiDatabaseMetadata,
     MultiDatabaseResult, collect_all_databases,
 };
+pub use row_ext::RowExt;
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
 pub use type_mapping::{map_postgresql_type, map_referential_action};
 

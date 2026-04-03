@@ -3,8 +3,8 @@
 //! This module handles collection of database views from PostgreSQL,
 //! including view definitions and column metadata.
 
+use super::RowExt;
 use crate::Result;
-use crate::adapters::helpers::RowExt;
 use crate::models::{Column, View};
 use sqlx::PgPool;
 

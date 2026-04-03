@@ -406,13 +406,11 @@ fn row_to_json(
         // Check for sensitive column names if warnings are enabled
         if config.warn_sensitive {
             let name_lower = column_name.to_lowercase();
-            for pattern in &config.sensitive_detection_patterns {
-                if let Ok(regex) = regex::Regex::new(&pattern.pattern)
-                    && regex.is_match(&name_lower)
-                {
+            for (regex, description) in &config.compiled_patterns {
+                if regex.is_match(&name_lower) {
                     warnings.push(format!(
                         "Column '{}' may contain sensitive data ({})",
-                        column_name, pattern.description
+                        column_name, description
                     ));
                     break;
                 }
