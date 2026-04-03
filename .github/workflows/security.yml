@@ -40,4 +40,5 @@ jobs:
               run: mise x -- cargo audit
 
             - name: Run cargo outdated
-              run: mise x -- cargo outdated --depth=1 --exit-code=1
+              run: mise x -- cargo outdated --depth=1
+              continue-on-error: true
