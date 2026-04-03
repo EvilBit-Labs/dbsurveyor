@@ -40,6 +40,9 @@ jobs:
                   github_token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Check formatting
+              run: mise x -- cargo fmt --all -- --check
+
+            - name: Lint with clippy
               run: just lint-rust
 
     tests:
