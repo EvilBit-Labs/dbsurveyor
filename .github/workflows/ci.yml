@@ -29,7 +29,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-            - uses: dtolnay/rust-toolchain@master
+            - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
               with:
                   toolchain: "1.93.1"
                   components: llvm-tools, cargo, rustfmt, clippy
@@ -38,7 +38,6 @@ jobs:
                   install: true
                   cache: true
                   github_token: ${{ secrets.GITHUB_TOKEN }}
-            - uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
 
             - name: Check formatting
               run: just lint-rust
@@ -64,9 +63,6 @@ jobs:
                   install: true
                   cache: true
                   github_token: ${{ secrets.GITHUB_TOKEN }}
-            - uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
-              with:
-                  key: ${{ matrix.features }}
 
             - name: Run Rust tests
               run: cargo nextest run --no-default-features --workspace --features ${{ matrix.features }}
@@ -85,9 +81,6 @@ jobs:
                   install: true
                   cache: true
                   github_token: ${{ secrets.GITHUB_TOKEN }}
-            - uses: Swatinem/rust-cache@v2
-              with:
-                  key: coverage
 
             - name: Run Rust tests with coverage
               run: cargo llvm-cov -p dbsurveyor-core --lcov --output-path lcov.info --fail-under-lines 55 -- --test-threads=1
@@ -116,9 +109,6 @@ jobs:
                   install: true
                   cache: true
                   github_token: ${{ secrets.GITHUB_TOKEN }}
-            - uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
-              with:
-                  key: build
 
             - name: Build release binaries
               run: cargo build --release --all-features
