@@ -458,28 +458,6 @@ impl PostgresAdapter {
         Ok(())
     }
 
-    /// Sets up session-level security settings
-    ///
-    /// # Note
-    /// Session security settings are now automatically applied to ALL pooled
-    /// connections via the `after_connect` callback in `create_connection_pool()`.
-    /// This method is retained for backward compatibility but is now a no-op.
-    ///
-    /// # Security Settings Applied (via after_connect)
-    /// - Query timeout to prevent long-running queries
-    /// - Read-only mode to prevent accidental writes
-    /// - Lock timeout to prevent blocking operations
-    /// - Idle timeout for session cleanup
-    /// - Application name for connection tracking
-    /// - UTC timezone for consistent timestamps
-    #[allow(clippy::unused_async)]
-    pub(crate) async fn setup_session(&self) -> Result<()> {
-        // Session settings are now applied via after_connect callback in create_connection_pool()
-        // This ensures ALL pooled connections have security settings applied, not just one.
-        // This method is retained for backward compatibility.
-        Ok(())
-    }
-
     /// Validates that user has sufficient privileges for schema collection
     ///
     /// # Security

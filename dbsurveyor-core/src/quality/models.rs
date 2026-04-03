@@ -18,7 +18,7 @@ pub enum ViolationSeverity {
 }
 
 /// A threshold violation detected during quality analysis.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThresholdViolation {
     /// Name of the metric that violated threshold
     pub metric: String,
@@ -56,7 +56,7 @@ impl ThresholdViolation {
 }
 
 /// Completeness metrics for a single column.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnCompleteness {
     /// Column name
     pub column_name: String,
@@ -106,7 +106,7 @@ impl ColumnCompleteness {
 }
 
 /// Overall completeness metrics for a table.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CompletenessMetrics {
     /// Overall completeness score (0.0-1.0)
     pub score: f64,
@@ -130,7 +130,7 @@ impl Default for CompletenessMetrics {
 }
 
 /// Type inconsistency detected in a column.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TypeInconsistency {
     /// Column name
     pub column_name: String,
@@ -143,7 +143,7 @@ pub struct TypeInconsistency {
 }
 
 /// Format violation detected in a column.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FormatViolation {
     /// Column name
     pub column_name: String,
@@ -154,7 +154,7 @@ pub struct FormatViolation {
 }
 
 /// Consistency metrics for a table.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConsistencyMetrics {
     /// Overall consistency score (0.0-1.0)
     pub score: f64,
@@ -175,7 +175,7 @@ impl Default for ConsistencyMetrics {
 }
 
 /// Duplicate information for a column.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDuplicates {
     /// Column name
     pub column_name: String,
@@ -218,7 +218,7 @@ impl ColumnDuplicates {
 }
 
 /// Uniqueness metrics for a table.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UniquenessMetrics {
     /// Overall uniqueness score (0.0-1.0)
     pub score: f64,
@@ -245,7 +245,7 @@ impl Default for UniquenessMetrics {
 /// columns (e.g., salaries, transaction amounts), these aggregates may
 /// reveal distribution characteristics. Operators working with sensitive
 /// data should be aware of this trade-off.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnAnomaly {
     /// Column name
     pub column_name: String,
@@ -260,7 +260,7 @@ pub struct ColumnAnomaly {
 }
 
 /// Anomaly detection metrics for a table.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AnomalyMetrics {
     /// Total outliers detected
     pub outlier_count: u64,
@@ -269,7 +269,7 @@ pub struct AnomalyMetrics {
 }
 
 /// Complete quality metrics for a single table.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableQualityMetrics {
     /// Table name
     pub table_name: String,

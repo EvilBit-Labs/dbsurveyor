@@ -23,9 +23,6 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         adapter.config.port.unwrap_or(5432)
     );
 
-    // Set up session security settings
-    adapter.setup_session().await?;
-
     // Validate that user has sufficient privileges for schema collection
     if let Err(e) = adapter.validate_schema_privileges().await {
         tracing::error!("Schema collection privilege validation failed: {}", e);

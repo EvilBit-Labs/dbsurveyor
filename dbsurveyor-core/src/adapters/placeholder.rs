@@ -34,7 +34,8 @@
 /// - `$adapter_name`: The name of the adapter struct (e.g., `MySqlAdapter`)
 /// - `$display_name`: Human-readable name for error messages (e.g., `"MySQL"`)
 /// - `$db_type`: The `DatabaseType` enum variant
-/// - `$features`: Array of `AdapterFeature` variants this adapter supports
+/// - `$features`: Array of `AdapterFeature` variants (accepted for compatibility but ignored;
+///   placeholder adapters always report `false` for all features)
 ///
 /// # Generated Code
 ///
@@ -77,9 +78,10 @@ macro_rules! define_placeholder_adapter {
         #[async_trait::async_trait]
         impl $crate::adapters::DatabaseAdapter for $adapter_name {
             async fn test_connection(&self) -> $crate::Result<()> {
-                Err($crate::error::DbSurveyorError::configuration(
-                    concat!($display_name, " adapter not yet implemented"),
-                ))
+                Err($crate::error::DbSurveyorError::configuration(concat!(
+                    $display_name,
+                    " adapter not yet implemented"
+                )))
             }
 
             async fn collect_schema(&self) -> $crate::Result<$crate::models::DatabaseSchema> {
@@ -91,11 +93,8 @@ macro_rules! define_placeholder_adapter {
                 $db_type
             }
 
-            fn supports_feature(&self, feature: $crate::adapters::AdapterFeature) -> bool {
-                matches!(
-                    feature,
-                    $($crate::adapters::AdapterFeature::$feature)|*
-                )
+            fn supports_feature(&self, _feature: $crate::adapters::AdapterFeature) -> bool {
+                false
             }
 
             async fn sample_table(
@@ -103,9 +102,10 @@ macro_rules! define_placeholder_adapter {
                 _table_ref: $crate::adapters::TableRef<'_>,
                 _config: &$crate::adapters::SamplingConfig,
             ) -> $crate::Result<$crate::models::TableSample> {
-                Err($crate::error::DbSurveyorError::configuration(
-                    concat!($display_name, " adapter not yet implemented"),
-                ))
+                Err($crate::error::DbSurveyorError::configuration(concat!(
+                    $display_name,
+                    " adapter not yet implemented"
+                )))
             }
 
             fn connection_config(&self) -> $crate::adapters::ConnectionConfig {
@@ -175,9 +175,11 @@ mod tests {
     async fn test_placeholder_adapter_supports_feature() {
         let adapter = TestPlaceholderAdapter::new("test://connection")
             .await
-            .unwrap();
-        assert!(adapter.supports_feature(AdapterFeature::SchemaCollection));
-        assert!(adapter.supports_feature(AdapterFeature::DataSampling));
+            .expect("failed to create test adapter");
+        // Placeholder adapters should report false for all features since
+        // they cannot actually perform any operations.
+        assert!(!adapter.supports_feature(AdapterFeature::SchemaCollection));
+        assert!(!adapter.supports_feature(AdapterFeature::DataSampling));
         assert!(!adapter.supports_feature(AdapterFeature::MultiDatabase));
         assert!(!adapter.supports_feature(AdapterFeature::ConnectionPooling));
     }

@@ -258,7 +258,7 @@ async fn collect_table_columns(adapter: &SqliteAdapter, table_name: &str) -> Res
     let mut columns = Vec::new();
 
     for row in column_rows.iter() {
-        let cid: i32 = row.try_get("cid").unwrap_or(0);
+        let cid: i32 = row.try_get("cid").unwrap_or(1);
         let name: String = row.try_get("name").unwrap_or_default();
         let data_type: String = row.try_get("type").unwrap_or_default();
         let notnull: i32 = row.try_get("notnull").unwrap_or(0);
@@ -285,7 +285,7 @@ async fn collect_table_columns(adapter: &SqliteAdapter, table_name: &str) -> Res
             is_auto_increment,
             default_value,
             comment: None, // SQLite doesn't support column comments
-            ordinal_position: cid as u32,
+            ordinal_position: (cid + 1) as u32,
         };
 
         columns.push(column);

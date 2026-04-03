@@ -75,9 +75,6 @@ impl std::fmt::Debug for PostgresAdapter {
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
     async fn test_connection(&self) -> Result<()> {
-        // Set up session security settings first
-        self.setup_session().await?;
-
         // Test basic connectivity
         let connectivity_result: i32 = sqlx::query_scalar("SELECT 1")
             .fetch_one(&self.pool)

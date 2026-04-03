@@ -61,7 +61,7 @@ pub enum UnifiedDataType {
 }
 
 /// Database column information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Column {
     pub name: String,
     pub data_type: UnifiedDataType,
@@ -74,7 +74,7 @@ pub struct Column {
 }
 
 /// Database table information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Table {
     pub name: String,
     pub schema: Option<String>,
@@ -88,14 +88,14 @@ pub struct Table {
 }
 
 /// Primary key constraint
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrimaryKey {
     pub name: Option<String>,
     pub columns: Vec<String>,
 }
 
 /// Foreign key constraint
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ForeignKey {
     pub name: Option<String>,
     pub columns: Vec<String>,
@@ -117,7 +117,7 @@ pub enum ReferentialAction {
 }
 
 /// Database index information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Index {
     pub name: String,
     pub table_name: String,
@@ -129,14 +129,14 @@ pub struct Index {
 }
 
 /// Index column with ordering
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IndexColumn {
     pub name: String,
     pub sort_order: Option<SortDirection>,
 }
 
 /// Database constraint information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Constraint {
     pub name: String,
     pub table_name: String,
@@ -147,7 +147,7 @@ pub struct Constraint {
 }
 
 /// Types of database constraints
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ConstraintType {
     PrimaryKey,
     ForeignKey,
@@ -157,7 +157,7 @@ pub enum ConstraintType {
 }
 
 /// Database view information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct View {
     pub name: String,
     pub schema: Option<String>,
@@ -167,7 +167,7 @@ pub struct View {
 }
 
 /// Database procedure/function information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Procedure {
     pub name: String,
     pub schema: Option<String>,
@@ -179,7 +179,7 @@ pub struct Procedure {
 }
 
 /// Procedure parameter information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Parameter {
     pub name: String,
     pub data_type: UnifiedDataType,
@@ -188,7 +188,7 @@ pub struct Parameter {
 }
 
 /// Parameter direction
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ParameterDirection {
     In,
     Out,
@@ -196,7 +196,7 @@ pub enum ParameterDirection {
 }
 
 /// Database trigger information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Trigger {
     pub name: String,
     pub table_name: String,
@@ -207,7 +207,7 @@ pub struct Trigger {
 }
 
 /// Trigger events
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TriggerEvent {
     Insert,
     Update,
@@ -215,7 +215,7 @@ pub enum TriggerEvent {
 }
 
 /// Trigger timing
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TriggerTiming {
     Before,
     After,
@@ -223,7 +223,7 @@ pub enum TriggerTiming {
 }
 
 /// Custom type definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CustomType {
     pub name: String,
     pub schema: Option<String>,
@@ -232,7 +232,7 @@ pub struct CustomType {
 }
 
 /// Categories of custom types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TypeCategory {
     Enum,
     Composite,
@@ -241,7 +241,7 @@ pub enum TypeCategory {
 }
 
 /// Collection metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionMetadata {
     pub collected_at: chrono::DateTime<chrono::Utc>,
     pub collection_duration_ms: u64,
@@ -250,7 +250,7 @@ pub struct CollectionMetadata {
 }
 
 /// Database information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseInfo {
     pub name: String,
     pub version: Option<String>,
@@ -265,7 +265,7 @@ pub struct DatabaseInfo {
 }
 
 /// Access level for database operations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AccessLevel {
     /// Full read access to all objects
     Full,
@@ -276,7 +276,7 @@ pub enum AccessLevel {
 }
 
 /// Status of database collection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CollectionStatus {
     /// Collection completed successfully
     Success,
@@ -287,7 +287,7 @@ pub enum CollectionStatus {
 }
 
 /// Server-level information for multi-database collection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ServerInfo {
     pub server_type: DatabaseType,
     pub version: String,
@@ -302,7 +302,7 @@ pub struct ServerInfo {
 }
 
 /// Collection mode for database operations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CollectionMode {
     /// Single database collection
     SingleDatabase,
@@ -315,7 +315,7 @@ pub enum CollectionMode {
 }
 
 /// Complete database server schema representation for multi-database collection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseServerSchema {
     pub format_version: String,
     pub server_info: ServerInfo,
@@ -324,7 +324,7 @@ pub struct DatabaseServerSchema {
 }
 
 /// Data sampling strategy used for table sampling
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SamplingStrategy {
     /// Most recent records based on ordering
     MostRecent { limit: u32 },
@@ -335,7 +335,7 @@ pub enum SamplingStrategy {
 }
 
 /// Ordering strategy for data sampling
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OrderingStrategy {
     /// Primary key ordering
     PrimaryKey { columns: Vec<String> },
@@ -374,7 +374,7 @@ pub enum SampleStatus {
 }
 
 /// Sample data from a table
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableSample {
     pub table_name: String,
     pub schema_name: Option<String>,
@@ -402,7 +402,7 @@ impl TableSample {
 }
 
 /// Complete database schema representation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseSchema {
     pub format_version: String,
     pub database_info: DatabaseInfo,
