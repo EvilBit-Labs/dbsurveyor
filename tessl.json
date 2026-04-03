@@ -42,6 +42,9 @@
         "pantheon-ai/github-actions-generator": {
             "version": "0.1.1"
         },
+        "popey/github-action-monitor": {
+            "version": "0.5.0"
+        },
         "pantheon-ai/mise-complete": {
             "version": "0.1.1"
         },
