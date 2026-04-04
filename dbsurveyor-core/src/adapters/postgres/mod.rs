@@ -17,6 +17,7 @@
 //! - Query timeouts prevent resource exhaustion
 //! - Connection pooling with configurable limits
 
+mod batch_collection;
 mod connection;
 mod enumeration;
 mod multi_database;

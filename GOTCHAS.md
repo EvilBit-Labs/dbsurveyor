@@ -111,7 +111,7 @@ The recipe runs: `fmt-check`, `lint` (pre-commit + clippy), `test-ci` (nextest),
 
 ### 6.4 rust-analyzer vs `cargo check`
 
-rust-analyzer diagnostics are often stale after multi-file edits. Always trust `cargo check --workspace --all-features` over IDE hints.
+rust-analyzer diagnostics are often stale after multi-file edits. Always trust `cargo check --workspace --all-features` over IDE hints. In particular, rust-analyzer does not enable all feature gates by default, so modules behind `#[cfg(feature = "postgresql")]`, `#[cfg(feature = "mysql")]`, etc. will show false "unused" and "not found" warnings. Clippy with `--all-features` is the authoritative check.
 
 ### 6.5 Advisory Ignore Sync
 

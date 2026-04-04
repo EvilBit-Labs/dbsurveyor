@@ -6,12 +6,22 @@
 
 use super::PostgresAdapter;
 use super::RowExt;
+use super::batch_collection;
 use super::{routines, triggers, views};
 use crate::Result;
 use crate::adapters::helpers::resolve_optional_collection;
 use crate::models::*;
 use sqlx::Row;
 use std::collections::HashMap;
+
+/// Lightweight metadata about a table, collected before the heavier per-column
+/// and per-constraint queries run.
+struct TableMetadata {
+    name: String,
+    schema: Option<String>,
+    comment: Option<String>,
+    estimated_rows: Option<i64>,
+}
 
 /// Main entry point for schema collection
 pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<DatabaseSchema> {
@@ -253,10 +263,53 @@ impl PostgresAdapter {
         Ok(schemas)
     }
 
-    /// Collects all tables from the database with comprehensive metadata
+    /// Collects all tables from the database with comprehensive metadata.
+    ///
+    /// Uses batch collection (5 queries total) as the default path. Falls back
+    /// to per-table queries if batch collection fails.
     pub(crate) async fn collect_tables(&self) -> Result<Vec<Table>> {
         tracing::debug!("Starting table enumeration for PostgreSQL database");
 
+        let table_metadata = self.enumerate_table_metadata().await?;
+
+        // Try batch collection first (5 queries instead of 5*N)
+        match batch_collection::collect_all_batch(&self.pool).await {
+            Ok(mut batch) => {
+                let mut tables = Vec::with_capacity(table_metadata.len());
+                for meta in &table_metadata {
+                    let table = batch_collection::assemble_table_from_batch(
+                        &mut batch,
+                        &meta.name,
+                        &meta.schema,
+                        meta.comment.clone(),
+                        meta.estimated_rows,
+                    );
+
+                    tracing::debug!(
+                        "Collected table '{}' with {} columns, {} foreign keys, {} indexes",
+                        table.name,
+                        table.columns.len(),
+                        table.foreign_keys.len(),
+                        table.indexes.len()
+                    );
+
+                    tables.push(table);
+                }
+                Ok(tables)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Batch collection failed, falling back to per-table queries: {}",
+                    e
+                );
+                self.collect_tables_per_table(&table_metadata).await
+            }
+        }
+    }
+
+    /// Enumerates table metadata (name, schema, comment, row estimate) without
+    /// collecting columns/keys/indexes/constraints.
+    async fn enumerate_table_metadata(&self) -> Result<Vec<TableMetadata>> {
         let tables_query = r#"
             SELECT
                 t.table_name,
@@ -293,22 +346,21 @@ impl PostgresAdapter {
                 }
             })?;
 
-        let mut tables = Vec::new();
-
+        let mut metadata = Vec::with_capacity(table_rows.len());
         for row in &table_rows {
-            let table_name: String = row.try_get("table_name").map_err(|e| {
+            let name: String = row.try_get("table_name").map_err(|e| {
                 crate::error::DbSurveyorError::collection_failed(
                     "Failed to parse table name from database result",
                     e,
                 )
             })?;
-            let schema_name: Option<String> = row.try_get("table_schema").map_err(|e| {
+            let schema: Option<String> = row.try_get("table_schema").map_err(|e| {
                 crate::error::DbSurveyorError::collection_failed(
                     "Failed to parse schema name from database result",
                     e,
                 )
             })?;
-            let table_comment: Option<String> = row.try_get("table_comment").map_err(|e| {
+            let comment: Option<String> = row.try_get("table_comment").map_err(|e| {
                 crate::error::DbSurveyorError::collection_failed(
                     "Failed to parse table comment from database result",
                     e,
@@ -320,42 +372,49 @@ impl PostgresAdapter {
                     e,
                 )
             })?;
+            metadata.push(TableMetadata {
+                name,
+                schema,
+                comment,
+                estimated_rows,
+            });
+        }
 
-            // Collect columns for this table
-            let columns = self
-                .collect_table_columns(&table_name, &schema_name)
-                .await?;
+        Ok(metadata)
+    }
 
-            // Collect primary key
+    /// Fallback: collects tables using individual per-table queries (N+1 pattern).
+    ///
+    /// Used only when batch collection fails.
+    async fn collect_tables_per_table(
+        &self,
+        table_metadata: &[TableMetadata],
+    ) -> Result<Vec<Table>> {
+        let mut tables = Vec::with_capacity(table_metadata.len());
+
+        for meta in table_metadata {
+            let columns = self.collect_table_columns(&meta.name, &meta.schema).await?;
             let primary_key = self
-                .collect_table_primary_key(&table_name, &schema_name)
+                .collect_table_primary_key(&meta.name, &meta.schema)
                 .await?;
-
-            // Collect foreign keys
             let foreign_keys = self
-                .collect_table_foreign_keys(&table_name, &schema_name)
+                .collect_table_foreign_keys(&meta.name, &meta.schema)
                 .await?;
-
-            // Collect indexes
-            let indexes = self
-                .collect_table_indexes(&table_name, &schema_name)
-                .await?;
-
-            // Collect constraints
+            let indexes = self.collect_table_indexes(&meta.name, &meta.schema).await?;
             let constraints = self
-                .collect_table_constraints(&table_name, &schema_name)
+                .collect_table_constraints(&meta.name, &meta.schema)
                 .await?;
 
             let table = Table {
-                name: table_name.clone(),
-                schema: schema_name,
+                name: meta.name.clone(),
+                schema: meta.schema.clone(),
                 columns,
                 primary_key,
                 foreign_keys,
                 indexes,
                 constraints,
-                comment: table_comment,
-                row_count: estimated_rows.map(|r| r.max(0) as u64),
+                comment: meta.comment.clone(),
+                row_count: meta.estimated_rows.map(|r| r.max(0) as u64),
             };
 
             tracing::debug!(
