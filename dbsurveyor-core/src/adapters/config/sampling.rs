@@ -54,7 +54,7 @@ pub struct SamplingConfig {
     /// Each entry is `(compiled_regex, description)`. Built from
     /// `sensitive_detection_patterns` to avoid recompiling on every row.
     #[serde(skip)]
-    pub compiled_patterns: Vec<(Regex, String)>,
+    pub(crate) compiled_patterns: Vec<(Regex, String)>,
 }
 
 /// Compiles a list of [`SensitivePattern`]s into `(Regex, description)` pairs.
@@ -117,10 +117,11 @@ impl SamplingConfig {
 
     /// Validates sampling configuration parameters.
     pub fn validate(&self) -> crate::Result<()> {
-        if self.sample_size == 0 {
-            return Err(crate::error::DbSurveyorError::configuration(
-                "sample_size must be at least 1",
-            ));
+        if self.sample_size == 0 || self.sample_size > MAX_SAMPLE_SIZE {
+            return Err(crate::error::DbSurveyorError::configuration(format!(
+                "sample_size must be between 1 and {MAX_SAMPLE_SIZE}, got {}",
+                self.sample_size
+            )));
         }
         if self.query_timeout_secs == 0 {
             return Err(crate::error::DbSurveyorError::configuration(
@@ -142,7 +143,7 @@ impl SamplingConfig {
                 MAX_SAMPLE_SIZE
             );
         }
-        self.sample_size = size.min(MAX_SAMPLE_SIZE);
+        self.sample_size = size.clamp(1, MAX_SAMPLE_SIZE);
         self
     }
 
@@ -247,6 +248,15 @@ mod tests {
         // Construct directly to bypass the clamp in with_sample_size.
         let config = SamplingConfig {
             sample_size: 0,
+            ..SamplingConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_exceeds_max_sample_size() {
+        let config = SamplingConfig {
+            sample_size: MAX_SAMPLE_SIZE + 1,
             ..SamplingConfig::default()
         };
         assert!(config.validate().is_err());
