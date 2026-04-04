@@ -65,11 +65,15 @@ pub enum UnifiedDataType {
 pub struct Column {
     pub name: String,
     pub data_type: UnifiedDataType,
+    /// Whether the column accepts NULL values (from the schema definition, not data)
     pub is_nullable: bool,
     pub is_primary_key: bool,
+    /// Whether the column auto-generates values (SERIAL, AUTO_INCREMENT, IDENTITY, etc.)
     pub is_auto_increment: bool,
+    /// SQL expression for the column default, as reported by the database catalog
     pub default_value: Option<String>,
     pub comment: Option<String>,
+    /// 1-based position of the column within its table
     pub ordinal_position: u32,
 }
 
@@ -77,6 +81,7 @@ pub struct Column {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Table {
     pub name: String,
+    /// Schema or namespace (e.g. "public" in PostgreSQL, database name in MySQL, None for SQLite)
     pub schema: Option<String>,
     pub columns: Vec<Column>,
     pub primary_key: Option<PrimaryKey>,
@@ -84,6 +89,7 @@ pub struct Table {
     pub indexes: Vec<Index>,
     pub constraints: Vec<Constraint>,
     pub comment: Option<String>,
+    /// Estimated row count from database statistics; may be stale or unavailable
     pub row_count: Option<u64>,
 }
 
@@ -98,11 +104,17 @@ pub struct PrimaryKey {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ForeignKey {
     pub name: Option<String>,
+    /// Local columns participating in the foreign key (order matches `referenced_columns`)
     pub columns: Vec<String>,
+    /// Unqualified name of the referenced (parent) table
     pub referenced_table: String,
+    /// Schema of the referenced table, if it differs from the local table's schema
     pub referenced_schema: Option<String>,
+    /// Columns in the referenced table (order matches `columns`)
     pub referenced_columns: Vec<String>,
+    /// Action taken on child rows when the parent row is deleted (None = database default)
     pub on_delete: Option<ReferentialAction>,
+    /// Action taken on child rows when the parent key is updated (None = database default)
     pub on_update: Option<ReferentialAction>,
 }
 
@@ -122,9 +134,13 @@ pub struct Index {
     pub name: String,
     pub table_name: String,
     pub schema: Option<String>,
+    /// Ordered list of columns in the index (order defines the key prefix)
     pub columns: Vec<IndexColumn>,
+    /// Whether the index enforces a uniqueness constraint
     pub is_unique: bool,
+    /// Whether this index backs the table's primary key
     pub is_primary: bool,
+    /// Engine-specific index type (e.g. "btree", "hash", "gin")
     pub index_type: Option<String>,
 }
 
@@ -244,8 +260,10 @@ pub enum TypeCategory {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionMetadata {
     pub collected_at: chrono::DateTime<chrono::Utc>,
+    /// Wall-clock duration of the collection in milliseconds
     pub collection_duration_ms: u64,
     pub collector_version: String,
+    /// Non-fatal issues encountered during collection (e.g. permission errors on specific tables)
     pub warnings: Vec<String>,
 }
 
@@ -253,11 +271,14 @@ pub struct CollectionMetadata {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseInfo {
     pub name: String,
+    /// Database engine version string (e.g. "16.2")
     pub version: Option<String>,
+    /// Estimated on-disk size reported by the database engine; not all engines provide this
     pub size_bytes: Option<u64>,
     pub encoding: Option<String>,
     pub collation: Option<String>,
     pub owner: Option<String>,
+    /// True for built-in databases (e.g. postgres, template0, information_schema)
     #[serde(default)]
     pub is_system_database: bool,
     pub access_level: AccessLevel,
@@ -378,12 +399,16 @@ pub enum SampleStatus {
 pub struct TableSample {
     pub table_name: String,
     pub schema_name: Option<String>,
+    /// Each element is a JSON object mapping column names to sampled values
     pub rows: Vec<serde_json::Value>,
+    /// Number of rows actually returned (may be less than the requested limit)
     pub sample_size: u32,
+    /// Estimated total row count from database statistics; may be stale or unavailable
     pub total_rows: Option<u64>,
     pub sampling_strategy: SamplingStrategy,
     pub collected_at: chrono::DateTime<chrono::Utc>,
     pub warnings: Vec<String>,
+    /// Outcome of the sampling operation; None for legacy data without status tracking
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sample_status: Option<SampleStatus>,
 }
