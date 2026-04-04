@@ -128,6 +128,20 @@ impl SamplingConfig {
                 "query_timeout_secs must be at least 1",
             ));
         }
+
+        let bad_patterns: Vec<&str> = self
+            .sensitive_detection_patterns
+            .iter()
+            .filter(|p| Regex::new(&p.pattern).is_err())
+            .map(|p| p.pattern.as_str())
+            .collect();
+        if !bad_patterns.is_empty() {
+            return Err(crate::error::DbSurveyorError::configuration(format!(
+                "invalid sensitive detection regex pattern(s): {}",
+                bad_patterns.join(", ")
+            )));
+        }
+
         Ok(())
     }
 
@@ -180,6 +194,7 @@ impl SamplingConfig {
             Ok(regex) => {
                 self.compiled_patterns
                     .push((regex, pattern.description.clone()));
+                self.sensitive_detection_patterns.push(pattern);
             }
             Err(e) => {
                 tracing::warn!(
@@ -188,7 +203,6 @@ impl SamplingConfig {
                 );
             }
         }
-        self.sensitive_detection_patterns.push(pattern);
         self
     }
 
@@ -315,16 +329,14 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_pattern_skipped_in_compiled() {
+    fn test_invalid_pattern_skipped_entirely() {
+        let initial_count = SamplingConfig::default().sensitive_detection_patterns.len();
         let config = SamplingConfig::new()
             .add_sensitive_pattern(SensitivePattern::new(r"[invalid", "Bad pattern"));
 
-        // The raw pattern is still stored
-        let last = config.sensitive_detection_patterns.last();
-        assert!(last.is_some());
-        // But compiled_patterns should not include the invalid one
-        // (3 defaults + 0 for the invalid = 3)
-        assert_eq!(config.compiled_patterns.len(), 3);
+        // Invalid pattern is not stored in either list
+        assert_eq!(config.sensitive_detection_patterns.len(), initial_count);
+        assert_eq!(config.compiled_patterns.len(), initial_count);
     }
 
     #[test]
@@ -338,6 +350,23 @@ mod tests {
         assert_eq!(
             config.compiled_patterns.len(),
             config.sensitive_detection_patterns.len()
+        );
+    }
+
+    #[test]
+    fn test_validate_rejects_invalid_regex_pattern() {
+        let config = SamplingConfig {
+            sensitive_detection_patterns: vec![
+                SensitivePattern::new(r"(?i)password", "Valid pattern"),
+                SensitivePattern::new(r"[invalid", "Bad regex"),
+            ],
+            ..SamplingConfig::default()
+        };
+        let err = config.validate().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("[invalid"),
+            "Error should mention the bad pattern, got: {msg}"
         );
     }
 }

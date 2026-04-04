@@ -542,12 +542,15 @@ async fn collect_single_database(
 
     // Collect schema
     tracing::debug!("Collecting schema from database: {}", database_name);
-    let schema = db_adapter.collect_schema().await?;
+    let result = db_adapter.collect_schema().await;
 
     let duration = start.elapsed();
 
     // Explicitly close the pool to release connections promptly
+    // This must happen regardless of success/failure to prevent connection exhaustion
     db_adapter.close().await;
+
+    let schema = result?;
 
     Ok(DatabaseCollectionResult {
         database_name: database_name.to_string(),
