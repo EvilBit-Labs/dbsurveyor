@@ -364,17 +364,28 @@ pub async fn sample_table(
     {
         Ok(Some(count)) => Some(count.unwrap_or(0)),
         Ok(None) => {
-            tracing::warn!(
-                "No INFORMATION_SCHEMA entry for table '{}.{}'. \
-                 total_rows will be reported as unknown.",
-                db_name,
-                table,
+            // Fall back to COUNT(*) if table not found in INFORMATION_SCHEMA
+            // (can happen with temporary tables or non-standard storage engines)
+            let count_query = format!(
+                "SELECT COUNT(*) FROM `{}`.`{}`",
+                escape_identifier(db_name),
+                escape_identifier(table)
             );
-            warnings.push(format!(
-                "Could not determine total row count for '{}.{}': table not found in INFORMATION_SCHEMA",
-                db_name, table
-            ));
-            None
+            match sqlx::query_scalar::<_, i64>(&count_query)
+                .fetch_one(pool)
+                .await
+            {
+                Ok(count) => Some(count),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to get row count for table '{}.{}': {}",
+                        db_name,
+                        table,
+                        e
+                    );
+                    None
+                }
+            }
         }
         Err(e) => {
             tracing::warn!(
