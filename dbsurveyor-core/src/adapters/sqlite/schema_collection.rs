@@ -95,7 +95,7 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
         triggers.len()
     );
 
-    let mut schema = DatabaseSchema {
+    let schema = DatabaseSchema {
         format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
@@ -118,7 +118,7 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
     };
 
     // Aggregate indexes and constraints from per-table data into schema-level vectors
-    schema.aggregate_indexes_and_constraints();
+    let schema = schema.with_aggregated_indexes_and_constraints();
 
     Ok(schema)
 }
@@ -255,12 +255,22 @@ async fn collect_table_columns(adapter: &SqliteAdapter, table_name: &str) -> Res
     let mut columns = Vec::new();
 
     for row in column_rows.iter() {
-        let cid: i32 = row.try_get("cid").unwrap_or(0);
-        let name: String = row.try_get("name").unwrap_or_default();
-        let data_type: String = row.try_get("type").unwrap_or_default();
-        let notnull: i32 = row.try_get("notnull").unwrap_or(0);
+        let cid: i32 = row.try_get("cid").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse cid", e)
+        })?;
+        let name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse column name", e)
+        })?;
+        let data_type: String = row.try_get("type").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse column type", e)
+        })?;
+        let notnull: i32 = row.try_get("notnull").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse notnull", e)
+        })?;
         let default_value: Option<String> = row.try_get("dflt_value").ok();
-        let pk: i32 = row.try_get("pk").unwrap_or(0);
+        let pk: i32 = row.try_get("pk").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse pk", e)
+        })?;
 
         // Map SQLite data type to unified data type
         let unified_data_type = map_sqlite_type(&data_type);
@@ -330,11 +340,21 @@ async fn collect_table_foreign_keys(
     let mut fk_map: HashMap<i32, ForeignKey> = HashMap::new();
 
     for row in fk_rows {
-        let id: i32 = row.try_get("id").unwrap_or(0);
-        let seq: i32 = row.try_get("seq").unwrap_or(0);
-        let ref_table: String = row.try_get("table").unwrap_or_default();
-        let from_col: String = row.try_get("from").unwrap_or_default();
-        let to_col: String = row.try_get("to").unwrap_or_default();
+        let id: i32 = row.try_get("id").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse FK id", e)
+        })?;
+        let seq: i32 = row.try_get("seq").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse FK seq", e)
+        })?;
+        let ref_table: String = row.try_get("table").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse referenced table", e)
+        })?;
+        let from_col: String = row.try_get("from").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse FK from column", e)
+        })?;
+        let to_col: String = row.try_get("to").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse FK to column", e)
+        })?;
         let on_update: String = row.try_get("on_update").unwrap_or_default();
         let on_delete: String = row.try_get("on_delete").unwrap_or_default();
 
@@ -390,8 +410,12 @@ async fn collect_table_indexes(adapter: &SqliteAdapter, table_name: &str) -> Res
     let mut indexes = Vec::new();
 
     for row in index_rows {
-        let index_name: String = row.try_get("name").unwrap_or_default();
-        let is_unique: i32 = row.try_get("unique").unwrap_or(0);
+        let index_name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse index name", e)
+        })?;
+        let is_unique: i32 = row.try_get("unique").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse index unique flag", e)
+        })?;
         let origin: String = row.try_get("origin").unwrap_or_default();
 
         // Skip auto-created indexes (pk = primary key, u = unique constraint)
@@ -436,7 +460,9 @@ async fn collect_index_columns(
     let mut columns = Vec::new();
 
     for row in column_rows {
-        let name: String = row.try_get("name").unwrap_or_default();
+        let name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse index column name", e)
+        })?;
 
         // SQLite doesn't store sort order in index_info, default to ascending
         columns.push(IndexColumn {
@@ -508,7 +534,9 @@ async fn collect_views(adapter: &SqliteAdapter) -> Result<Vec<View>> {
     let mut views = Vec::new();
 
     for row in view_rows {
-        let view_name: String = row.try_get("name").unwrap_or_default();
+        let view_name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse view name", e)
+        })?;
         let definition: Option<String> = row.try_get("sql").ok();
 
         // Collect view columns (same method as table columns)
@@ -548,8 +576,15 @@ async fn collect_triggers(adapter: &SqliteAdapter) -> Result<Vec<Trigger>> {
     let mut triggers = Vec::new();
 
     for row in trigger_rows {
-        let trigger_name: String = row.try_get("name").unwrap_or_default();
-        let table_name: String = row.try_get("tbl_name").unwrap_or_default();
+        let trigger_name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse trigger name", e)
+        })?;
+        let table_name: String = row.try_get("tbl_name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse trigger table name",
+                e,
+            )
+        })?;
         let definition: Option<String> = row.try_get("sql").ok();
 
         // Parse trigger timing and event from SQL definition

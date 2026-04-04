@@ -20,6 +20,14 @@ All adapter sub-modules (connection, sampling, schema_collection, type_mapping) 
 
 The `RowExt` trait lives in `adapters/postgres/row_ext.rs`, not in shared code. It is hardcoded to `PgRow`/`sqlx::Postgres`. MySQL and SQLite adapters use `try_get()` directly.
 
+### 1.5 `try_get()` Error Handling in MySQL/SQLite
+
+MySQL and SQLite adapters must use `try_get(...).map_err(|e| DbSurveyorError::collection_failed(...))?` for critical schema fields (names, types, ordinal positions). Do NOT use `unwrap_or_default()` on critical fields -- it silently produces ghost columns with empty names. Optional fields (comments, default values, referential actions) may use `unwrap_or_default()`.
+
+### 1.6 `DatabaseSchema` Uses Immutable Builder Pattern
+
+`DatabaseSchema` methods use `with_*` pattern (consuming `self`, returning `Self`) instead of `&mut self`. Call sites use `schema = schema.with_quality_metrics(...)` reassignment. Do not add `&mut self` methods to `DatabaseSchema`.
+
 ## 2. Configuration & Validation
 
 ### 2.1 `SamplingConfig` Has Three Construction Paths

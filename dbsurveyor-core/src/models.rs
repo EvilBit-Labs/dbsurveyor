@@ -490,8 +490,12 @@ impl DatabaseSchema {
     ///
     /// # Arguments
     /// * `metrics` - Vector of quality metrics, one for each analyzed table
-    pub fn add_quality_metrics(&mut self, metrics: Vec<crate::quality::TableQualityMetrics>) {
+    pub fn with_quality_metrics(
+        mut self,
+        metrics: Vec<crate::quality::TableQualityMetrics>,
+    ) -> Self {
         self.quality_metrics = Some(metrics);
+        self
     }
 
     /// Returns the number of tables with quality metrics.
@@ -502,8 +506,9 @@ impl DatabaseSchema {
     }
 
     /// Adds a warning to the collection metadata
-    pub fn add_warning(&mut self, warning: String) {
+    pub fn with_warning(mut self, warning: String) -> Self {
         self.collection_metadata.warnings.push(warning);
+        self
     }
 
     /// Populates the schema-level `indexes` and `constraints` vectors by
@@ -511,7 +516,7 @@ impl DatabaseSchema {
     ///
     /// This avoids cloning entire vectors during schema construction.
     /// Call this after all tables have been added to the schema.
-    pub fn aggregate_indexes_and_constraints(&mut self) {
+    pub fn with_aggregated_indexes_and_constraints(mut self) -> Self {
         let total_indexes: usize = self.tables.iter().map(|t| t.indexes.len()).sum();
         let total_constraints: usize = self.tables.iter().map(|t| t.constraints.len()).sum();
 
@@ -525,6 +530,7 @@ impl DatabaseSchema {
 
         self.indexes = indexes;
         self.constraints = constraints;
+        self
     }
 
     /// Gets the total number of database objects
@@ -540,8 +546,9 @@ impl DatabaseSchema {
     }
 
     /// Adds sample data to the schema
-    pub fn add_samples(&mut self, samples: Vec<TableSample>) {
+    pub fn with_samples(mut self, samples: Vec<TableSample>) -> Self {
         self.samples = Some(samples);
+        self
     }
 
     /// Gets the number of sampled tables
@@ -570,11 +577,11 @@ mod tests {
     }
 
     #[test]
-    fn test_add_warning() {
+    fn test_with_warning() {
         let db_info = DatabaseInfo::new("test_db".to_string());
 
-        let mut schema = DatabaseSchema::new(db_info);
-        schema.add_warning("Test warning".to_string());
+        let schema = DatabaseSchema::new(db_info);
+        let schema = schema.with_warning("Test warning".to_string());
 
         assert_eq!(schema.collection_metadata.warnings.len(), 1);
         assert_eq!(schema.collection_metadata.warnings[0], "Test warning");
@@ -593,9 +600,9 @@ mod tests {
     }
 
     #[test]
-    fn test_add_samples() {
+    fn test_with_samples() {
         let db_info = DatabaseInfo::new("test_db".to_string());
-        let mut schema = DatabaseSchema::new(db_info);
+        let schema = DatabaseSchema::new(db_info);
 
         let sample = TableSample {
             table_name: "users".to_string(),
@@ -609,20 +616,20 @@ mod tests {
             sample_status: None,
         };
 
-        schema.add_samples(vec![sample]);
+        let schema = schema.with_samples(vec![sample]);
         assert_eq!(schema.sample_count(), 1);
     }
 
     #[test]
-    fn test_add_quality_metrics() {
+    fn test_with_quality_metrics() {
         let db_info = DatabaseInfo::new("test_db".to_string());
-        let mut schema = DatabaseSchema::new(db_info);
+        let schema = DatabaseSchema::new(db_info);
 
         assert_eq!(schema.quality_metrics_count(), 0);
 
         let metrics =
             crate::quality::TableQualityMetrics::new("users", Some("public".to_string()), 50);
-        schema.add_quality_metrics(vec![metrics]);
+        let schema = schema.with_quality_metrics(vec![metrics]);
         assert_eq!(schema.quality_metrics_count(), 1);
     }
 

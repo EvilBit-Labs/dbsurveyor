@@ -169,7 +169,7 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         schemas.len()
     );
 
-    let mut schema = DatabaseSchema {
+    let schema = DatabaseSchema {
         format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
@@ -192,7 +192,7 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
     };
 
     // Aggregate indexes and constraints from per-table data into schema-level vectors
-    schema.aggregate_indexes_and_constraints();
+    let schema = schema.with_aggregated_indexes_and_constraints();
 
     tracing::info!(
         "Collected {} total indexes and {} total constraints across all tables",

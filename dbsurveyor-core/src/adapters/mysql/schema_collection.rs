@@ -86,7 +86,7 @@ pub(crate) async fn collect_schema(adapter: &MySqlAdapter) -> Result<DatabaseSch
         views.len()
     );
 
-    let mut schema = DatabaseSchema {
+    let schema = DatabaseSchema {
         format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
@@ -109,7 +109,7 @@ pub(crate) async fn collect_schema(adapter: &MySqlAdapter) -> Result<DatabaseSch
     };
 
     // Aggregate indexes and constraints from per-table data into schema-level vectors
-    schema.aggregate_indexes_and_constraints();
+    let schema = schema.with_aggregated_indexes_and_constraints();
 
     Ok(schema)
 }
@@ -305,17 +305,29 @@ async fn collect_table_columns(
         let column_name: String = row.try_get("COLUMN_NAME").map_err(|e| {
             crate::error::DbSurveyorError::collection_failed("Failed to parse column name", e)
         })?;
-        let data_type: String = row.try_get("DATA_TYPE").unwrap_or_default();
-        let column_type: String = row.try_get("COLUMN_TYPE").unwrap_or_default();
+        let data_type: String = row.try_get("DATA_TYPE").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse DATA_TYPE", e)
+        })?;
+        let column_type: String = row.try_get("COLUMN_TYPE").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse COLUMN_TYPE", e)
+        })?;
         let char_max_length: Option<i64> = row.try_get("CHARACTER_MAXIMUM_LENGTH").ok();
         let numeric_precision: Option<i64> = row.try_get("NUMERIC_PRECISION").ok();
         let numeric_scale: Option<i64> = row.try_get("NUMERIC_SCALE").ok();
-        let is_nullable: String = row.try_get("IS_NULLABLE").unwrap_or_default();
+        let is_nullable: String = row.try_get("IS_NULLABLE").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse IS_NULLABLE", e)
+        })?;
         let column_default: Option<String> = row.try_get("COLUMN_DEFAULT").ok();
-        let ordinal_position: i32 = row.try_get("ORDINAL_POSITION").unwrap_or(0);
+        let ordinal_position: i32 = row.try_get("ORDINAL_POSITION").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse ORDINAL_POSITION", e)
+        })?;
         let column_comment: Option<String> = row.try_get("COLUMN_COMMENT").ok();
-        let extra: String = row.try_get("EXTRA").unwrap_or_default();
-        let column_key: String = row.try_get("COLUMN_KEY").unwrap_or_default();
+        let extra: String = row.try_get("EXTRA").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse EXTRA", e)
+        })?;
+        let column_key: String = row.try_get("COLUMN_KEY").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse COLUMN_KEY", e)
+        })?;
 
         // Check for unsigned in COLUMN_TYPE
         let is_unsigned = column_type.to_lowercase().contains("unsigned");
@@ -395,7 +407,9 @@ async fn collect_table_primary_key(
     let mut columns = Vec::new();
 
     for row in pk_rows {
-        let column_name: String = row.try_get("COLUMN_NAME").unwrap_or_default();
+        let column_name: String = row.try_get("COLUMN_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse COLUMN_NAME", e)
+        })?;
         if !column_name.is_empty() {
             columns.push(column_name);
         }
@@ -449,11 +463,25 @@ async fn collect_table_foreign_keys(
     let mut fk_map: HashMap<String, ForeignKey> = HashMap::new();
 
     for row in fk_rows {
-        let constraint_name: String = row.try_get("CONSTRAINT_NAME").unwrap_or_default();
-        let column_name: String = row.try_get("COLUMN_NAME").unwrap_or_default();
+        let constraint_name: String = row.try_get("CONSTRAINT_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse CONSTRAINT_NAME", e)
+        })?;
+        let column_name: String = row.try_get("COLUMN_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse COLUMN_NAME", e)
+        })?;
         let referenced_schema: Option<String> = row.try_get("REFERENCED_TABLE_SCHEMA").ok();
-        let referenced_table: String = row.try_get("REFERENCED_TABLE_NAME").unwrap_or_default();
-        let referenced_column: String = row.try_get("REFERENCED_COLUMN_NAME").unwrap_or_default();
+        let referenced_table: String = row.try_get("REFERENCED_TABLE_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse REFERENCED_TABLE_NAME",
+                e,
+            )
+        })?;
+        let referenced_column: String = row.try_get("REFERENCED_COLUMN_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse REFERENCED_COLUMN_NAME",
+                e,
+            )
+        })?;
         let update_rule: Option<String> = row.try_get("UPDATE_RULE").ok();
         let delete_rule: Option<String> = row.try_get("DELETE_RULE").ok();
 
@@ -511,9 +539,15 @@ async fn collect_table_indexes(
     let mut index_map: HashMap<String, Index> = HashMap::new();
 
     for row in index_rows {
-        let index_name: String = row.try_get("INDEX_NAME").unwrap_or_default();
-        let column_name: String = row.try_get("COLUMN_NAME").unwrap_or_default();
-        let non_unique: i32 = row.try_get("NON_UNIQUE").unwrap_or(1);
+        let index_name: String = row.try_get("INDEX_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse INDEX_NAME", e)
+        })?;
+        let column_name: String = row.try_get("COLUMN_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse COLUMN_NAME", e)
+        })?;
+        let non_unique: i32 = row.try_get("NON_UNIQUE").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse NON_UNIQUE", e)
+        })?;
         let index_type: Option<String> = row.try_get("INDEX_TYPE").ok();
         let collation: Option<String> = row.try_get("COLLATION").ok();
 
@@ -584,8 +618,12 @@ async fn collect_table_constraints(
     let mut constraints = Vec::new();
 
     for row in constraint_rows {
-        let constraint_name: String = row.try_get("CONSTRAINT_NAME").unwrap_or_default();
-        let constraint_type_str: String = row.try_get("CONSTRAINT_TYPE").unwrap_or_default();
+        let constraint_name: String = row.try_get("CONSTRAINT_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse CONSTRAINT_NAME", e)
+        })?;
+        let constraint_type_str: String = row.try_get("CONSTRAINT_TYPE").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse CONSTRAINT_TYPE", e)
+        })?;
         let check_clause: Option<String> = row.try_get("CHECK_CLAUSE").ok();
 
         let (constraint_type, is_unique) = match constraint_type_str.as_str() {
@@ -646,7 +684,9 @@ async fn get_constraint_columns(
 
     let mut columns = Vec::new();
     for row in rows {
-        let column_name: String = row.try_get("COLUMN_NAME").unwrap_or_default();
+        let column_name: String = row.try_get("COLUMN_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse COLUMN_NAME", e)
+        })?;
         if !column_name.is_empty() {
             columns.push(column_name);
         }
@@ -678,7 +718,9 @@ async fn collect_views(adapter: &MySqlAdapter, db_name: &str) -> Result<Vec<View
     let mut views = Vec::new();
 
     for row in view_rows {
-        let view_name: String = row.try_get("TABLE_NAME").unwrap_or_default();
+        let view_name: String = row.try_get("TABLE_NAME").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse TABLE_NAME", e)
+        })?;
         let definition: Option<String> = row.try_get("VIEW_DEFINITION").ok();
 
         // Collect view columns (same as table columns)

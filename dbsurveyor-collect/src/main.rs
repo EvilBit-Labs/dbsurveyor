@@ -412,7 +412,7 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
                 }
             }
 
-            schema.add_quality_metrics(quality_metrics);
+            schema = schema.with_quality_metrics(quality_metrics);
 
             if violations_count > 0 {
                 info!(

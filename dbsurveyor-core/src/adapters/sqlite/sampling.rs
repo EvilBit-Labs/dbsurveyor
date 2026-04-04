@@ -89,18 +89,18 @@ async fn detect_primary_key(
     })?;
 
     // Collect columns with pk > 0
-    let mut pk_columns: Vec<(i32, String)> = rows
-        .iter()
-        .filter_map(|row| {
-            let pk: i32 = row.try_get("pk").unwrap_or(0);
-            if pk > 0 {
-                let name: String = row.try_get("name").unwrap_or_default();
-                Some((pk, name))
-            } else {
-                None
-            }
-        })
-        .collect();
+    let mut pk_columns: Vec<(i32, String)> = Vec::new();
+    for row in &rows {
+        let pk: i32 = row
+            .try_get("pk")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse pk", e))?;
+        if pk > 0 {
+            let name: String = row.try_get("name").map_err(|e| {
+                DbSurveyorError::collection_failed("Failed to parse column name", e)
+            })?;
+            pk_columns.push((pk, name));
+        }
+    }
 
     if pk_columns.is_empty() {
         return Ok(None);
@@ -131,24 +131,24 @@ async fn detect_timestamp_column(
         })?;
 
     // Collect columns with timestamp-like types or names
-    let timestamp_columns: Vec<(String, String)> = rows
-        .iter()
-        .filter_map(|row| {
-            let name: String = row.try_get("name").unwrap_or_default();
-            let data_type: String = row.try_get("type").unwrap_or_default();
-            let type_upper = data_type.to_uppercase();
+    let mut timestamp_columns: Vec<(String, String)> = Vec::new();
+    for row in &rows {
+        let name: String = row
+            .try_get("name")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse column name", e))?;
+        let data_type: String = row
+            .try_get("type")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse column type", e))?;
+        let type_upper = data_type.to_uppercase();
 
-            // Check if type suggests timestamp
-            if type_upper.contains("DATE")
-                || type_upper.contains("TIME")
-                || type_upper.contains("TIMESTAMP")
-            {
-                Some((name, data_type))
-            } else {
-                None
-            }
-        })
-        .collect();
+        // Check if type suggests timestamp
+        if type_upper.contains("DATE")
+            || type_upper.contains("TIME")
+            || type_upper.contains("TIMESTAMP")
+        {
+            timestamp_columns.push((name, data_type));
+        }
+    }
 
     // Look for columns with common timestamp names
     for (column_name, _) in &timestamp_columns {
@@ -205,9 +205,15 @@ async fn detect_auto_increment_column(
 
     // In SQLite, INTEGER PRIMARY KEY is auto-increment
     for row in rows {
-        let name: String = row.try_get("name").unwrap_or_default();
-        let data_type: String = row.try_get("type").unwrap_or_default();
-        let pk: i32 = row.try_get("pk").unwrap_or(0);
+        let name: String = row
+            .try_get("name")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse column name", e))?;
+        let data_type: String = row
+            .try_get("type")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse column type", e))?;
+        let pk: i32 = row
+            .try_get("pk")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse pk", e))?;
 
         if pk > 0 && data_type.to_uppercase() == "INTEGER" {
             return Ok(Some(OrderingStrategy::AutoIncrement { column: name }));
