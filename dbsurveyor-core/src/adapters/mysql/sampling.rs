@@ -351,55 +351,33 @@ pub async fn sample_table(
         json_rows.push(json_row);
     }
 
-    // Get estimated row count from INFORMATION_SCHEMA (O(1), avoids full table scan).
-    // TABLE_ROWS is an estimate for InnoDB but exact for MyISAM.
-    let estimate_query = "SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
-    // TABLE_ROWS is nullable in INFORMATION_SCHEMA (NULL for some storage engines
-    // or newly created tables), so decode as Option<i64> to handle NULL gracefully.
-    let total_rows: Option<i64> = match sqlx::query_scalar::<_, Option<i64>>(estimate_query)
-        .bind(db_name)
-        .bind(table)
-        .fetch_optional(pool)
-        .await
-    {
-        Ok(Some(count)) => Some(count.unwrap_or(0)),
-        Ok(None) => {
-            // Fall back to COUNT(*) if table not found in INFORMATION_SCHEMA
-            // (can happen with temporary tables or non-standard storage engines)
-            let count_query = format!(
-                "SELECT COUNT(*) FROM `{}`.`{}`",
-                escape_identifier(db_name),
-                escape_identifier(table)
-            );
-            match sqlx::query_scalar::<_, i64>(&count_query)
-                .fetch_one(pool)
-                .await
-            {
-                Ok(count) => Some(count),
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to get row count for table '{}.{}': {}",
-                        db_name,
-                        table,
-                        e
-                    );
-                    None
-                }
+    // Get row count. Try INFORMATION_SCHEMA first (O(1) estimate for InnoDB),
+    // fall back to COUNT(*) if the estimate is unavailable.
+    let total_rows: Option<i64> = {
+        let estimate_query = "SELECT CAST(TABLE_ROWS AS SIGNED) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+        let estimate = sqlx::query_scalar::<_, Option<i64>>(estimate_query)
+            .bind(db_name)
+            .bind(table)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .flatten();
+
+        match estimate {
+            Some(count) => Some(count),
+            None => {
+                // Fall back to COUNT(*) -- works for all table types
+                let count_query = format!(
+                    "SELECT COUNT(*) FROM `{}`.`{}`",
+                    escape_identifier(db_name),
+                    escape_identifier(table)
+                );
+                sqlx::query_scalar::<_, i64>(&count_query)
+                    .fetch_one(pool)
+                    .await
+                    .ok()
             }
-        }
-        Err(e) => {
-            tracing::warn!(
-                "Failed to get estimated row count for table '{}.{}': {}. \
-                 total_rows will be reported as unknown.",
-                db_name,
-                table,
-                e
-            );
-            warnings.push(format!(
-                "Could not determine total row count for '{}.{}': {}",
-                db_name, table, e
-            ));
-            None
         }
     };
 
