@@ -274,7 +274,7 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
 pub async fn sample_table(
     pool: &SqlitePool,
     table: &str,
-    config: &mut SamplingConfig,
+    config: &SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
     config.validate()?;
     let mut warnings = Vec::new();

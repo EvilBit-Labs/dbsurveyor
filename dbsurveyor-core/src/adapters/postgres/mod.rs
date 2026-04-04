@@ -115,7 +115,7 @@ impl DatabaseAdapter for PostgresAdapter {
     async fn sample_table(
         &self,
         table_ref: TableRef<'_>,
-        config: &mut super::SamplingConfig,
+        config: &super::SamplingConfig,
     ) -> Result<TableSample> {
         sampling::sample_table(
             &self.pool,
@@ -242,7 +242,7 @@ impl PostgresAdapter {
         &self,
         schema: &str,
         table: &str,
-        config: &mut super::SamplingConfig,
+        config: &super::SamplingConfig,
     ) -> Result<crate::models::TableSample> {
         sampling::sample_table(&self.pool, Some(schema), table, config).await
     }

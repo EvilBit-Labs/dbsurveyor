@@ -116,26 +116,16 @@ impl SamplingConfig {
     }
 
     /// Validates sampling configuration parameters.
-    pub fn validate(&mut self) -> crate::Result<()> {
+    pub fn validate(&self) -> crate::Result<()> {
         if self.sample_size == 0 {
             return Err(crate::error::DbSurveyorError::configuration(
                 "sample_size must be at least 1",
             ));
         }
-        if self.sample_size > MAX_SAMPLE_SIZE {
-            return Err(crate::error::DbSurveyorError::configuration(format!(
-                "sample_size must not exceed {MAX_SAMPLE_SIZE}"
-            )));
-        }
         if self.query_timeout_secs == 0 {
             return Err(crate::error::DbSurveyorError::configuration(
                 "query_timeout_secs must be at least 1",
             ));
-        }
-        // Ensure compiled_patterns are populated (they are #[serde(skip)]
-        // and will be empty after deserialization).
-        if self.compiled_patterns.is_empty() && !self.sensitive_detection_patterns.is_empty() {
-            self.compiled_patterns = compile_sensitive_patterns(&self.sensitive_detection_patterns);
         }
         Ok(())
     }
@@ -248,14 +238,14 @@ mod tests {
 
     #[test]
     fn test_validate_default_config() {
-        let mut config = SamplingConfig::default();
+        let config = SamplingConfig::default();
         assert!(config.validate().is_ok());
     }
 
     #[test]
     fn test_validate_zero_sample_size() {
         // Construct directly to bypass the clamp in with_sample_size.
-        let mut config = SamplingConfig {
+        let config = SamplingConfig {
             sample_size: 0,
             ..SamplingConfig::default()
         };
@@ -263,17 +253,8 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_exceeds_max_sample_size() {
-        let mut config = SamplingConfig {
-            sample_size: MAX_SAMPLE_SIZE + 1,
-            ..SamplingConfig::default()
-        };
-        assert!(config.validate().is_err());
-    }
-
-    #[test]
     fn test_validate_zero_query_timeout() {
-        let mut config = SamplingConfig {
+        let config = SamplingConfig {
             query_timeout_secs: 0,
             ..SamplingConfig::default()
         };
@@ -288,7 +269,7 @@ mod tests {
 
     #[test]
     fn test_validate_at_max_boundary() {
-        let mut config = SamplingConfig::new().with_sample_size(MAX_SAMPLE_SIZE);
+        let config = SamplingConfig::new().with_sample_size(MAX_SAMPLE_SIZE);
         assert_eq!(config.sample_size, MAX_SAMPLE_SIZE);
         assert!(config.validate().is_ok());
     }

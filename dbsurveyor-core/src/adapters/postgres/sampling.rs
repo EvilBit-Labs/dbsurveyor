@@ -368,7 +368,7 @@ pub async fn sample_table(
     pool: &PgPool,
     schema: Option<&str>,
     table: &str,
-    config: &mut SamplingConfig,
+    config: &SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
     config.validate()?;
     let mut warnings = Vec::new();

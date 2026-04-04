@@ -77,6 +77,12 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         triggers::collect_triggers(&adapter.pool),
     );
 
+    // Count actual errors before consuming results (empty results are valid)
+    let metadata_error_count = views_result.is_err() as u8
+        + functions_result.is_err() as u8
+        + procedures_result.is_err() as u8
+        + triggers_result.is_err() as u8;
+
     let collected_views = match views_result {
         Ok(v) => {
             tracing::info!("Successfully collected {} views", v.len());
@@ -130,14 +136,10 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
     };
 
     // Escalate if multiple concurrent metadata tasks failed -- likely a systemic issue
-    let metadata_failure_count = collected_views.is_empty() as u8
-        + functions.is_empty() as u8
-        + procedures.is_empty() as u8
-        + collected_triggers.is_empty() as u8;
-    if metadata_failure_count >= 3 {
+    if metadata_error_count >= 3 {
         tracing::warn!(
             "Multiple metadata collection tasks failed ({}/4); check database permissions",
-            metadata_failure_count
+            metadata_error_count
         );
     }
 

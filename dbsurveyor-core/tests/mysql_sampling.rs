@@ -397,12 +397,12 @@ async fn test_sample_table_with_rate_limit() -> Result<()> {
     let adapter = MySqlAdapter::new(&database_url).await?;
 
     // Configure sampling with rate limiting
-    let mut sampling_config = SamplingConfig::new()
+    let sampling_config = SamplingConfig::new()
         .with_sample_size(10)
         .with_throttle_ms(10); // 100 queries per second
 
     let sample = adapter
-        .sample_table("test", "test_sample", &mut sampling_config)
+        .sample_table("test", "test_sample", &sampling_config)
         .await?;
 
     assert_eq!(sample.rows.len(), 10, "Should have sampled 10 rows");
@@ -462,10 +462,10 @@ async fn test_sample_table_returns_json_rows() -> Result<()> {
     pool.close().await;
 
     let adapter = MySqlAdapter::new(&database_url).await?;
-    let mut sampling_config = SamplingConfig::new().with_sample_size(10);
+    let sampling_config = SamplingConfig::new().with_sample_size(10);
 
     let sample = adapter
-        .sample_table("test", "test_json_sample", &mut sampling_config)
+        .sample_table("test", "test_json_sample", &sampling_config)
         .await?;
 
     assert_eq!(sample.rows.len(), 3, "Should have sampled all 3 rows");
@@ -523,10 +523,10 @@ async fn test_sample_table_unordered() -> Result<()> {
     pool.close().await;
 
     let adapter = MySqlAdapter::new(&database_url).await?;
-    let mut sampling_config = SamplingConfig::new().with_sample_size(5);
+    let sampling_config = SamplingConfig::new().with_sample_size(5);
 
     let sample = adapter
-        .sample_table("test", "test_unordered_sample", &mut sampling_config)
+        .sample_table("test", "test_unordered_sample", &sampling_config)
         .await?;
 
     assert_eq!(sample.rows.len(), 5, "Should have sampled 5 rows");
@@ -556,10 +556,10 @@ async fn test_sample_table_empty() -> Result<()> {
     pool.close().await;
 
     let adapter = MySqlAdapter::new(&database_url).await?;
-    let mut sampling_config = SamplingConfig::new().with_sample_size(10);
+    let sampling_config = SamplingConfig::new().with_sample_size(10);
 
     let sample = adapter
-        .sample_table("test", "test_empty_sample", &mut sampling_config)
+        .sample_table("test", "test_empty_sample", &sampling_config)
         .await?;
 
     assert_eq!(sample.rows.len(), 0, "Should have 0 rows for empty table");
@@ -598,10 +598,10 @@ async fn test_sample_table_respects_limit() -> Result<()> {
     let adapter = MySqlAdapter::new(&database_url).await?;
 
     // Request only 5 samples
-    let mut sampling_config = SamplingConfig::new().with_sample_size(5);
+    let sampling_config = SamplingConfig::new().with_sample_size(5);
 
     let sample = adapter
-        .sample_table("test", "test_limit_sample", &mut sampling_config)
+        .sample_table("test", "test_limit_sample", &sampling_config)
         .await?;
 
     assert_eq!(
@@ -642,13 +642,13 @@ async fn test_sample_table_rate_limiting() -> Result<()> {
     let adapter = MySqlAdapter::new(&database_url).await?;
 
     // Configure with 100ms throttle (10 queries per second max)
-    let mut sampling_config = SamplingConfig::new()
+    let sampling_config = SamplingConfig::new()
         .with_sample_size(1)
         .with_throttle_ms(100);
 
     let start = std::time::Instant::now();
     let _sample = adapter
-        .sample_table("test", "test_rate_limit", &mut sampling_config)
+        .sample_table("test", "test_rate_limit", &sampling_config)
         .await?;
     let elapsed = start.elapsed();
 

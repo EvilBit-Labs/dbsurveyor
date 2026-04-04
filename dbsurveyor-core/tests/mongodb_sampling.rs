@@ -61,10 +61,10 @@ async fn test_mongodb_sample_collection() {
         .await
         .expect("Failed to create adapter");
 
-    let mut config = SamplingConfig::new().with_sample_size(10);
+    let config = SamplingConfig::new().with_sample_size(10);
 
     let sample = adapter
-        .sample_collection("testdb", "items", &mut config)
+        .sample_collection("testdb", "items", &config)
         .await
         .expect("Failed to sample collection");
 
@@ -148,9 +148,9 @@ async fn test_mongodb_sample_with_timestamp_ordering() {
     }
 
     // Sample and verify
-    let mut config = SamplingConfig::new().with_sample_size(5);
+    let config = SamplingConfig::new().with_sample_size(5);
     let sample = adapter
-        .sample_collection("testdb", "events", &mut config)
+        .sample_collection("testdb", "events", &config)
         .await
         .expect("Failed to sample");
 
@@ -193,10 +193,10 @@ async fn test_mongodb_sample_small_collection() {
         .await
         .expect("Failed to create adapter");
 
-    let mut config = SamplingConfig::new().with_sample_size(10);
+    let config = SamplingConfig::new().with_sample_size(10);
 
     let sample = adapter
-        .sample_collection("testdb", "small", &mut config)
+        .sample_collection("testdb", "small", &config)
         .await
         .expect("Failed to sample");
 
@@ -234,10 +234,10 @@ async fn test_mongodb_sample_empty_collection() {
         .await
         .expect("Failed to create adapter");
 
-    let mut config = SamplingConfig::new().with_sample_size(10);
+    let config = SamplingConfig::new().with_sample_size(10);
 
     let sample = adapter
-        .sample_collection("testdb", "empty", &mut config)
+        .sample_collection("testdb", "empty", &config)
         .await
         .expect("Failed to sample");
 
@@ -268,13 +268,13 @@ async fn test_mongodb_sample_with_throttle() {
         .await
         .expect("Failed to create adapter");
 
-    let mut config = SamplingConfig::new()
+    let config = SamplingConfig::new()
         .with_sample_size(5)
         .with_throttle_ms(50);
 
     let start = std::time::Instant::now();
     let sample = adapter
-        .sample_collection("testdb", "items", &mut config)
+        .sample_collection("testdb", "items", &config)
         .await
         .expect("Failed to sample");
     let elapsed = start.elapsed();
@@ -343,10 +343,10 @@ async fn test_mongodb_sample_nested_documents() {
         .await
         .expect("Failed to create adapter");
 
-    let mut config = SamplingConfig::new().with_sample_size(2);
+    let config = SamplingConfig::new().with_sample_size(2);
 
     let sample = adapter
-        .sample_collection("testdb", "nested", &mut config)
+        .sample_collection("testdb", "nested", &config)
         .await
         .expect("Failed to sample");
 

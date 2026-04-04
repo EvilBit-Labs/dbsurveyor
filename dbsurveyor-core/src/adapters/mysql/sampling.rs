@@ -259,7 +259,7 @@ pub async fn sample_table(
     pool: &MySqlPool,
     db_name: &str,
     table: &str,
-    config: &mut SamplingConfig,
+    config: &SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
     config.validate()?;
     let mut warnings = Vec::new();
