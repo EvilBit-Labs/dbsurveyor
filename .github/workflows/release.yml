@@ -12,11 +12,6 @@ on:
         tags:
             - "v*.*.*"
 
-permissions:
-    contents: write
-    id-token: write
-    attestations: write
-
 env:
     CARGO_TERM_COLOR: always
 
@@ -24,6 +19,8 @@ jobs:
     validate:
         name: Quality Gate
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         steps:
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
             - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
@@ -46,6 +43,10 @@ jobs:
         needs: validate
         name: Release
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            id-token: write
+            attestations: write
         steps:
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
               with:
@@ -82,3 +83,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+            - name: Attest build provenance
+              uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+              with:
+                  subject-path: "dist/**/*"

@@ -81,15 +81,20 @@ jobs:
                   cache: true
                   github_token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Run Rust tests with coverage
-              run: cargo llvm-cov -p dbsurveyor-core --lcov --output-path lcov.info --fail-under-lines 55 -- --test-threads=1
+            - name: Generate coverage
+              # Use --test-threads=1 to prevent race conditions in stdin-mocking tests
+              # that manipulate file descriptors (dup/dup2) which aren't thread-safe
+              run: cargo llvm-cov -p dbsurveyor-core --all-features --no-report --fail-under-lines 55 -- --test-threads=1
               env:
                   CARGO_TERM_COLOR: never
                   TERM: dumb
                   RUSTFLAGS: "--cfg coverage"
 
+            - name: Combine coverage reports
+              run: cargo llvm-cov report --lcov --output-path lcov.info
+
             - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v6
+              uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
               with:
                   token: ${{ secrets.CODECOV_TOKEN }}
                   files: lcov.info
