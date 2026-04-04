@@ -539,7 +539,7 @@ async fn collect_table_indexes(
         let column_name: String = row.try_get("COLUMN_NAME").map_err(|e| {
             crate::error::DbSurveyorError::collection_failed("Failed to parse COLUMN_NAME", e)
         })?;
-        let non_unique: u32 = row.try_get("NON_UNIQUE").map_err(|e| {
+        let non_unique: i32 = row.try_get("NON_UNIQUE").map_err(|e| {
             crate::error::DbSurveyorError::collection_failed("Failed to parse NON_UNIQUE", e)
         })?;
         let index_type: Option<String> = row.try_get("INDEX_TYPE").ok();
