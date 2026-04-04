@@ -497,10 +497,9 @@ pub async fn encrypt_data_async(data: &[u8], password: &str) -> crate::Result<En
 /// # Returns
 /// Decrypted plaintext data
 pub async fn decrypt_data_async(
-    encrypted: &EncryptedData,
+    encrypted: EncryptedData,
     password: &str,
 ) -> crate::Result<Vec<u8>> {
-    let encrypted = encrypted.clone();
     let password = password.to_string();
     tokio::task::spawn_blocking(move || decrypt_data(&encrypted, &password))
         .await

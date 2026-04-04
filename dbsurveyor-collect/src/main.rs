@@ -328,9 +328,6 @@ fn parse_quality_thresholds(thresholds: &[String]) -> QualityThresholds {
 /// Collects database schema and saves to file
 async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) -> Result<()> {
     // Warn about unimplemented flags so users know their values are not yet applied
-    if cli.sample != 100 {
-        warn!("--sample flag is not yet implemented and will be ignored");
-    }
     if cli.throttle.is_some() {
         warn!("--throttle flag is not yet implemented and will be ignored");
     }
