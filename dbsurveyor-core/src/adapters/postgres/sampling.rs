@@ -20,7 +20,10 @@
 use crate::adapters::config::SamplingConfig;
 use crate::adapters::helpers::TIMESTAMP_COLUMN_NAMES;
 use crate::error::DbSurveyorError;
-use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
+use crate::models::{
+    Column, OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample,
+    UnifiedDataType,
+};
 use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
@@ -64,6 +67,41 @@ pub async fn detect_ordering_strategy(
     schema: &str,
     table: &str,
 ) -> Result<OrderingStrategy, DbSurveyorError> {
+    detect_ordering_strategy_with_columns(pool, schema, table, None).await
+}
+
+/// Detect the best ordering strategy, optionally using pre-collected column metadata.
+///
+/// When `columns` is `Some`, the ordering strategy is derived entirely from the
+/// provided metadata, avoiding redundant database queries for PK, timestamp, and
+/// auto-increment detection. When `None`, falls back to the original query-based
+/// detection.
+///
+/// # Arguments
+///
+/// * `pool` - PostgreSQL connection pool (unused when `columns` is `Some`)
+/// * `schema` - Schema name (e.g., "public")
+/// * `table` - Table name
+/// * `columns` - Optional pre-collected column metadata from schema collection
+pub async fn detect_ordering_strategy_with_columns(
+    pool: &PgPool,
+    schema: &str,
+    table: &str,
+    columns: Option<&[Column]>,
+) -> Result<OrderingStrategy, DbSurveyorError> {
+    // Fast path: derive strategy from pre-collected metadata
+    if let Some(cols) = columns {
+        let strategy = detect_ordering_from_columns(cols);
+        tracing::debug!(
+            "Derived ordering strategy for {}.{} from metadata: {:?}",
+            schema,
+            table,
+            strategy
+        );
+        return Ok(strategy);
+    }
+
+    // Slow path: query the database for ordering info
     // 1. Check for primary key
     if let Some(pk_strategy) = detect_primary_key(pool, schema, table).await? {
         tracing::debug!(
@@ -274,6 +312,75 @@ async fn detect_auto_increment_column(
     }))
 }
 
+/// Derive an ordering strategy from pre-collected column metadata.
+///
+/// This avoids redundant database queries when schema collection has already
+/// gathered column information (primary keys, data types, auto-increment flags).
+///
+/// The detection priority mirrors [`detect_ordering_strategy`]:
+/// 1. Primary key columns (ordered by `ordinal_position`)
+/// 2. Timestamp columns matching common naming conventions
+/// 3. Auto-increment/serial columns
+/// 4. Unordered fallback
+fn detect_ordering_from_columns(columns: &[Column]) -> OrderingStrategy {
+    // 1. Check for primary key columns
+    let mut pk_columns: Vec<&Column> = columns.iter().filter(|c| c.is_primary_key).collect();
+    if !pk_columns.is_empty() {
+        pk_columns.sort_by_key(|c| c.ordinal_position);
+        let names = pk_columns.iter().map(|c| c.name.clone()).collect();
+        return OrderingStrategy::PrimaryKey { columns: names };
+    }
+
+    // 2. Check for timestamp columns with well-known names
+    let timestamp_columns: Vec<&Column> = columns
+        .iter()
+        .filter(|c| is_timestamp_type(&c.data_type))
+        .collect();
+
+    // Exact match on common timestamp column names (highest priority)
+    for col in &timestamp_columns {
+        let lower = col.name.to_lowercase();
+        if TIMESTAMP_COLUMN_NAMES.iter().any(|&name| lower == name) {
+            return OrderingStrategy::Timestamp {
+                column: col.name.clone(),
+                direction: SortDirection::Descending,
+            };
+        }
+    }
+
+    // Partial match on common patterns
+    for col in &timestamp_columns {
+        let lower = col.name.to_lowercase();
+        if lower.contains("created") || lower.contains("inserted") || lower.contains("timestamp") {
+            return OrderingStrategy::Timestamp {
+                column: col.name.clone(),
+                direction: SortDirection::Descending,
+            };
+        }
+    }
+
+    // 3. Check for auto-increment columns
+    let mut auto_columns: Vec<&Column> = columns.iter().filter(|c| c.is_auto_increment).collect();
+    if !auto_columns.is_empty() {
+        auto_columns.sort_by_key(|c| c.ordinal_position);
+        return OrderingStrategy::AutoIncrement {
+            column: auto_columns[0].name.clone(),
+        };
+    }
+
+    // 4. Fallback
+    OrderingStrategy::Unordered
+}
+
+/// Returns `true` if the unified data type represents a timestamp or date type
+/// suitable for ordering.
+fn is_timestamp_type(data_type: &UnifiedDataType) -> bool {
+    matches!(
+        data_type,
+        UnifiedDataType::DateTime { .. } | UnifiedDataType::Date
+    )
+}
+
 /// Escapes a SQL identifier for use in double-quoted PostgreSQL identifiers.
 ///
 /// PostgreSQL escapes embedded double quotes by doubling them.
@@ -370,6 +477,29 @@ pub async fn sample_table(
     table: &str,
     config: &SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
+    sample_table_with_columns(pool, schema, table, config, None).await
+}
+
+/// Sample data from a table, optionally using pre-collected column metadata.
+///
+/// When `columns` is `Some`, ordering strategy detection uses the provided
+/// metadata instead of querying the database, avoiding redundant PK/timestamp/
+/// auto-increment lookups that schema collection already performed.
+///
+/// # Arguments
+///
+/// * `pool` - PostgreSQL connection pool
+/// * `schema` - Optional schema name (e.g., `Some("public")`)
+/// * `table` - Table name
+/// * `config` - Sampling configuration including sample size and throttle settings
+/// * `columns` - Optional pre-collected column metadata from schema collection
+pub async fn sample_table_with_columns(
+    pool: &PgPool,
+    schema: Option<&str>,
+    table: &str,
+    config: &SamplingConfig,
+    columns: Option<&[Column]>,
+) -> Result<TableSample, DbSurveyorError> {
     config.validate()?;
     let mut warnings = Vec::new();
     let display_name = match schema {
@@ -399,7 +529,8 @@ pub async fn sample_table(
             "public"
         }
     };
-    let strategy = detect_ordering_strategy(pool, detection_schema, table).await?;
+    let strategy =
+        detect_ordering_strategy_with_columns(pool, detection_schema, table, columns).await?;
 
     // Determine sampling strategy and add warnings for unordered tables
     let (sampling_strategy, is_random) = match &strategy {
@@ -592,5 +723,315 @@ mod tests {
         };
         let clause = generate_order_by_clause(&strategy, true);
         assert_eq!(clause, r#"ORDER BY "my""col" DESC"#);
+    }
+
+    /// Helper to build a `Column` with sensible defaults for testing.
+    fn make_column(
+        name: &str,
+        ordinal: u32,
+        data_type: UnifiedDataType,
+        is_pk: bool,
+        is_auto: bool,
+    ) -> Column {
+        Column {
+            name: name.to_string(),
+            data_type,
+            is_nullable: false,
+            is_primary_key: is_pk,
+            is_auto_increment: is_auto,
+            default_value: None,
+            comment: None,
+            ordinal_position: ordinal,
+        }
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_primary_key() {
+        let columns = vec![
+            make_column(
+                "id",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true,
+                },
+                true,
+                false,
+            ),
+            make_column(
+                "name",
+                2,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::PrimaryKey {
+                columns: vec!["id".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_composite_pk() {
+        let columns = vec![
+            make_column(
+                "tenant_id",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true,
+                },
+                true,
+                false,
+            ),
+            make_column(
+                "name",
+                2,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+            make_column(
+                "id",
+                3,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true,
+                },
+                true,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::PrimaryKey {
+                columns: vec!["tenant_id".to_string(), "id".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_timestamp() {
+        let columns = vec![
+            make_column(
+                "name",
+                1,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+            make_column(
+                "created_at",
+                2,
+                UnifiedDataType::DateTime {
+                    with_timezone: true,
+                },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::Timestamp {
+                column: "created_at".to_string(),
+                direction: SortDirection::Descending,
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_timestamp_partial_match() {
+        let columns = vec![make_column(
+            "record_created_date",
+            1,
+            UnifiedDataType::DateTime {
+                with_timezone: false,
+            },
+            false,
+            false,
+        )];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::Timestamp {
+                column: "record_created_date".to_string(),
+                direction: SortDirection::Descending,
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_auto_increment() {
+        let columns = vec![
+            make_column(
+                "row_id",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 64,
+                    signed: true,
+                },
+                false,
+                true,
+            ),
+            make_column(
+                "data",
+                2,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::AutoIncrement {
+                column: "row_id".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_unordered() {
+        let columns = vec![
+            make_column(
+                "data",
+                1,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+            make_column(
+                "value",
+                2,
+                UnifiedDataType::Float { precision: None },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(strategy, OrderingStrategy::Unordered);
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_pk_takes_priority() {
+        // PK should win even when timestamp and auto-increment are present
+        let columns = vec![
+            make_column(
+                "id",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true,
+                },
+                true,
+                true,
+            ),
+            make_column(
+                "created_at",
+                2,
+                UnifiedDataType::DateTime {
+                    with_timezone: true,
+                },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::PrimaryKey {
+                columns: vec!["id".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_timestamp_over_auto_increment() {
+        // Timestamp should win over auto-increment when no PK
+        let columns = vec![
+            make_column(
+                "seq",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 64,
+                    signed: true,
+                },
+                false,
+                true,
+            ),
+            make_column(
+                "created_at",
+                2,
+                UnifiedDataType::DateTime {
+                    with_timezone: true,
+                },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::Timestamp {
+                column: "created_at".to_string(),
+                direction: SortDirection::Descending,
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_empty() {
+        let strategy = detect_ordering_from_columns(&[]);
+        assert_eq!(strategy, OrderingStrategy::Unordered);
+    }
+
+    #[test]
+    fn test_is_timestamp_type() {
+        assert!(is_timestamp_type(&UnifiedDataType::DateTime {
+            with_timezone: true
+        }));
+        assert!(is_timestamp_type(&UnifiedDataType::DateTime {
+            with_timezone: false
+        }));
+        assert!(is_timestamp_type(&UnifiedDataType::Date));
+        assert!(!is_timestamp_type(&UnifiedDataType::String {
+            max_length: None
+        }));
+        assert!(!is_timestamp_type(&UnifiedDataType::Integer {
+            bits: 32,
+            signed: true
+        }));
+        assert!(!is_timestamp_type(&UnifiedDataType::Time {
+            with_timezone: false
+        }));
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_date_type_not_timestamp_name() {
+        // A Date column named "birthday" should NOT match timestamp heuristics
+        let columns = vec![make_column(
+            "birthday",
+            1,
+            UnifiedDataType::Date,
+            false,
+            false,
+        )];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(strategy, OrderingStrategy::Unordered);
     }
 }

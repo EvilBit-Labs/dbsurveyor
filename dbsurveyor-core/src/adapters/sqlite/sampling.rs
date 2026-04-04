@@ -322,22 +322,31 @@ pub async fn sample_table(
         json_rows.push(json_row);
     }
 
-    // Get total row count
-    let count_query = format!("SELECT COUNT(*) FROM {}", escape_identifier(table));
-    let total_rows: Option<i64> = match sqlx::query_scalar(&count_query).fetch_one(pool).await {
-        Ok(count) => Some(count),
-        Err(e) => {
-            tracing::warn!(
-                "Failed to get row count for table '{}': {}. \
-                 total_rows will be reported as unknown.",
-                table,
-                e
-            );
-            warnings.push(format!(
-                "Could not determine total row count for '{}': {}",
-                table, e
-            ));
-            None
+    // Get estimated row count using MAX(rowid) which is O(1) for most SQLite tables.
+    // This is an estimate (not exact if rows have been deleted), but avoids a full
+    // table scan. Falls back to COUNT(*) only if the table has no rowid.
+    let estimate_query = format!("SELECT MAX(rowid) FROM {}", escape_identifier(table));
+    let total_rows: Option<i64> = match sqlx::query_scalar(&estimate_query).fetch_one(pool).await {
+        Ok(count) => count,
+        Err(_) => {
+            // WITHOUT ROWID tables do not support MAX(rowid); fall back to COUNT(*).
+            let count_query = format!("SELECT COUNT(*) FROM {}", escape_identifier(table));
+            match sqlx::query_scalar(&count_query).fetch_one(pool).await {
+                Ok(count) => Some(count),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to get row count for table '{}': {}. \
+                         total_rows will be reported as unknown.",
+                        table,
+                        e
+                    );
+                    warnings.push(format!(
+                        "Could not determine total row count for '{}': {}",
+                        table, e
+                    ));
+                    None
+                }
+            }
         }
     };
 

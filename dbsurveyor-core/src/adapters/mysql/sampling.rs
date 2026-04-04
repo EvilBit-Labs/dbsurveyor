@@ -303,17 +303,32 @@ pub async fn sample_table(
         json_rows.push(json_row);
     }
 
-    // Get total row count
-    let count_query = format!(
-        "SELECT COUNT(*) FROM `{}`.`{}`",
-        escape_identifier(db_name),
-        escape_identifier(table)
-    );
-    let total_rows: Option<i64> = match sqlx::query_scalar(&count_query).fetch_one(pool).await {
-        Ok(count) => Some(count),
+    // Get estimated row count from INFORMATION_SCHEMA (O(1), avoids full table scan).
+    // TABLE_ROWS is an estimate for InnoDB but exact for MyISAM.
+    let estimate_query = "SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+    let total_rows: Option<i64> = match sqlx::query_scalar(estimate_query)
+        .bind(db_name)
+        .bind(table)
+        .fetch_optional(pool)
+        .await
+    {
+        Ok(Some(count)) => Some(count),
+        Ok(None) => {
+            tracing::warn!(
+                "No INFORMATION_SCHEMA entry for table '{}.{}'. \
+                 total_rows will be reported as unknown.",
+                db_name,
+                table,
+            );
+            warnings.push(format!(
+                "Could not determine total row count for '{}.{}': table not found in INFORMATION_SCHEMA",
+                db_name, table
+            ));
+            None
+        }
         Err(e) => {
             tracing::warn!(
-                "Failed to get row count for table '{}.{}': {}. \
+                "Failed to get estimated row count for table '{}.{}': {}. \
                  total_rows will be reported as unknown.",
                 db_name,
                 table,
