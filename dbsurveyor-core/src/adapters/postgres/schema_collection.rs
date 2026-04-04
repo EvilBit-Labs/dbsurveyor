@@ -8,6 +8,7 @@ use super::PostgresAdapter;
 use super::RowExt;
 use super::{routines, triggers, views};
 use crate::Result;
+use crate::adapters::helpers::resolve_optional_collection;
 use crate::models::*;
 use sqlx::Row;
 use std::collections::HashMap;
@@ -35,18 +36,8 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
 
     // Collect schemas first to understand database structure
     tracing::debug!("Enumerating database schemas");
-    let schemas = match adapter.collect_schemas().await {
-        Ok(schemas) => {
-            tracing::info!("Found {} accessible schemas", schemas.len());
-            schemas
-        }
-        Err(e) => {
-            let warning = format!("Failed to enumerate schemas: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let schemas =
+        resolve_optional_collection("schemas", adapter.collect_schemas().await, &mut warnings);
 
     // Collect tables with comprehensive metadata
     tracing::debug!("Enumerating database tables");
@@ -83,57 +74,11 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         + procedures_result.is_err() as u8
         + triggers_result.is_err() as u8;
 
-    let collected_views = match views_result {
-        Ok(v) => {
-            tracing::info!("Successfully collected {} views", v.len());
-            v
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect views: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
-
-    let functions = match functions_result {
-        Ok(f) => {
-            tracing::info!("Successfully collected {} functions", f.len());
-            f
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect functions: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
-
-    let procedures = match procedures_result {
-        Ok(p) => {
-            tracing::info!("Successfully collected {} procedures", p.len());
-            p
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect procedures: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
-
-    let collected_triggers = match triggers_result {
-        Ok(t) => {
-            tracing::info!("Successfully collected {} triggers", t.len());
-            t
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect triggers: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let collected_views = resolve_optional_collection("views", views_result, &mut warnings);
+    let functions = resolve_optional_collection("functions", functions_result, &mut warnings);
+    let procedures = resolve_optional_collection("procedures", procedures_result, &mut warnings);
+    let collected_triggers =
+        resolve_optional_collection("triggers", triggers_result, &mut warnings);
 
     // Escalate if multiple concurrent metadata tasks failed -- likely a systemic issue
     if metadata_error_count >= 3 {

@@ -6,6 +6,7 @@
 use super::MySqlAdapter;
 use super::type_mapping::map_mysql_type;
 use crate::Result;
+use crate::adapters::helpers::resolve_optional_collection;
 use crate::models::*;
 use sqlx::Row;
 use std::collections::HashMap;
@@ -64,18 +65,11 @@ pub(crate) async fn collect_schema(adapter: &MySqlAdapter) -> Result<DatabaseSch
     };
 
     // Collect views
-    let views = match collect_views(adapter, &db_name).await {
-        Ok(views) => {
-            tracing::info!("Successfully collected {} views", views.len());
-            views
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect views: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let views = resolve_optional_collection(
+        "views",
+        collect_views(adapter, &db_name).await,
+        &mut warnings,
+    );
 
     let collection_duration = start_time.elapsed();
 

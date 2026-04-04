@@ -13,6 +13,7 @@
 use super::type_mapping::map_sqlite_type;
 use super::{SqliteAdapter, escape_identifier, escape_pragma_arg};
 use crate::Result;
+use crate::adapters::helpers::resolve_optional_collection;
 use crate::models::*;
 use sqlx::Row;
 use std::collections::HashMap;
@@ -58,32 +59,11 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
     };
 
     // Collect views
-    let views = match collect_views(adapter).await {
-        Ok(views) => {
-            tracing::info!("Successfully collected {} views", views.len());
-            views
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect views: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let views = resolve_optional_collection("views", collect_views(adapter).await, &mut warnings);
 
     // Collect triggers
-    let triggers = match collect_triggers(adapter).await {
-        Ok(triggers) => {
-            tracing::info!("Successfully collected {} triggers", triggers.len());
-            triggers
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect triggers: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let triggers =
+        resolve_optional_collection("triggers", collect_triggers(adapter).await, &mut warnings);
 
     let collection_duration = start_time.elapsed();
 

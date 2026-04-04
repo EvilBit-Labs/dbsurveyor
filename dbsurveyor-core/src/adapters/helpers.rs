@@ -94,6 +94,32 @@ pub(crate) const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
     "create_time",
 ];
 
+/// Collects an optional schema object (views, triggers, functions, etc.).
+///
+/// On success, logs the count and returns the collected items.
+/// On failure, pushes a warning message and returns an empty `Vec`.
+///
+/// This eliminates the repeated match-Ok-log / Err-warn-push pattern
+/// found in every adapter's `collect_schema` function.
+pub(crate) fn resolve_optional_collection<T>(
+    description: &str,
+    result: crate::Result<Vec<T>>,
+    warnings: &mut Vec<String>,
+) -> Vec<T> {
+    match result {
+        Ok(items) => {
+            tracing::info!("Successfully collected {} {}", items.len(), description);
+            items
+        }
+        Err(e) => {
+            let warning = format!("Failed to collect {}: {}", description, e);
+            tracing::warn!("{}", warning);
+            warnings.push(warning);
+            Vec::new()
+        }
+    }
+}
+
 /// Macro for reducing boilerplate error handling when querying database metadata.
 ///
 /// # Example
@@ -146,6 +172,38 @@ mod tests {
         assert!(patterns.contains_credentials("POSTGRES://USER:PASS@LOCALHOST/DB"));
         assert!(!patterns.contains_credentials("postgres://localhost/db"));
         assert!(!patterns.contains_credentials("just a normal string"));
+    }
+
+    #[test]
+    fn test_resolve_optional_collection_ok() {
+        let mut warnings = Vec::new();
+        let result: crate::Result<Vec<String>> = Ok(vec!["a".to_string(), "b".to_string()]);
+        let items = resolve_optional_collection("widgets", result, &mut warnings);
+        assert_eq!(items.len(), 2);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_optional_collection_err() {
+        let mut warnings = Vec::new();
+        let result: crate::Result<Vec<String>> =
+            Err(crate::error::DbSurveyorError::collection_failed(
+                "test error",
+                std::io::Error::other("boom"),
+            ));
+        let items = resolve_optional_collection("widgets", result, &mut warnings);
+        assert!(items.is_empty());
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("Failed to collect widgets"));
+    }
+
+    #[test]
+    fn test_resolve_optional_collection_empty_ok() {
+        let mut warnings = Vec::new();
+        let result: crate::Result<Vec<i32>> = Ok(Vec::new());
+        let items = resolve_optional_collection("things", result, &mut warnings);
+        assert!(items.is_empty());
+        assert!(warnings.is_empty());
     }
 
     #[test]
