@@ -148,7 +148,7 @@ Create a `.dbsurveyor.toml` file in your project root:
 connect_timeout = "30s"
 query_timeout = "30s"
 max_connections = 10
-sample_size = 100  # Max: 10,000 (values above are clamped)
+sample_size = 100       # Max: 10,000 (values above are clamped)
 throttle_ms = 0
 
 # Object collection settings
