@@ -4,7 +4,7 @@
 //! including sample size, throttling, and sensitive data detection.
 
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// Maximum allowed sample size to prevent OOM from unbounded LIMIT clauses.
 pub const MAX_SAMPLE_SIZE: u32 = 10_000;
@@ -35,7 +35,7 @@ impl SensitivePattern {
 ///
 /// Controls how data samples are collected from database tables,
 /// including sample sizes, throttling, and sensitive data warnings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SamplingConfig {
     /// Number of rows to sample per table
     pub sample_size: u32,
@@ -55,6 +55,36 @@ pub struct SamplingConfig {
     /// `sensitive_detection_patterns` to avoid recompiling on every row.
     #[serde(skip)]
     pub(crate) compiled_patterns: Vec<(Regex, String)>,
+}
+
+impl<'de> Deserialize<'de> for SamplingConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        /// Shadow struct for deriving `Deserialize` without recursion.
+        #[derive(Deserialize)]
+        struct Raw {
+            sample_size: u32,
+            throttle_ms: Option<u64>,
+            query_timeout_secs: u64,
+            warn_sensitive: bool,
+            timestamp_columns: Vec<String>,
+            sensitive_detection_patterns: Vec<SensitivePattern>,
+        }
+
+        let raw = Raw::deserialize(deserializer)?;
+        let compiled_patterns = compile_sensitive_patterns(&raw.sensitive_detection_patterns);
+        Ok(Self {
+            sample_size: raw.sample_size,
+            throttle_ms: raw.throttle_ms,
+            query_timeout_secs: raw.query_timeout_secs,
+            warn_sensitive: raw.warn_sensitive,
+            timestamp_columns: raw.timestamp_columns,
+            sensitive_detection_patterns: raw.sensitive_detection_patterns,
+            compiled_patterns,
+        })
+    }
 }
 
 /// Compiles a list of [`SensitivePattern`]s into `(Regex, description)` pairs.
@@ -147,10 +177,13 @@ impl SamplingConfig {
 
     /// Builder method to set sample size.
     ///
-    /// Values exceeding [`MAX_SAMPLE_SIZE`] are clamped to the maximum.
+    /// Values below 1 are clamped to 1; values exceeding
+    /// [`MAX_SAMPLE_SIZE`] are clamped to the maximum.
     #[must_use]
     pub fn with_sample_size(mut self, size: u32) -> Self {
-        if size > MAX_SAMPLE_SIZE {
+        if size == 0 {
+            tracing::warn!("Requested sample_size 0 is below minimum 1; clamped to 1");
+        } else if size > MAX_SAMPLE_SIZE {
             tracing::warn!(
                 "Requested sample_size {} exceeds maximum {}; clamped",
                 size,
@@ -350,6 +383,24 @@ mod tests {
         assert_eq!(
             config.compiled_patterns.len(),
             config.sensitive_detection_patterns.len()
+        );
+    }
+
+    #[test]
+    fn test_with_sample_size_clamps_zero_to_one() {
+        let config = SamplingConfig::new().with_sample_size(0);
+        assert_eq!(config.sample_size, 1);
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_deserialization_recompiles_patterns() {
+        let original = SamplingConfig::default();
+        let json = serde_json::to_string(&original).expect("serialize");
+        let restored: SamplingConfig = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(
+            restored.compiled_patterns.len(),
+            restored.sensitive_detection_patterns.len(),
         );
     }
 

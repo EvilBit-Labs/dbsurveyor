@@ -82,13 +82,11 @@ async fn save_compressed(json_data: &str, output_path: &PathBuf) -> Result<()> {
     })
     .await
     .map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
-            "Compression task failed: {}",
-            e
-        ))
+        dbsurveyor_core::error::DbSurveyorError::collection_failed("Compression task failed", e)
     })?
-    .map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::configuration(format!("Compression failed: {}", e))
+    .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
+        context: "Compression failed".to_string(),
+        source: e,
     })?;
 
     tokio::fs::write(output_path, compressed_data)

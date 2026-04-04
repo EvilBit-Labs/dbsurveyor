@@ -473,8 +473,8 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> crate::Result<
 /// # Returns
 /// Encrypted data container with all parameters needed for decryption
 pub async fn encrypt_data_async(data: &[u8], password: &str) -> crate::Result<EncryptedData> {
-    let data = data.to_vec();
-    let password = password.to_string();
+    let data = Zeroizing::new(data.to_vec());
+    let password = Zeroizing::new(password.to_string());
     tokio::task::spawn_blocking(move || encrypt_data(&data, &password))
         .await
         .map_err(|e| {
@@ -500,7 +500,7 @@ pub async fn decrypt_data_async(
     encrypted: EncryptedData,
     password: &str,
 ) -> crate::Result<Vec<u8>> {
-    let password = password.to_string();
+    let password = Zeroizing::new(password.to_string());
     tokio::task::spawn_blocking(move || decrypt_data(&encrypted, &password))
         .await
         .map_err(|e| {

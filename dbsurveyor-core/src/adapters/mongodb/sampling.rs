@@ -149,6 +149,8 @@ pub async fn sample_collection(
     collection: &str,
     config: &SamplingConfig,
 ) -> Result<TableSample> {
+    config.validate()?;
+
     let mut warnings = Vec::new();
 
     // Apply rate limiting delay if configured
@@ -278,7 +280,7 @@ async fn sample_random_as_json(
     let coll = db.collection::<Document>(collection);
 
     // Use $sample aggregation stage
-    let pipeline = vec![doc! { "$sample": { "size": sample_size as i64 } }];
+    let pipeline = vec![doc! { "$sample": { "size": i64::from(sample_size) } }];
 
     let mut cursor = coll.aggregate(pipeline).await.map_err(|e| {
         crate::error::DbSurveyorError::collection_failed(

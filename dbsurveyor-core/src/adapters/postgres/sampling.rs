@@ -632,7 +632,7 @@ pub async fn sample_table_with_columns(
 
     // Execute sample query
     let rows: Vec<JsonValue> = sqlx::query_scalar(&sample_query)
-        .bind(config.sample_size as i64)
+        .bind(i64::from(config.sample_size))
         .fetch_all(pool)
         .await
         .map_err(|e| {

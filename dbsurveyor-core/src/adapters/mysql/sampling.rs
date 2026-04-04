@@ -334,7 +334,7 @@ pub async fn sample_table(
     );
 
     let rows = sqlx::query(&query)
-        .bind(config.sample_size as i64)
+        .bind(i64::from(config.sample_size))
         .fetch_all(pool)
         .await
         .map_err(|e| {

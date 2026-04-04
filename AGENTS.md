@@ -255,6 +255,8 @@ Releases use **GoReleaser** with the native Rust builder (`builder: rust`) and `
 ### CLI Binary Architecture
 
 - Both CLI binaries (`dbsurveyor`, `dbsurveyor-collect`) are thin wrappers over `dbsurveyor-core`
+- `dbsurveyor-collect` is split into `main.rs` (CLI/orchestration), `collect.rs` (schema collection), `output.rs` (save/export)
+- `dbsurveyor` is split into `main.rs` (CLI/orchestration), `schema.rs` (loading), `output.rs` (generation)
 - No non-ASCII characters in source code (no emoji, checkmarks, or unicode bullets)
 - Clap derive API with `#[command(flatten)]` for shared `GlobalArgs`
 - Use `conflicts_with` for mutually exclusive flags
@@ -318,7 +320,8 @@ gh api repos/{owner}/{repo}/pulls/<number>/reviews
 - **Connection Pool**: sqlx `PgPool` with `ConnectionConfig` for pool settings
 - **Multi-Database**: Enumerate via `pg_database`, connect via URL path rewriting
 - **Data Sampling**: Detect ordering strategy (PK/timestamp/serial), rate-limited queries
-- **Modular Structure**: `connection.rs`, `sampling.rs`, `enumeration.rs`, `multi_database.rs`
+- **Modular Structure**: `connection.rs`, `sampling.rs`, `enumeration.rs`, `multi_database.rs`, `batch_collection.rs`
+- **Batch Collection**: `batch_collection.rs` runs 5 queries for ALL tables concurrently via `tokio::join!`, reducing 5N+1 queries to 6. Falls back to per-table queries on failure.
 
 ### Critical Constraints
 

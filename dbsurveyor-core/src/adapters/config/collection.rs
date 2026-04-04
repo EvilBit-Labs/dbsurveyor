@@ -139,6 +139,7 @@ impl CollectionConfig {
     }
 
     /// Builder method to set max concurrent queries with validation.
+    #[must_use = "builder method returns modified config"]
     pub fn with_max_concurrent_queries(mut self, max: u32) -> crate::Result<Self> {
         if max == 0 || max > 50 {
             return Err(crate::error::DbSurveyorError::configuration(
