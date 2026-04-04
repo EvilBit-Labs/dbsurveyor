@@ -2,6 +2,8 @@
 
 This document outlines the coding standards, architectural patterns, and project layout preferences for the DBSurveyor project. It serves as a comprehensive guide for AI coding assistants to ensure consistency, maintainability, and adherence to established best practices.
 
+@GOTCHAS.md
+
 ## 1. Core Philosophy
 
 - **Security-First Principle**: Always prioritize security considerations in design and implementation. Trust the framework's built-in security mechanisms over custom solutions.
@@ -31,6 +33,7 @@ The project follows a Rust workspace structure with clear separation of concerns
 ├── .goreleaser.yaml           # GoReleaser release configuration
 ├── Cargo.toml                 # Workspace configuration
 ├── cargo-deny.toml            # Security policy
+├── GOTCHAS.md                 # Non-obvious pitfalls and hard-earned lessons -- read before making changes
 └── AGENTS.md                  # This file
 ```
 
