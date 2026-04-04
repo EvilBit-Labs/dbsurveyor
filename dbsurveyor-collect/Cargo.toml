@@ -60,7 +60,6 @@ clap_complete = { workspace = true }
 tracing = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-async-trait = { workspace = true }
 url = { workspace = true }
 
 # Database dependencies (feature-gated)
