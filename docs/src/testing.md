@@ -144,11 +144,11 @@ mod tests {
     }
 
     #[test]
-    fn test_add_warning() {
+    fn test_with_warning() {
         let db_info = DatabaseInfo::new("test_db".to_string());
-        let mut schema = DatabaseSchema::new(db_info);
+        let schema = DatabaseSchema::new(db_info);
 
-        schema.add_warning("Test warning".to_string());
+        let schema = schema.with_warning("Test warning".to_string());
 
         assert_eq!(schema.collection_metadata.warnings.len(), 1);
         assert_eq!(schema.collection_metadata.warnings[0], "Test warning");
