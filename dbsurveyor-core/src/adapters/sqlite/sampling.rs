@@ -364,8 +364,11 @@ pub async fn sample_table(
     // This is an estimate (not exact if rows have been deleted), but avoids a full
     // table scan. Falls back to COUNT(*) only if the table has no rowid.
     let estimate_query = format!("SELECT MAX(rowid) FROM {}", escape_identifier(table));
-    let total_rows: Option<i64> = match sqlx::query_scalar(&estimate_query).fetch_one(pool).await {
-        Ok(count) => count,
+    let total_rows: Option<i64> = match sqlx::query_scalar::<_, Option<i64>>(&estimate_query)
+        .fetch_one(pool)
+        .await
+    {
+        Ok(count) => Some(count.unwrap_or(0)),
         Err(_) => {
             // WITHOUT ROWID tables do not support MAX(rowid); fall back to COUNT(*).
             let count_query = format!("SELECT COUNT(*) FROM {}", escape_identifier(table));
