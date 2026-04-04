@@ -35,6 +35,7 @@ use async_trait::async_trait;
 use mongodb::Client;
 use mongodb::bson::doc;
 use schema_inference::SchemaInferrer;
+use zeroize::Zeroizing;
 
 // Re-export public items from submodules
 pub use enumeration::{
@@ -59,8 +60,10 @@ pub struct MongoAdapter {
     pub client: Client,
     /// Connection configuration
     pub config: ConnectionConfig,
-    /// Original connection URL (kept private to prevent credential exposure)
-    connection_url: String,
+    /// Original connection URL (kept private to prevent credential exposure).
+    /// Wrapped in `Zeroizing` so the URL (which may contain credentials) is
+    /// scrubbed from memory when the adapter is dropped (CWE-316).
+    connection_url: Zeroizing<String>,
 }
 
 impl std::fmt::Debug for MongoAdapter {

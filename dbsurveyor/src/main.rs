@@ -400,11 +400,11 @@ async fn load_compressed_schema(data: &[u8]) -> Result<DatabaseSchema> {
         ))
     })?;
 
-    serde_json::from_str(&decompressed).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::Serialization {
-            context: "Failed to parse decompressed schema JSON".to_string(),
-            source: e,
-        }
+    dbsurveyor_core::validate_and_parse_schema(&decompressed).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
+            "Decompressed schema validation failed: {}",
+            e
+        ))
     })
 }
 
@@ -451,11 +451,11 @@ async fn load_encrypted_schema(data: &[u8]) -> Result<DatabaseSchema> {
         ))
     })?;
 
-    serde_json::from_str(decrypted_str).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::Serialization {
-            context: "Failed to parse decrypted schema JSON".to_string(),
-            source: e,
-        }
+    dbsurveyor_core::validate_and_parse_schema(decrypted_str).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::configuration(format!(
+            "Decrypted schema validation failed: {}",
+            e
+        ))
     })
 }
 

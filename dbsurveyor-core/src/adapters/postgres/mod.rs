@@ -35,6 +35,7 @@ use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter, TableRef};
 use crate::{Result, models::*};
 use async_trait::async_trait;
 use sqlx::PgPool;
+use zeroize::Zeroizing;
 
 // Re-export public items from submodules
 pub use connection::PoolStats;
@@ -57,8 +58,10 @@ pub struct PostgresAdapter {
     /// Connection configuration (pool settings, timeouts, etc.)
     pub config: ConnectionConfig,
     /// Original connection URL (stored for creating connections to other databases)
-    /// This is kept private to prevent credential exposure
-    connection_url: String,
+    /// This is kept private to prevent credential exposure.
+    /// Wrapped in `Zeroizing` so the URL (which may contain credentials) is
+    /// scrubbed from memory when the adapter is dropped (CWE-316).
+    connection_url: Zeroizing<String>,
 }
 
 impl std::fmt::Debug for PostgresAdapter {

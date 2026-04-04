@@ -938,6 +938,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "futures",
+ "glob-match",
  "jsonschema",
  "mongodb",
  "password-hash 0.6.0",
@@ -1447,6 +1448,12 @@ dependencies = [
  "opaque-debug",
  "polyval",
 ]
+
+[[package]]
+name = "glob-match"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9985c9503b412198aa4197559e9a318524ebc4519c229bfa05a535828c950b9d"
 
 [[package]]
 name = "h2"

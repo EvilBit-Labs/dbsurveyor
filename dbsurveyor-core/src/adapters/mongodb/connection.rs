@@ -15,6 +15,7 @@ use mongodb::Client;
 use mongodb::options::ClientOptions;
 use std::time::Duration;
 use url::Url;
+use zeroize::Zeroizing;
 
 impl MongoAdapter {
     /// Creates a new MongoDB adapter from a connection string.
@@ -53,7 +54,7 @@ impl MongoAdapter {
         Ok(Self {
             client,
             config,
-            connection_url: connection_string.to_string(),
+            connection_url: Zeroizing::new(connection_string.to_string()),
         })
     }
 
@@ -89,7 +90,7 @@ impl MongoAdapter {
         Ok(Self {
             client,
             config,
-            connection_url: connection_string.to_string(),
+            connection_url: Zeroizing::new(connection_string.to_string()),
         })
     }
 
@@ -294,7 +295,7 @@ impl MongoAdapter {
         Ok(Self {
             client: self.client.clone(),
             config,
-            connection_url: self.connection_url.clone(),
+            connection_url: Zeroizing::new((*self.connection_url).clone()),
         })
     }
 }

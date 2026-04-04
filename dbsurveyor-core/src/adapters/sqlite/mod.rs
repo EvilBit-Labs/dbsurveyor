@@ -30,6 +30,7 @@ use crate::Result;
 use crate::models::*;
 use async_trait::async_trait;
 use sqlx::SqlitePool;
+use zeroize::Zeroizing;
 
 // Re-export public items from submodules
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
@@ -61,8 +62,10 @@ pub struct SqliteAdapter {
     pub pool: SqlitePool,
     /// Connection configuration
     pub config: ConnectionConfig,
-    /// Original connection string (kept for reference)
-    pub(crate) connection_string: String,
+    /// Original connection string (kept for reference).
+    /// Wrapped in `Zeroizing` so the connection string is scrubbed from
+    /// memory when the adapter is dropped (CWE-316).
+    pub(crate) connection_string: Zeroizing<String>,
 }
 
 impl std::fmt::Debug for SqliteAdapter {

@@ -25,6 +25,7 @@ use crate::Result;
 use crate::models::*;
 use async_trait::async_trait;
 use sqlx::MySqlPool;
+use zeroize::Zeroizing;
 
 // Re-export public items from submodules
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
@@ -37,8 +38,10 @@ pub struct MySqlAdapter {
     /// Connection configuration (pool settings, timeouts, etc.)
     pub config: ConnectionConfig,
     /// Original connection URL (stored for creating connections to other databases)
-    /// This is kept private to prevent credential exposure
-    connection_url: String,
+    /// This is kept private to prevent credential exposure.
+    /// Wrapped in `Zeroizing` so the URL (which may contain credentials) is
+    /// scrubbed from memory when the adapter is dropped (CWE-316).
+    connection_url: Zeroizing<String>,
 }
 
 impl std::fmt::Debug for MySqlAdapter {

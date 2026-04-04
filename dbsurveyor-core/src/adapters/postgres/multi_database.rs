@@ -440,60 +440,14 @@ fn matches_any_pattern(name: &str, patterns: &[String]) -> bool {
     false
 }
 
-/// Simple glob pattern matching.
+/// Glob pattern matching for database name filtering.
 ///
 /// Supports:
 /// - `*` matches any sequence of characters
 /// - `?` matches any single character
+/// - `[abc]` matches any character in the set
 fn glob_match(pattern: &str, text: &str) -> bool {
-    let pattern_chars: Vec<char> = pattern.chars().collect();
-    let text_chars: Vec<char> = text.chars().collect();
-
-    glob_match_recursive(&pattern_chars, &text_chars, 0, 0)
-}
-
-fn glob_match_recursive(pattern: &[char], text: &[char], mut pi: usize, mut ti: usize) -> bool {
-    while pi < pattern.len() {
-        match pattern[pi] {
-            '*' => {
-                // Skip consecutive stars
-                while pi < pattern.len() && pattern[pi] == '*' {
-                    pi += 1;
-                }
-
-                // Star at end matches everything
-                if pi == pattern.len() {
-                    return true;
-                }
-
-                // Try matching rest of pattern at each position
-                while ti <= text.len() {
-                    if glob_match_recursive(pattern, text, pi, ti) {
-                        return true;
-                    }
-                    ti += 1;
-                }
-                return false;
-            }
-            '?' => {
-                if ti >= text.len() {
-                    return false;
-                }
-                pi += 1;
-                ti += 1;
-            }
-            c => {
-                if ti >= text.len() || text[ti] != c {
-                    return false;
-                }
-                pi += 1;
-                ti += 1;
-            }
-        }
-    }
-
-    // Pattern exhausted - text should also be exhausted
-    ti == text.len()
+    glob_match::glob_match(pattern, text)
 }
 
 /// Collects schemas from multiple databases concurrently.

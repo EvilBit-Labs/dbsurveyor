@@ -330,7 +330,7 @@ async fn test_sqlite_collect_schema_with_table() {
         pool,
         config: crate::adapters::ConnectionConfig::new("localhost".to_string())
             .with_database(":memory:".to_string()),
-        connection_string: "sqlite::memory:".to_string(),
+        connection_string: zeroize::Zeroizing::new("sqlite::memory:".to_string()),
     };
 
     let schema = adapter.collect_schema().await.unwrap();
@@ -393,7 +393,7 @@ async fn test_sqlite_collect_schema_with_foreign_key() {
         pool,
         config: crate::adapters::ConnectionConfig::new("localhost".to_string())
             .with_database(":memory:".to_string()),
-        connection_string: "sqlite::memory:".to_string(),
+        connection_string: zeroize::Zeroizing::new("sqlite::memory:".to_string()),
     };
 
     let schema = adapter.collect_schema().await.unwrap();
@@ -438,7 +438,7 @@ async fn test_sqlite_collect_schema_with_index() {
         pool,
         config: crate::adapters::ConnectionConfig::new("localhost".to_string())
             .with_database(":memory:".to_string()),
-        connection_string: "sqlite::memory:".to_string(),
+        connection_string: zeroize::Zeroizing::new("sqlite::memory:".to_string()),
     };
 
     let schema = adapter.collect_schema().await.unwrap();
@@ -487,7 +487,7 @@ async fn test_sqlite_collect_schema_with_view() {
         pool,
         config: crate::adapters::ConnectionConfig::new("localhost".to_string())
             .with_database(":memory:".to_string()),
-        connection_string: "sqlite::memory:".to_string(),
+        connection_string: zeroize::Zeroizing::new("sqlite::memory:".to_string()),
     };
 
     let schema = adapter.collect_schema().await.unwrap();
@@ -542,7 +542,7 @@ async fn test_sqlite_collect_schema_with_trigger() {
         pool,
         config: crate::adapters::ConnectionConfig::new("localhost".to_string())
             .with_database(":memory:".to_string()),
-        connection_string: "sqlite::memory:".to_string(),
+        connection_string: zeroize::Zeroizing::new("sqlite::memory:".to_string()),
     };
 
     let schema = adapter.collect_schema().await.unwrap();

@@ -13,6 +13,7 @@ use sqlx::pool::PoolConnection;
 use sqlx::postgres::Postgres;
 use std::time::Duration;
 use url::Url;
+use zeroize::Zeroizing;
 
 /// Pool statistics for monitoring connection pool health and usage
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,7 +56,7 @@ impl PostgresAdapter {
         let adapter = Self {
             pool,
             config,
-            connection_url: connection_string.to_string(),
+            connection_url: Zeroizing::new(connection_string.to_string()),
         };
         Ok(adapter)
     }
@@ -81,7 +82,7 @@ impl PostgresAdapter {
         let adapter = Self {
             pool,
             config,
-            connection_url: connection_string.to_string(),
+            connection_url: Zeroizing::new(connection_string.to_string()),
         };
         Ok(adapter)
     }
