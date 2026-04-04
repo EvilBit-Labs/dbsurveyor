@@ -12,8 +12,8 @@
 
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use dbsurveyor_core::{
-    Result,
-    adapters::create_adapter,
+    Result, SamplingConfig, TableSample,
+    adapters::{TableRef, create_adapter},
     error::redact_database_url,
     init_logging,
     quality::{AnomalyConfig, QualityAnalyzer, QualityConfig},
@@ -327,11 +327,6 @@ fn parse_quality_thresholds(thresholds: &[String]) -> QualityThresholds {
 
 /// Collects database schema and saves to file
 async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) -> Result<()> {
-    // Warn about unimplemented flags so users know their values are not yet applied
-    if cli.throttle.is_some() {
-        warn!("--throttle flag is not yet implemented and will be ignored");
-    }
-
     // CWE-22: warn if output path contains parent-directory traversal
     if output_path
         .components()
@@ -364,6 +359,25 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
     info!("Found {} tables", schema.tables.len());
     info!("Found {} views", schema.views.len());
     info!("Found {} indexes", schema.indexes.len());
+
+    // Run sampling if tables exist and sample size > 0
+    if cli.sample > 0 && !schema.tables.is_empty() {
+        let sampling_config = build_sampling_config(cli);
+        info!(
+            "Sampling {} tables (limit {} rows each)...",
+            schema.tables.len(),
+            sampling_config.sample_size
+        );
+
+        let samples = sample_all_tables(&*adapter, &schema.tables, &sampling_config).await;
+
+        if samples.is_empty() {
+            info!("No samples collected (all tables may have been empty or inaccessible)");
+        } else {
+            info!("[OK]Collected samples from {} tables", samples.len());
+            schema = schema.with_samples(samples);
+        }
+    }
 
     // Run quality analysis if enabled and samples exist
     if cli.enable_quality {
@@ -617,6 +631,44 @@ async fn save_encrypted(json_data: &str, output_path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Builds a `SamplingConfig` from CLI arguments.
+fn build_sampling_config(cli: &Cli) -> SamplingConfig {
+    let mut config = SamplingConfig::default().with_sample_size(cli.sample);
+
+    if let Some(throttle_ms) = cli.throttle {
+        config = config.with_throttle_ms(throttle_ms);
+    }
+
+    config
+}
+
+/// Samples all tables, logging and skipping any that fail.
+///
+/// Returns a vector of successfully collected `TableSample` values.
+async fn sample_all_tables(
+    adapter: &dyn dbsurveyor_core::DatabaseAdapter,
+    tables: &[dbsurveyor_core::Table],
+    config: &SamplingConfig,
+) -> Vec<TableSample> {
+    let mut samples = Vec::with_capacity(tables.len());
+
+    for table in tables {
+        let table_ref = TableRef {
+            schema_name: table.schema.as_deref(),
+            table_name: &table.name,
+        };
+
+        match adapter.sample_table(table_ref, config).await {
+            Ok(sample) => samples.push(sample),
+            Err(e) => {
+                warn!("Failed to sample table '{}': {}", table.name, e);
+            }
+        }
+    }
+
+    samples
+}
+
 /// Lists supported database types and their connection string formats
 fn list_supported_databases() {
     println!("Supported Database Types:");
@@ -678,4 +730,73 @@ fn list_supported_databases() {
     println!("  -Credential sanitization in logs");
     println!("  -Optional AES-GCM encryption");
     println!("  -Offline operation after connection");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_quality_thresholds_valid() {
+        let input = vec![
+            "completeness:0.9".to_string(),
+            "uniqueness:0.95".to_string(),
+            "consistency:0.85".to_string(),
+        ];
+        let result = parse_quality_thresholds(&input);
+        assert!((result.completeness.unwrap_or(0.0) - 0.9).abs() < f64::EPSILON);
+        assert!((result.uniqueness.unwrap_or(0.0) - 0.95).abs() < f64::EPSILON);
+        assert!((result.consistency.unwrap_or(0.0) - 0.85).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_quality_thresholds_empty() {
+        let result = parse_quality_thresholds(&[]);
+        assert!(result.completeness.is_none());
+        assert!(result.uniqueness.is_none());
+        assert!(result.consistency.is_none());
+    }
+
+    #[test]
+    fn test_parse_quality_thresholds_invalid_format() {
+        let input = vec!["not-a-threshold".to_string()];
+        let result = parse_quality_thresholds(&input);
+        assert!(result.completeness.is_none());
+        assert!(result.uniqueness.is_none());
+        assert!(result.consistency.is_none());
+    }
+
+    #[test]
+    fn test_parse_quality_thresholds_invalid_value() {
+        let input = vec!["completeness:abc".to_string()];
+        let result = parse_quality_thresholds(&input);
+        assert!(result.completeness.is_none());
+    }
+
+    #[test]
+    fn test_parse_quality_thresholds_clamps_out_of_range() {
+        let input = vec![
+            "completeness:1.5".to_string(),
+            "uniqueness:-0.5".to_string(),
+        ];
+        let result = parse_quality_thresholds(&input);
+        assert!((result.completeness.unwrap_or(0.0) - 1.0).abs() < f64::EPSILON);
+        assert!(result.uniqueness.unwrap_or(1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_parse_quality_thresholds_unknown_metric() {
+        let input = vec!["unknown_metric:0.5".to_string()];
+        let result = parse_quality_thresholds(&input);
+        assert!(result.completeness.is_none());
+        assert!(result.uniqueness.is_none());
+        assert!(result.consistency.is_none());
+    }
+
+    #[test]
+    fn test_parse_quality_thresholds_case_insensitive() {
+        let input = vec!["Completeness:0.8".to_string()];
+        let result = parse_quality_thresholds(&input);
+        assert!((result.completeness.unwrap_or(0.0) - 0.8).abs() < f64::EPSILON);
+    }
 }

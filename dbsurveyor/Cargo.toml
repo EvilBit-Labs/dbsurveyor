@@ -38,4 +38,4 @@ rpassword = { workspace = true }
 zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
-# No additional dev dependencies needed for now
+tempfile = "3.27.0"
