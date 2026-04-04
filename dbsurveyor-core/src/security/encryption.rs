@@ -784,4 +784,94 @@ mod tests {
         let decrypted = decrypt_data(&deserialized, password).unwrap();
         assert_eq!(data, &decrypted[..]);
     }
+
+    #[test]
+    fn test_encrypt_decrypt_unicode_password_japanese() {
+        // Japanese hiragana: \u{3053}\u{3093}\u{306b}\u{3061}\u{306f} = konnichiwa
+        let password = "\u{3053}\u{3093}\u{306b}\u{3061}\u{306f}";
+        let data = b"data encrypted with unicode password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_unicode_password_accented() {
+        // Accented characters: \u{00e9} = e-acute, \u{00f1} = n-tilde,
+        // \u{00fc} = u-umlaut
+        let password = "caf\u{00e9}_se\u{00f1}or_\u{00fc}ber";
+        let data = b"data encrypted with accented password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_unicode_password_emoji() {
+        // Emoji: \u{1f512} = lock, \u{1f511} = key
+        let password = "\u{1f512}secret\u{1f511}";
+        let data = b"data encrypted with emoji password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_unicode_password_mixed_scripts() {
+        // Mix of CJK, Cyrillic, and Latin:
+        // \u{4e16}\u{754c} = Chinese "world"
+        // \u{043c}\u{0438}\u{0440} = Russian "mir" (peace/world)
+        let password = "\u{4e16}\u{754c}_\u{043c}\u{0438}\u{0440}_world";
+        let data = b"data encrypted with mixed-script password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_single_char_password() {
+        let password = "x";
+        let data = b"data with single character password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_two_char_password() {
+        let password = "ab";
+        let data = b"data with two character password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_three_char_password() {
+        let password = "abc";
+        let data = b"data with three character password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_short_unicode_password_wrong_password_fails() {
+        // Verify that a short unicode password still produces correct
+        // authentication: decryption with a different short password must fail.
+        let password = "\u{00e9}";
+        let wrong_password = "\u{00e8}"; // e-grave instead of e-acute
+        let data = b"authenticated data";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let result = decrypt_data(&encrypted, wrong_password);
+        assert!(result.is_err());
+    }
 }

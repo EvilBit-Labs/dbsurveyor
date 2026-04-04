@@ -9,37 +9,12 @@
 use dbsurveyor_core::{
     Result,
     adapters::{DatabaseAdapter, postgres::PostgresAdapter},
-    error::DbSurveyorError,
     models::{TriggerEvent, TriggerTiming},
 };
 use sqlx::PgPool;
-use std::time::Duration;
 use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
 
-/// Helper function to wait for PostgreSQL to be ready.
-async fn wait_for_postgres_ready(database_url: &str, max_attempts: u32) -> Result<()> {
-    let mut attempts = 0;
-    while attempts < max_attempts {
-        if let Ok(pool) = PgPool::connect(database_url).await {
-            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
-                pool.close().await;
-                return Ok(());
-            }
-            pool.close().await;
-        }
-        attempts += 1;
-        if attempts < max_attempts {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-    }
-    Err(DbSurveyorError::connection_failed(std::io::Error::new(
-        std::io::ErrorKind::TimedOut,
-        format!(
-            "PostgreSQL failed to become ready after {} attempts",
-            max_attempts
-        ),
-    )))
-}
+mod common;
 
 /// Test view collection with various view types.
 #[tokio::test]
@@ -48,7 +23,7 @@ async fn test_postgres_view_collection() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let pool = PgPool::connect(&database_url).await.unwrap();
 
@@ -165,7 +140,7 @@ async fn test_postgres_function_collection() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let pool = PgPool::connect(&database_url).await.unwrap();
 
@@ -276,7 +251,7 @@ async fn test_postgres_trigger_collection() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let pool = PgPool::connect(&database_url).await.unwrap();
 
@@ -426,7 +401,7 @@ async fn test_views_separate_from_tables() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let pool = PgPool::connect(&database_url).await.unwrap();
 
@@ -482,7 +457,7 @@ async fn test_multi_schema_collection() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let pool = PgPool::connect(&database_url).await.unwrap();
 
@@ -564,7 +539,7 @@ async fn test_empty_database_collection() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Create fresh database
     let pool = PgPool::connect(&database_url).await.unwrap();
