@@ -588,11 +588,11 @@ pub async fn sample_table_with_columns(
     // Identifiers are escaped to prevent SQL injection from embedded quotes.
     let base_table = match schema {
         Some(s) => format!(
-            r#""{}"."{}"#,
+            "\"{}\".\"{}\"",
             escape_identifier(s),
             escape_identifier(table)
         ),
-        None => format!(r#""{}""#, escape_identifier(table)),
+        None => format!("\"{}\"", escape_identifier(table)),
     };
 
     // For unordered tables with a sufficiently large row-count estimate, use

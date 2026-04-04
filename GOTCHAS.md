@@ -78,6 +78,10 @@ When counting failures from `tokio::join!`, check `is_err()` on the `Result` val
 
 In multi-database mode, each database gets a pool with `max_connections: 2`, `min_idle: 0`. Pools are explicitly closed after collection. This prevents connection exhaustion when scanning many databases.
 
+### 4.4 Raw String Quoting for SQL Identifiers
+
+Never use `r#""{}""#` to build double-quoted SQL identifiers. The closing `"` is consumed by the `"#` delimiter, producing `"value` instead of `"value"`. Use escaped quotes instead: `"\"{}\""`.
+
 ## 5. SQLite-Specific
 
 ### 5.1 PRAGMA vs DML Escaping
