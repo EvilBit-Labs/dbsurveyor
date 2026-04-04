@@ -95,22 +95,13 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
         triggers.len()
     );
 
-    // Aggregate all indexes and constraints from tables
-    let mut all_indexes = Vec::new();
-    let mut all_constraints = Vec::new();
-
-    for table in &tables {
-        all_indexes.extend(table.indexes.clone());
-        all_constraints.extend(table.constraints.clone());
-    }
-
-    Ok(DatabaseSchema {
+    let mut schema = DatabaseSchema {
         format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
         views,
-        indexes: all_indexes,
-        constraints: all_constraints,
+        indexes: Vec::new(),
+        constraints: Vec::new(),
         procedures: Vec::new(), // SQLite doesn't have stored procedures
         functions: Vec::new(),  // SQLite doesn't have user-defined functions in schema
         triggers,
@@ -124,7 +115,12 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
             collector_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
         },
-    })
+    };
+
+    // Aggregate indexes and constraints from per-table data into schema-level vectors
+    schema.aggregate_indexes_and_constraints();
+
+    Ok(schema)
 }
 
 /// Collects database information from SQLite.

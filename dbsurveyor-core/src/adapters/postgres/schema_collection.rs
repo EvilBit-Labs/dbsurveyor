@@ -169,28 +169,13 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         schemas.len()
     );
 
-    // Aggregate all indexes and constraints from tables for schema-level view
-    let mut all_indexes = Vec::new();
-    let mut all_constraints = Vec::new();
-
-    for table in &tables {
-        all_indexes.extend(table.indexes.clone());
-        all_constraints.extend(table.constraints.clone());
-    }
-
-    tracing::info!(
-        "Collected {} total indexes and {} total constraints across all tables",
-        all_indexes.len(),
-        all_constraints.len()
-    );
-
-    Ok(DatabaseSchema {
+    let mut schema = DatabaseSchema {
         format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
         views: collected_views,
-        indexes: all_indexes,
-        constraints: all_constraints,
+        indexes: Vec::new(),
+        constraints: Vec::new(),
         procedures,
         functions,
         triggers: collected_triggers,
@@ -204,7 +189,18 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
             collector_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
         },
-    })
+    };
+
+    // Aggregate indexes and constraints from per-table data into schema-level vectors
+    schema.aggregate_indexes_and_constraints();
+
+    tracing::info!(
+        "Collected {} total indexes and {} total constraints across all tables",
+        schema.indexes.len(),
+        schema.constraints.len()
+    );
+
+    Ok(schema)
 }
 
 impl PostgresAdapter {

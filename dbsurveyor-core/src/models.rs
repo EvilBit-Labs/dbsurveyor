@@ -481,6 +481,27 @@ impl DatabaseSchema {
         self.collection_metadata.warnings.push(warning);
     }
 
+    /// Populates the schema-level `indexes` and `constraints` vectors by
+    /// aggregating from per-table data.
+    ///
+    /// This avoids cloning entire vectors during schema construction.
+    /// Call this after all tables have been added to the schema.
+    pub fn aggregate_indexes_and_constraints(&mut self) {
+        let total_indexes: usize = self.tables.iter().map(|t| t.indexes.len()).sum();
+        let total_constraints: usize = self.tables.iter().map(|t| t.constraints.len()).sum();
+
+        let mut indexes = Vec::with_capacity(total_indexes);
+        let mut constraints = Vec::with_capacity(total_constraints);
+
+        for table in &self.tables {
+            indexes.extend(table.indexes.iter().cloned());
+            constraints.extend(table.constraints.iter().cloned());
+        }
+
+        self.indexes = indexes;
+        self.constraints = constraints;
+    }
+
     /// Gets the total number of database objects
     pub fn object_count(&self) -> usize {
         self.tables.len()
