@@ -94,7 +94,7 @@ fix:
     @{{ mise_exec }} cargo clippy --fix --allow-dirty --allow-staged
 
 # Quick development check
-check: fmt-check lint
+check: fmt-check lint test-check
 
 pre-commit:
     @{{ mise_exec }} pre-commit run --all-files
@@ -118,6 +118,9 @@ build-minimal:
 # =============================================================================
 # TESTING
 # =============================================================================
+
+test-check:
+    @{{ mise_exec }} cargo test --workspace --no-run
 
 # Run all tests with nextest
 test:
@@ -300,10 +303,10 @@ docs:
 # =============================================================================
 
 # Full local CI parity check
-ci-check: fmt-check lint test-ci coverage-ci audit-ci deny
+ci-check: check test-ci coverage-ci audit-ci deny
 
 # Fast CI check without coverage
-ci-check-fast: fmt-check lint test-no-bench
+ci-check-fast: check test-no-bench
 
 # Full comprehensive checks
 full-checks: fmt-check lint test-ci coverage audit-ci build-release
