@@ -28,6 +28,16 @@ use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
 
+/// Minimum estimated row count to use `TABLESAMPLE BERNOULLI` instead of
+/// `ORDER BY RANDOM()`. For very small tables the overhead of the tablesample
+/// operator is not worthwhile and the percentage calculation becomes unreliable.
+const TABLESAMPLE_MIN_ROWS: u64 = 1000;
+
+/// Oversampling multiplier applied to the Bernoulli percentage so that the
+/// returned set is very likely to contain at least `sample_size` rows.
+/// The LIMIT clause trims the excess.
+const TABLESAMPLE_OVERSAMPLING_FACTOR: f64 = 2.0;
+
 /// Detect the best ordering strategy for a table.
 ///
 /// This function analyzes the table structure to determine the most reliable
@@ -574,24 +584,44 @@ pub async fn sample_table_with_columns(
             )
         })?;
 
-    // Build sample query with ordering
-    let order_clause = generate_order_by_clause(&strategy, true); // DESC for most recent
-
     // Build FROM clause: schema-qualified when schema is present, table-only otherwise.
     // Identifiers are escaped to prevent SQL injection from embedded quotes.
-    let from_clause = match schema {
+    let base_table = match schema {
         Some(s) => format!(
-            r#""{}"."{}" t"#,
+            r#""{}"."{}"#,
             escape_identifier(s),
             escape_identifier(table)
         ),
-        None => format!(r#""{}" t"#, escape_identifier(table)),
+        None => format!(r#""{}""#, escape_identifier(table)),
     };
 
-    let sample_query = format!(
-        "SELECT row_to_json(t.*) AS row_data FROM {} {} LIMIT $1",
-        from_clause, order_clause
-    );
+    // For unordered tables with a sufficiently large row-count estimate, use
+    // TABLESAMPLE BERNOULLI to avoid the expensive full-table ORDER BY RANDOM().
+    let use_tablesample = is_random
+        && total_rows
+            .and_then(|r| u64::try_from(r.max(0)).ok())
+            .is_some_and(|r| r >= TABLESAMPLE_MIN_ROWS);
+
+    let sample_query = if use_tablesample {
+        // Safety: we checked total_rows is Some and >= TABLESAMPLE_MIN_ROWS above
+        #[allow(clippy::cast_precision_loss)]
+        let estimated = total_rows.unwrap_or(0).max(1) as f64;
+        #[allow(clippy::cast_precision_loss)]
+        let desired = config.sample_size as f64;
+        // Oversample so LIMIT almost always has enough rows
+        let pct =
+            ((desired * TABLESAMPLE_OVERSAMPLING_FACTOR) / estimated * 100.0).clamp(0.01, 100.0);
+        format!(
+            "SELECT row_to_json(t.*) AS row_data FROM {} TABLESAMPLE BERNOULLI({:.4}) AS t LIMIT $1",
+            base_table, pct
+        )
+    } else {
+        let order_clause = generate_order_by_clause(&strategy, true); // DESC for most recent
+        format!(
+            "SELECT row_to_json(t.*) AS row_data FROM {} t {} LIMIT $1",
+            base_table, order_clause
+        )
+    };
 
     tracing::debug!(
         "Sampling {} with query: {} (limit: {})",
@@ -1033,5 +1063,35 @@ mod tests {
 
         let strategy = detect_ordering_from_columns(&columns);
         assert_eq!(strategy, OrderingStrategy::Unordered);
+    }
+
+    #[test]
+    fn test_tablesample_constants_are_sane() {
+        const { assert!(TABLESAMPLE_MIN_ROWS > 0) };
+        const { assert!(TABLESAMPLE_OVERSAMPLING_FACTOR >= 1.0) };
+    }
+
+    /// Verify that `TABLESAMPLE BERNOULLI` percentage calculation stays within bounds.
+    #[test]
+    fn test_tablesample_percentage_clamped() {
+        let sample_size: f64 = 10.0;
+        let estimated: f64 = 1_000_000.0;
+        let pct =
+            (sample_size * TABLESAMPLE_OVERSAMPLING_FACTOR / estimated * 100.0).clamp(0.01, 100.0);
+        // 10 * 2 / 1_000_000 * 100 = 0.002 -> clamped to 0.01
+        assert!((pct - 0.01).abs() < f64::EPSILON);
+
+        // Very small table just above threshold
+        let estimated_small: f64 = 1000.0;
+        let pct_small = (sample_size * TABLESAMPLE_OVERSAMPLING_FACTOR / estimated_small * 100.0)
+            .clamp(0.01, 100.0);
+        // 10 * 2 / 1000 * 100 = 2.0
+        assert!((pct_small - 2.0).abs() < f64::EPSILON);
+
+        // When sample_size > total, pct should clamp to 100
+        let estimated_tiny: f64 = 1.0;
+        let pct_over =
+            (10000.0 * TABLESAMPLE_OVERSAMPLING_FACTOR / estimated_tiny * 100.0).clamp(0.01, 100.0);
+        assert!((pct_over - 100.0).abs() < f64::EPSILON);
     }
 }

@@ -57,6 +57,9 @@ rand = "0.10.0"
 rpassword = "7.4.0"
 base64 = "0.22.1"
 
+# Parallelism
+rayon = "1.10"
+
 # Compression
 zstd = "0.13.3"
 

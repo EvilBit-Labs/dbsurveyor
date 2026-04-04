@@ -5,6 +5,7 @@
 
 use crate::Result;
 use crate::models::TableSample;
+use rayon::prelude::*;
 
 use super::anomaly::analyze_anomalies;
 use super::completeness::analyze_completeness;
@@ -145,19 +146,20 @@ impl QualityAnalyzer {
     /// # Returns
     /// A vector of quality metrics for successfully analyzed samples.
     pub fn analyze_all(&self, samples: &[TableSample]) -> Result<Vec<TableQualityMetrics>> {
-        let mut results = Vec::with_capacity(samples.len());
-        for sample in samples {
-            match self.analyze(sample) {
-                Ok(metrics) => results.push(metrics),
+        let results: Vec<TableQualityMetrics> = samples
+            .par_iter()
+            .filter_map(|sample| match self.analyze(sample) {
+                Ok(metrics) => Some(metrics),
                 Err(e) => {
                     tracing::warn!(
                         "Quality analysis failed for table '{}': {}",
                         sample.table_name,
                         e
                     );
+                    None
                 }
-            }
-        }
+            })
+            .collect();
         Ok(results)
     }
 
