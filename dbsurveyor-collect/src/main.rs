@@ -332,6 +332,17 @@ async fn collect_schema(database_url: &str, output_path: &PathBuf, cli: &Cli) ->
         warn!("--throttle flag is not yet implemented and will be ignored");
     }
 
+    // CWE-22: warn if output path contains parent-directory traversal
+    if output_path
+        .components()
+        .any(|c| c == std::path::Component::ParentDir)
+    {
+        warn!(
+            "Output path contains '..' traversal: {}",
+            output_path.display()
+        );
+    }
+
     info!("Starting schema collection...");
     info!("Target: {}", redact_database_url(database_url));
     info!("Output: {}", output_path.display());
@@ -441,7 +452,7 @@ async fn save_schema(
     output_path: &PathBuf,
     cli: &Cli,
 ) -> Result<()> {
-    // Convert to Value for validation, then serialize to string once
+    // Convert to Value for validation
     let json_value = serde_json::to_value(schema).map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON serialization", e)
     })?;
@@ -450,15 +461,14 @@ async fn save_schema(
         dbsurveyor_core::error::DbSurveyorError::collection_failed("Schema validation failed", e)
     })?;
 
-    let json_data = serde_json::to_string_pretty(&json_value).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON formatting", e)
-    })?;
-
     info!("[OK]Output validation passed");
 
     if cli.encrypt {
         #[cfg(feature = "encryption")]
         {
+            let json_data = serde_json::to_string_pretty(&json_value).map_err(|e| {
+                dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON formatting", e)
+            })?;
             save_encrypted(&json_data, output_path).await
         }
         #[cfg(not(feature = "encryption"))]
@@ -470,6 +480,9 @@ async fn save_schema(
     } else if cli.compress {
         #[cfg(feature = "compression")]
         {
+            let json_data = serde_json::to_string_pretty(&json_value).map_err(|e| {
+                dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON formatting", e)
+            })?;
             save_compressed(&json_data, output_path).await
         }
         #[cfg(not(feature = "compression"))]
@@ -479,18 +492,22 @@ async fn save_schema(
             ))
         }
     } else {
-        save_json(&json_data, output_path).await
+        save_json_streaming(&json_value, output_path)
     }
 }
 
-/// Saves JSON data to file
-async fn save_json(json_data: &str, output_path: &PathBuf) -> Result<()> {
-    tokio::fs::write(output_path, json_data)
-        .await
-        .map_err(|e| dbsurveyor_core::error::DbSurveyorError::Io {
-            context: format!("Failed to write to {}", output_path.display()),
+/// Streams JSON data directly to file via `BufWriter`, avoiding an intermediate `String`.
+fn save_json_streaming(json_value: &serde_json::Value, output_path: &PathBuf) -> Result<()> {
+    let file = std::fs::File::create(output_path).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::Io {
+            context: format!("Failed to create {}", output_path.display()),
             source: e,
-        })?;
+        }
+    })?;
+    let writer = std::io::BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, json_value).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON streaming write", e)
+    })?;
     Ok(())
 }
 

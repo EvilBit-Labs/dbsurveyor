@@ -232,8 +232,33 @@ pub async fn collect_all_databases(
         config.continue_on_error
     );
 
-    // Step 1: Get server information
-    let server_info = get_server_info(adapter, config).await?;
+    // Step 1: Enumerate all databases once (including system) to avoid
+    // redundant pg_database queries. Derive the user-visible subset by filtering.
+    let all_databases_including_system = adapter.list_databases_with_options(true).await?;
+
+    let system_databases_excluded = if config.include_system {
+        0
+    } else {
+        all_databases_including_system
+            .iter()
+            .filter(|db| db.is_system_database)
+            .count()
+    };
+
+    let all_databases: Vec<_> = if config.include_system {
+        all_databases_including_system
+    } else {
+        all_databases_including_system
+            .into_iter()
+            .filter(|db| !db.is_system_database)
+            .collect()
+    };
+
+    let databases_discovered = all_databases.len();
+
+    // Step 2: Get server information (reuses pre-fetched counts)
+    let server_info =
+        get_server_info(adapter, databases_discovered, system_databases_excluded).await?;
 
     tracing::info!(
         "Connected to {} {} at {}:{}",
@@ -242,13 +267,6 @@ pub async fn collect_all_databases(
         server_info.host,
         server_info.port.unwrap_or(5432)
     );
-
-    // Step 2: List all databases
-    let all_databases = adapter
-        .list_databases_with_options(config.include_system)
-        .await?;
-
-    let databases_discovered = all_databases.len();
     tracing::info!("Discovered {} databases on server", databases_discovered);
 
     // Step 3: Filter databases by patterns and accessibility
@@ -313,9 +331,12 @@ pub async fn collect_all_databases(
 }
 
 /// Gets server-level information from the PostgreSQL server.
+///
+/// Accepts pre-computed database counts to avoid redundant `pg_database` queries.
 async fn get_server_info(
     adapter: &PostgresAdapter,
-    config: &MultiDatabaseConfig,
+    total_databases: usize,
+    system_databases_excluded: usize,
 ) -> Result<ServerInfo> {
     // Get PostgreSQL version
     let version: String = sqlx::query_scalar("SELECT version()")
@@ -353,24 +374,6 @@ async fn get_server_info(
                 )
             })?
             .unwrap_or(false);
-
-    // Count total databases (including system if configured)
-    let total_databases = adapter
-        .list_databases_with_options(config.include_system)
-        .await?
-        .len();
-
-    // Get count of excluded system databases if not including them
-    let system_databases_excluded = if !config.include_system {
-        adapter
-            .list_databases_with_options(true)
-            .await?
-            .iter()
-            .filter(|db| db.is_system_database)
-            .count()
-    } else {
-        0
-    };
 
     Ok(ServerInfo {
         server_type: DatabaseType::PostgreSQL,

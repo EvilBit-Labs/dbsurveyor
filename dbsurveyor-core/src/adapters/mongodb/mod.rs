@@ -20,10 +20,10 @@
 //! - Query timeouts prevent resource exhaustion
 
 mod connection;
-pub mod enumeration;
-pub mod sampling;
-pub mod schema_inference;
-pub mod type_mapping;
+mod enumeration;
+mod sampling;
+mod schema_inference;
+mod type_mapping;
 
 #[cfg(test)]
 mod tests;

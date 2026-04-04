@@ -17,7 +17,7 @@ use mongodb::bson::Bson;
 /// # Example
 /// ```rust,ignore
 /// use mongodb::bson::Bson;
-/// use dbsurveyor_core::adapters::mongodb::type_mapping::map_bson_to_unified;
+/// use dbsurveyor_core::adapters::mongodb::map_bson_to_unified;
 ///
 /// let bson_value = Bson::String("hello".to_string());
 /// let unified_type = map_bson_to_unified(&bson_value);

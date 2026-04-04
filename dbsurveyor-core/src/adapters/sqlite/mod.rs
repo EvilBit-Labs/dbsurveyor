@@ -17,10 +17,10 @@
 //! - File paths are validated
 //! - No network access required
 
-pub mod connection;
-pub mod sampling;
-pub mod schema_collection;
-pub mod type_mapping;
+mod connection;
+mod sampling;
+mod schema_collection;
+mod type_mapping;
 
 #[cfg(test)]
 mod tests;

@@ -12,10 +12,10 @@
 //! - Query timeouts prevent resource exhaustion
 //! - Connection pooling with configurable limits
 
-pub mod connection;
-pub mod sampling;
-pub mod schema_collection;
-pub mod type_mapping;
+mod connection;
+mod sampling;
+mod schema_collection;
+mod type_mapping;
 
 #[cfg(test)]
 mod tests;
@@ -29,7 +29,7 @@ use zeroize::Zeroizing;
 
 // Re-export public items from submodules
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
-pub use type_mapping::map_mysql_type;
+pub use type_mapping::{map_mysql_type, map_referential_action};
 
 /// MySQL database adapter with connection pooling and schema collection
 pub struct MySqlAdapter {

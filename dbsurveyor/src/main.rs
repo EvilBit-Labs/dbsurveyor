@@ -576,16 +576,16 @@ async fn generate_json_analysis(schema: &DatabaseSchema, output_path: &PathBuf) 
         "collection_date": schema.collection_metadata.collected_at
     });
 
-    let content = serde_json::to_string_pretty(&analysis).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::Serialization {
-            context: "Failed to serialize analysis".to_string(),
+    let file = std::fs::File::create(output_path).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::Io {
+            context: format!("Failed to create {}", output_path.display()),
             source: e,
         }
     })?;
-
-    tokio::fs::write(output_path, content).await.map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::Io {
-            context: format!("Failed to write JSON analysis to {}", output_path.display()),
+    let writer = std::io::BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &analysis).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::Serialization {
+            context: "Failed to serialize analysis".to_string(),
             source: e,
         }
     })?;
