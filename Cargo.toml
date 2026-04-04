@@ -106,44 +106,6 @@ opt-level = 3
 debug = true           # Full debug info for security auditing
 overflow-checks = true # Runtime integer overflow detection
 
-# Nextest configuration for enhanced test execution
-[workspace.metadata.nextest]
-# Default configuration for all test runs
-test-threads = 4
-retries = 2
-failure-output = "immediate"
-success-output = "never"
-status-level = "pass"
-
-# Test groups for different types of tests
-[[workspace.metadata.nextest.test-groups]]
-name = "integration"
-max-threads = 2      # Limit concurrent container tests to avoid resource conflicts
-
-[[workspace.metadata.nextest.test-groups]]
-name = "unit"
-max-threads = 8      # Allow more parallel unit tests
-
-[[workspace.metadata.nextest.test-groups]]
-name = "security"
-max-threads = 1      # Security tests run sequentially for isolation
-
-# Profile for CI environments
-[workspace.metadata.nextest.profiles.ci]
-retries = 3
-test-threads = 2
-failure-output = "immediate"
-success-output = "final"
-status-level = "all"
-
-# Profile for local development
-[workspace.metadata.nextest.profiles.dev]
-retries = 1
-test-threads = 8
-failure-output = "immediate"
-success-output = "never"
-status-level = "pass"
-
 # ⚠️ SECURITY NOTICE: This Cargo.toml enforces the following security guarantees:
 #
 # OFFLINE-ONLY OPERATION:

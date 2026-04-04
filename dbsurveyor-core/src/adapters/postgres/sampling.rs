@@ -264,14 +264,14 @@ async fn detect_auto_increment_column(
             )
         })?;
 
-    if let Some(row) = row {
-        let column_name: String = row.get("column_name");
-        return Ok(Some(OrderingStrategy::AutoIncrement {
-            column: column_name,
-        }));
-    }
+    let Some(row) = row else {
+        return Ok(None);
+    };
 
-    Ok(None)
+    let column_name: String = row.get("column_name");
+    Ok(Some(OrderingStrategy::AutoIncrement {
+        column: column_name,
+    }))
 }
 
 /// Escapes a SQL identifier for use in double-quoted PostgreSQL identifiers.

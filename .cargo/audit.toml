@@ -5,7 +5,7 @@
 ignore = [
     # RSA timing attack (Marvin Attack) - no upstream fix available
     # Transitive dep via sqlx-mysql. MySQL is not enabled by default.
-    # Review: check for upstream fix periodically
+    # Review: check for upstream fix periodically (last checked 2026-04-04)
     "RUSTSEC-2023-0071",
 
     # rustls-pemfile unmaintained - transitive dep via tiberius (SQL Server adapter)

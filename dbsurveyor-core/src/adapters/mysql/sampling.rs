@@ -208,14 +208,14 @@ async fn detect_auto_increment_column(
             )
         })?;
 
-    if let Some(row) = row {
-        let column_name: String = row.get("COLUMN_NAME");
-        return Ok(Some(OrderingStrategy::AutoIncrement {
-            column: column_name,
-        }));
-    }
+    let Some(row) = row else {
+        return Ok(None);
+    };
 
-    Ok(None)
+    let column_name: String = row.get("COLUMN_NAME");
+    Ok(Some(OrderingStrategy::AutoIncrement {
+        column: column_name,
+    }))
 }
 
 /// Escapes a SQL identifier for use in backtick-quoted MySQL identifiers.
