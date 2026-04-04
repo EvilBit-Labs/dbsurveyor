@@ -78,7 +78,11 @@ When counting failures from `tokio::join!`, check `is_err()` on the `Result` val
 
 In multi-database mode, each database gets a pool with `max_connections: 2`, `min_idle: 0`. Pools are explicitly closed after collection. This prevents connection exhaustion when scanning many databases.
 
-### 4.4 Nullable Row Count Estimates
+### 4.4 MySQL INFORMATION_SCHEMA Mixed Signedness
+
+MySQL's `INFORMATION_SCHEMA` uses both signed and unsigned integers inconsistently. `ORDINAL_POSITION` is `INT UNSIGNED` (use `u32`), but `NON_UNIQUE` in `STATISTICS` is signed `INT` (use `i32`). sqlx is strict about this: `i32` cannot decode `INT UNSIGNED` and `u32` cannot decode `INT`. Always check the actual column type before choosing the Rust type. The old `unwrap_or_default()` code silently swallowed these mismatches.
+
+### 4.5 Nullable Row Count Estimates
 
 MySQL `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` and SQLite `MAX(rowid)` both return NULL in certain cases (newly created tables, empty tables, some storage engines). Always use `query_scalar::<_, Option<i64>>` and `unwrap_or(0)` instead of assuming a non-null result. PostgreSQL `pg_class.reltuples` has the same risk but currently returns `bigint` which defaults to 0.
 
