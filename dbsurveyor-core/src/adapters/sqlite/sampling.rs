@@ -248,6 +248,38 @@ async fn detect_rowid(
     }
 }
 
+/// Build an explicit column projection for a SQLite table.
+///
+/// Uses `PRAGMA table_info` to get every column name and returns a
+/// comma-separated, double-quote-escaped projection string (e.g.,
+/// `"col1", "col2", "col3"`). Falls back to `*` if the pragma fails
+/// so that sampling still works even for unusual table types.
+async fn build_column_projection(pool: &SqlitePool, table: &str) -> String {
+    let pragma = format!("PRAGMA table_info({})", escape_pragma_arg(table));
+
+    match sqlx::query(&pragma).fetch_all(pool).await {
+        Ok(rows) if !rows.is_empty() => {
+            let cols: Vec<String> = rows
+                .iter()
+                .filter_map(|r| r.try_get::<String, _>("name").ok())
+                .map(|name| escape_identifier(&name))
+                .collect();
+            if cols.is_empty() {
+                "*".to_string()
+            } else {
+                cols.join(", ")
+            }
+        }
+        _ => {
+            tracing::debug!(
+                "Could not fetch column names for '{}'; falling back to SELECT *",
+                table
+            );
+            "*".to_string()
+        }
+    }
+}
+
 /// Generate an ORDER BY clause for the given ordering strategy (SQLite syntax).
 pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -> String {
     let direction = if descending { "DESC" } else { "ASC" };
@@ -296,10 +328,16 @@ pub async fn sample_table(
     // Generate ORDER BY clause
     let order_by = generate_order_by_clause(&strategy, true);
 
+    // Fetch column names so we can project explicitly instead of SELECT *.
+    // This avoids fetching unnecessary BLOB/TEXT columns and gives the caller
+    // control over which columns are transferred.
+    let projection = build_column_projection(pool, table).await;
+
     // Build and execute the sample query.
     // Identifiers are escaped to prevent SQL injection from embedded quotes.
     let query = format!(
-        "SELECT * FROM {} {} LIMIT ?",
+        "SELECT {} FROM {} {} LIMIT ?",
+        projection,
         escape_identifier(table),
         order_by
     );

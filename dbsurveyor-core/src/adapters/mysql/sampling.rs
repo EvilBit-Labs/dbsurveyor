@@ -226,6 +226,48 @@ fn escape_identifier(ident: &str) -> String {
     ident.replace('`', "``")
 }
 
+/// Build an explicit column projection for a MySQL table.
+///
+/// Queries `INFORMATION_SCHEMA.COLUMNS` to get every column name and returns a
+/// comma-separated, backtick-quoted projection string (e.g.,
+/// `` `col1`, `col2`, `col3` ``). Falls back to `*` if the metadata query fails
+/// so that sampling still works even when `INFORMATION_SCHEMA` is unavailable.
+async fn build_column_projection(pool: &MySqlPool, db_name: &str, table: &str) -> String {
+    let col_query = r#"
+        SELECT CAST(COLUMN_NAME AS CHAR) AS COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = ?
+        ORDER BY ORDINAL_POSITION
+    "#;
+
+    match sqlx::query(col_query)
+        .bind(db_name)
+        .bind(table)
+        .fetch_all(pool)
+        .await
+    {
+        Ok(rows) if !rows.is_empty() => {
+            let cols: Vec<String> = rows
+                .iter()
+                .map(|r| {
+                    let name: String = r.get("COLUMN_NAME");
+                    format!("`{}`", escape_identifier(&name))
+                })
+                .collect();
+            cols.join(", ")
+        }
+        _ => {
+            tracing::debug!(
+                "Could not fetch column names for `{}`.`{}`; falling back to SELECT *",
+                db_name,
+                table
+            );
+            "*".to_string()
+        }
+    }
+}
+
 /// Generate an ORDER BY clause for the given ordering strategy (MySQL syntax).
 pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -> String {
     let direction = if descending { "DESC" } else { "ASC" };
@@ -276,10 +318,16 @@ pub async fn sample_table(
     // Generate ORDER BY clause
     let order_by = generate_order_by_clause(&strategy, true);
 
+    // Fetch column names so we can project explicitly instead of SELECT *.
+    // This avoids fetching unnecessary BLOB/TEXT columns and gives the caller
+    // control over which columns are transferred.
+    let projection = build_column_projection(pool, db_name, table).await;
+
     // Build and execute the sample query.
     // Identifiers are escaped to prevent SQL injection from embedded backticks.
     let query = format!(
-        "SELECT * FROM `{}`.`{}` {} LIMIT ?",
+        "SELECT {} FROM `{}`.`{}` {} LIMIT ?",
+        projection,
         escape_identifier(db_name),
         escape_identifier(table),
         order_by
