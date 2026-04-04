@@ -354,13 +354,15 @@ pub async fn sample_table(
     // Get estimated row count from INFORMATION_SCHEMA (O(1), avoids full table scan).
     // TABLE_ROWS is an estimate for InnoDB but exact for MyISAM.
     let estimate_query = "SELECT TABLE_ROWS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
-    let total_rows: Option<i64> = match sqlx::query_scalar(estimate_query)
+    // TABLE_ROWS is nullable in INFORMATION_SCHEMA (NULL for some storage engines
+    // or newly created tables), so decode as Option<i64> to handle NULL gracefully.
+    let total_rows: Option<i64> = match sqlx::query_scalar::<_, Option<i64>>(estimate_query)
         .bind(db_name)
         .bind(table)
         .fetch_optional(pool)
         .await
     {
-        Ok(Some(count)) => Some(count),
+        Ok(Some(count)) => Some(count.unwrap_or(0)),
         Ok(None) => {
             tracing::warn!(
                 "No INFORMATION_SCHEMA entry for table '{}.{}'. \
