@@ -1,6 +1,8 @@
 //! Documentation output generation (Markdown, HTML, JSON, Mermaid, SQL).
 
-use crate::{Cli, OutputFormat, RedactionMode, SqlDialect, create_spinner, schema};
+#[cfg(feature = "experimental")]
+use crate::SqlDialect;
+use crate::{Cli, OutputFormat, RedactionMode, create_spinner, schema};
 use dbsurveyor_core::{Result, models::DatabaseSchema};
 use std::path::PathBuf;
 use tracing::{info, warn};
@@ -36,8 +38,11 @@ pub(crate) async fn generate_documentation(
 
             match format {
                 OutputFormat::Markdown => format!("{}.md", base_name).into(),
+                #[cfg(feature = "experimental")]
                 OutputFormat::Html => format!("{}.html", base_name).into(),
+                #[cfg(feature = "experimental")]
                 OutputFormat::Json => format!("{}_analysis.json", base_name).into(),
+                #[cfg(feature = "experimental")]
                 OutputFormat::Mermaid => format!("{}.mmd", base_name).into(),
             }
         }
@@ -45,16 +50,22 @@ pub(crate) async fn generate_documentation(
 
     let format_name = match format {
         OutputFormat::Markdown => "markdown",
+        #[cfg(feature = "experimental")]
         OutputFormat::Html => "HTML",
+        #[cfg(feature = "experimental")]
         OutputFormat::Json => "JSON",
+        #[cfg(feature = "experimental")]
         OutputFormat::Mermaid => "Mermaid",
     };
     let spinner = create_spinner(&format!("Generating {} documentation...", format_name));
 
     let gen_result = match format {
         OutputFormat::Markdown => generate_markdown(&schema, &output_file).await,
+        #[cfg(feature = "experimental")]
         OutputFormat::Html => generate_html(&schema, &output_file).await,
+        #[cfg(feature = "experimental")]
         OutputFormat::Json => generate_json_analysis(&schema, &output_file).await,
+        #[cfg(feature = "experimental")]
         OutputFormat::Mermaid => generate_mermaid(&schema, &output_file).await,
     };
 
@@ -98,6 +109,7 @@ async fn generate_markdown(schema: &DatabaseSchema, output_path: &PathBuf) -> Re
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 /// Generates HTML documentation (placeholder).
 async fn generate_html(_schema: &DatabaseSchema, output_path: &PathBuf) -> Result<()> {
     let content = "<!DOCTYPE html><html><head><title>Database Schema</title></head><body><h1>Schema Documentation</h1><p>HTML generation not yet implemented</p></body></html>";
@@ -112,6 +124,7 @@ async fn generate_html(_schema: &DatabaseSchema, output_path: &PathBuf) -> Resul
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 /// Generates JSON analysis (placeholder).
 async fn generate_json_analysis(schema: &DatabaseSchema, output_path: &PathBuf) -> Result<()> {
     let analysis = serde_json::json!({
@@ -139,6 +152,7 @@ async fn generate_json_analysis(schema: &DatabaseSchema, output_path: &PathBuf) 
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 /// Generates Mermaid ERD (placeholder).
 async fn generate_mermaid(_schema: &DatabaseSchema, output_path: &PathBuf) -> Result<()> {
     let content = "erDiagram\n    %% Mermaid ERD generation not yet implemented\n    PLACEHOLDER {\n        string note\n    }";
@@ -153,6 +167,7 @@ async fn generate_mermaid(_schema: &DatabaseSchema, output_path: &PathBuf) -> Re
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 /// Analyzes schema for insights (placeholder).
 pub(crate) async fn analyze_schema(input_path: &PathBuf, detailed: bool) -> Result<()> {
     let schema = schema::load_schema(input_path).await?;
@@ -175,6 +190,7 @@ pub(crate) async fn analyze_schema(input_path: &PathBuf, detailed: bool) -> Resu
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 /// Generates SQL DDL (placeholder).
 pub(crate) async fn generate_sql(
     input_path: &PathBuf,

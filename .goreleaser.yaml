@@ -36,7 +36,8 @@ before:
 # ---------------------------------------------------------------------------
 builds:
     # -------------------------------------------------------------------------
-    # Postprocessor (single build, --all-features enables compression + encryption)
+    # Postprocessor (single build). Keep the feature list explicit so
+    # `experimental` never ships in release binaries.
     # -------------------------------------------------------------------------
     - id: dbsurveyor
       builder: rust
@@ -46,7 +47,7 @@ builds:
       flags:
           - --release
           - --locked
-          - --all-features
+          - --features=compression,encryption
           - -p=dbsurveyor
       targets:
           - x86_64-unknown-linux-gnu
@@ -68,7 +69,7 @@ builds:
       flags:
           - --release
           - --locked
-          - --all-features
+          - --features=postgresql,mysql,sqlite,mongodb,mssql,compression,encryption
           - -p=dbsurveyor-collect
       targets:
           - x86_64-unknown-linux-gnu

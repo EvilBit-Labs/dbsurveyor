@@ -29,8 +29,13 @@ and generates comprehensive documentation and analysis reports.
 
 FEATURES:
 - Markdown report generation
-- JSON analysis reports
 - Data classification and analysis
+
+EXPERIMENTAL FEATURES (compile-time gated):
+- JSON analysis reports
+- HTML output
+- Mermaid output
+- SQL reconstruction
 
 INPUT FORMATS:
 - .dbsurveyor.json (standard JSON)
@@ -39,11 +44,10 @@ INPUT FORMATS:
 
 OUTPUT FORMATS:
 - Markdown documentation
-- JSON analysis reports
 
 EXAMPLES:
   dbsurveyor generate schema.dbsurveyor.json
-  dbsurveyor --format json --output analysis.json schema.json
+  dbsurveyor generate --format markdown schema.json
 ")]
 pub struct Cli {
     #[command(flatten)]
@@ -96,8 +100,10 @@ pub struct Cli {
 pub enum Command {
     /// Generate documentation from schema file
     Generate(GenerateArgs),
+    #[cfg(feature = "experimental")]
     /// Analyze schema for insights and statistics
     Analyze(AnalyzeArgs),
+    #[cfg(feature = "experimental")]
     /// Reconstruct SQL DDL from schema
     Sql(SqlArgs),
     /// Validate schema file format
@@ -126,6 +132,7 @@ pub struct GenerateArgs {
     pub output: Option<PathBuf>,
 }
 
+#[cfg(feature = "experimental")]
 #[derive(Args)]
 pub struct AnalyzeArgs {
     /// Input schema file
@@ -137,6 +144,7 @@ pub struct AnalyzeArgs {
     pub detailed: bool,
 }
 
+#[cfg(feature = "experimental")]
 #[derive(Args)]
 pub struct SqlArgs {
     /// Input schema file
@@ -184,13 +192,14 @@ pub struct GlobalArgs {
 pub enum OutputFormat {
     /// Markdown documentation
     Markdown,
+    #[cfg(feature = "experimental")]
     /// HTML report with search (not yet implemented)
-    #[value(skip)]
     Html,
+    #[cfg(feature = "experimental")]
     /// JSON analysis report
     Json,
+    #[cfg(feature = "experimental")]
     /// Mermaid ERD diagram (not yet implemented)
-    #[value(skip)]
     Mermaid,
 }
 
@@ -246,7 +255,9 @@ async fn main() -> Result<()> {
             )
             .await
         }
+        #[cfg(feature = "experimental")]
         Some(Command::Analyze(args)) => output::analyze_schema(&args.input, args.detailed).await,
+        #[cfg(feature = "experimental")]
         Some(Command::Sql(args)) => {
             output::generate_sql(&args.input, args.dialect.clone(), args.output.as_ref()).await
         }

@@ -20,6 +20,7 @@ default = []
 # Optional features
 compression = ["dbsurveyor-core/compression", "dep:zstd"]
 encryption = ["dbsurveyor-core/encryption"]
+experimental = []
 
 [dependencies]
 # Core dependencies
