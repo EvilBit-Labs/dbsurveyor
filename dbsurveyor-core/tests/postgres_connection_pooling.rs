@@ -13,36 +13,11 @@ use dbsurveyor_core::{
         ConnectionConfig, DatabaseAdapter,
         postgres::{PoolStats, PostgresAdapter},
     },
-    error::DbSurveyorError,
 };
-use sqlx::PgPool;
 use std::time::Duration;
 use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
 
-/// Helper function to wait for PostgreSQL to be ready
-async fn wait_for_postgres_ready(database_url: &str, max_attempts: u32) -> Result<()> {
-    let mut attempts = 0;
-    while attempts < max_attempts {
-        if let Ok(pool) = PgPool::connect(database_url).await {
-            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
-                pool.close().await;
-                return Ok(());
-            }
-            pool.close().await;
-        }
-        attempts += 1;
-        if attempts < max_attempts {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-    }
-    Err(DbSurveyorError::connection_failed(std::io::Error::new(
-        std::io::ErrorKind::TimedOut,
-        format!(
-            "PostgreSQL failed to become ready after {} attempts",
-            max_attempts
-        ),
-    )))
-}
+mod common;
 
 /// Test connection pool configuration validation
 #[tokio::test]
@@ -51,7 +26,7 @@ async fn test_connection_pool_configuration_validation() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Test 1: Valid configuration with minimum values
     let config1 = ConnectionConfig {
@@ -131,7 +106,7 @@ async fn test_connection_pool_limits() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Create adapter with limited connections
     let config = ConnectionConfig {
@@ -192,7 +167,7 @@ async fn test_connection_timeout_scenarios() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Test 1: Normal timeout (should succeed)
     let config1 = ConnectionConfig {
@@ -277,7 +252,7 @@ async fn test_concurrent_connection_handling() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Create adapter with moderate connection limit
     let config = ConnectionConfig {
@@ -384,7 +359,7 @@ async fn test_pool_health_monitoring() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let adapter = PostgresAdapter::new(&database_url).await?;
 
@@ -439,7 +414,7 @@ async fn test_connection_pool_edge_cases() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Test 1: Configuration with query parameters in URL
     let url_with_params = format!(
@@ -506,7 +481,7 @@ async fn test_resource_cleanup_and_lifecycle() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Test 1: Create and immediately close adapter
     let adapter1 = PostgresAdapter::new(&database_url).await?;
@@ -578,7 +553,7 @@ async fn test_pool_statistics_struct() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let config = ConnectionConfig {
         host: "localhost".to_string(),
@@ -634,7 +609,7 @@ async fn test_connection_pool_idle_configuration() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Create adapter with custom idle configuration
     let config = ConnectionConfig {
@@ -706,7 +681,7 @@ async fn test_connection_pool_max_connections_limit() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Create adapter with very limited pool and short acquire timeout
     let config = ConnectionConfig {

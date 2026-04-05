@@ -54,14 +54,14 @@ pub fn map_sqlite_type(sqlite_type: &str) -> UnifiedDataType {
     // Rule 2: Contains "CHAR", "CLOB", or "TEXT" -> TEXT affinity
     if base_type.contains("CHAR") || base_type.contains("CLOB") || base_type.contains("TEXT") {
         return UnifiedDataType::String {
-            max_length: length.map(|l| l as u32),
+            max_length: length.and_then(|l| u32::try_from(l).ok()),
         };
     }
 
     // Rule 3: Contains "BLOB" or unrecognized -> BLOB affinity
     if base_type.contains("BLOB") {
         return UnifiedDataType::Binary {
-            max_length: length.map(|l| l as u32),
+            max_length: length.and_then(|l| u32::try_from(l).ok()),
         };
     }
 
@@ -107,12 +107,12 @@ pub fn map_sqlite_type(sqlite_type: &str) -> UnifiedDataType {
 
         // Binary types
         "BINARY" | "VARBINARY" => UnifiedDataType::Binary {
-            max_length: length.map(|l| l as u32),
+            max_length: length.and_then(|l| u32::try_from(l).ok()),
         },
 
         // String types without affinity keywords
         "STRING" | "VARCHAR" | "NVARCHAR" | "NCHAR" => UnifiedDataType::String {
-            max_length: length.map(|l| l as u32),
+            max_length: length.and_then(|l| u32::try_from(l).ok()),
         },
 
         // Float types

@@ -5,12 +5,23 @@
 //! foreign keys from PostgreSQL.
 
 use super::PostgresAdapter;
+use super::RowExt;
+use super::batch_collection;
 use super::{routines, triggers, views};
 use crate::Result;
-use crate::adapters::helpers::RowExt;
+use crate::adapters::helpers::resolve_optional_collection;
 use crate::models::*;
 use sqlx::Row;
 use std::collections::HashMap;
+
+/// Lightweight metadata about a table, collected before the heavier per-column
+/// and per-constraint queries run.
+struct TableMetadata {
+    name: String,
+    schema: Option<String>,
+    comment: Option<String>,
+    estimated_rows: Option<i64>,
+}
 
 /// Main entry point for schema collection
 pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<DatabaseSchema> {
@@ -22,9 +33,6 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         adapter.config.host,
         adapter.config.port.unwrap_or(5432)
     );
-
-    // Set up session security settings
-    adapter.setup_session().await?;
 
     // Validate that user has sufficient privileges for schema collection
     if let Err(e) = adapter.validate_schema_privileges().await {
@@ -38,18 +46,8 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
 
     // Collect schemas first to understand database structure
     tracing::debug!("Enumerating database schemas");
-    let schemas = match adapter.collect_schemas().await {
-        Ok(schemas) => {
-            tracing::info!("Found {} accessible schemas", schemas.len());
-            schemas
-        }
-        Err(e) => {
-            let warning = format!("Failed to enumerate schemas: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let schemas =
+        resolve_optional_collection("schemas", adapter.collect_schemas().await, &mut warnings);
 
     // Collect tables with comprehensive metadata
     tracing::debug!("Enumerating database tables");
@@ -70,65 +68,35 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         }
     };
 
-    // Collect views
-    tracing::debug!("Enumerating database views");
-    let collected_views = match views::collect_views(&adapter.pool).await {
-        Ok(v) => {
-            tracing::info!("Successfully collected {} views", v.len());
-            v
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect views: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    // Collect views, functions, procedures, and triggers concurrently
+    // These are independent queries that can safely run in parallel
+    tracing::debug!("Enumerating views, functions, procedures, and triggers concurrently");
+    let (views_result, functions_result, procedures_result, triggers_result) = tokio::join!(
+        views::collect_views(&adapter.pool),
+        routines::collect_functions(&adapter.pool),
+        routines::collect_procedures(&adapter.pool),
+        triggers::collect_triggers(&adapter.pool),
+    );
 
-    // Collect functions
-    tracing::debug!("Enumerating database functions");
-    let functions = match routines::collect_functions(&adapter.pool).await {
-        Ok(f) => {
-            tracing::info!("Successfully collected {} functions", f.len());
-            f
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect functions: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    // Count actual errors before consuming results (empty results are valid)
+    let metadata_error_count = views_result.is_err() as u8
+        + functions_result.is_err() as u8
+        + procedures_result.is_err() as u8
+        + triggers_result.is_err() as u8;
 
-    // Collect procedures
-    tracing::debug!("Enumerating database procedures");
-    let procedures = match routines::collect_procedures(&adapter.pool).await {
-        Ok(p) => {
-            tracing::info!("Successfully collected {} procedures", p.len());
-            p
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect procedures: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let collected_views = resolve_optional_collection("views", views_result, &mut warnings);
+    let functions = resolve_optional_collection("functions", functions_result, &mut warnings);
+    let procedures = resolve_optional_collection("procedures", procedures_result, &mut warnings);
+    let collected_triggers =
+        resolve_optional_collection("triggers", triggers_result, &mut warnings);
 
-    // Collect triggers
-    tracing::debug!("Enumerating database triggers");
-    let collected_triggers = match triggers::collect_triggers(&adapter.pool).await {
-        Ok(t) => {
-            tracing::info!("Successfully collected {} triggers", t.len());
-            t
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect triggers: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    // Escalate if multiple concurrent metadata tasks failed -- likely a systemic issue
+    if metadata_error_count >= 3 {
+        tracing::warn!(
+            "Multiple metadata collection tasks failed ({}/4); check database permissions",
+            metadata_error_count
+        );
+    }
 
     // Log schema distribution for debugging
     if !schemas.is_empty() && !tables.is_empty() {
@@ -156,28 +124,13 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         schemas.len()
     );
 
-    // Aggregate all indexes and constraints from tables for schema-level view
-    let mut all_indexes = Vec::new();
-    let mut all_constraints = Vec::new();
-
-    for table in &tables {
-        all_indexes.extend(table.indexes.clone());
-        all_constraints.extend(table.constraints.clone());
-    }
-
-    tracing::info!(
-        "Collected {} total indexes and {} total constraints across all tables",
-        all_indexes.len(),
-        all_constraints.len()
-    );
-
-    Ok(DatabaseSchema {
+    let schema = DatabaseSchema {
         format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
         views: collected_views,
-        indexes: all_indexes,
-        constraints: all_constraints,
+        indexes: Vec::new(),
+        constraints: Vec::new(),
         procedures,
         functions,
         triggers: collected_triggers,
@@ -186,11 +139,23 @@ pub(crate) async fn collect_schema(adapter: &PostgresAdapter) -> Result<Database
         quality_metrics: None,
         collection_metadata: CollectionMetadata {
             collected_at: chrono::Utc::now(),
-            collection_duration_ms: collection_duration.as_millis() as u64,
+            collection_duration_ms: u64::try_from(collection_duration.as_millis())
+                .unwrap_or(u64::MAX),
             collector_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
         },
-    })
+    };
+
+    // Aggregate indexes and constraints from per-table data into schema-level vectors
+    let schema = schema.with_aggregated_indexes_and_constraints();
+
+    tracing::info!(
+        "Collected {} total indexes and {} total constraints across all tables",
+        schema.indexes.len(),
+        schema.constraints.len()
+    );
+
+    Ok(schema)
 }
 
 impl PostgresAdapter {
@@ -243,7 +208,7 @@ impl PostgresAdapter {
         Ok(DatabaseInfo {
             name,
             version: Some(version),
-            size_bytes: size_bytes.map(|s| s as u64),
+            size_bytes: size_bytes.map(|s| s.max(0) as u64),
             encoding,
             collation,
             owner,
@@ -298,10 +263,53 @@ impl PostgresAdapter {
         Ok(schemas)
     }
 
-    /// Collects all tables from the database with comprehensive metadata
+    /// Collects all tables from the database with comprehensive metadata.
+    ///
+    /// Uses batch collection (5 queries total) as the default path. Falls back
+    /// to per-table queries if batch collection fails.
     pub(crate) async fn collect_tables(&self) -> Result<Vec<Table>> {
         tracing::debug!("Starting table enumeration for PostgreSQL database");
 
+        let table_metadata = self.enumerate_table_metadata().await?;
+
+        // Try batch collection first (5 queries instead of 5*N)
+        match batch_collection::collect_all_batch(&self.pool).await {
+            Ok(mut batch) => {
+                let mut tables = Vec::with_capacity(table_metadata.len());
+                for meta in &table_metadata {
+                    let table = batch_collection::assemble_table_from_batch(
+                        &mut batch,
+                        &meta.name,
+                        &meta.schema,
+                        meta.comment.clone(),
+                        meta.estimated_rows,
+                    );
+
+                    tracing::debug!(
+                        "Collected table '{}' with {} columns, {} foreign keys, {} indexes",
+                        table.name,
+                        table.columns.len(),
+                        table.foreign_keys.len(),
+                        table.indexes.len()
+                    );
+
+                    tables.push(table);
+                }
+                Ok(tables)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Batch collection failed, falling back to per-table queries: {}",
+                    e
+                );
+                self.collect_tables_per_table(&table_metadata).await
+            }
+        }
+    }
+
+    /// Enumerates table metadata (name, schema, comment, row estimate) without
+    /// collecting columns/keys/indexes/constraints.
+    async fn enumerate_table_metadata(&self) -> Result<Vec<TableMetadata>> {
         let tables_query = r#"
             SELECT
                 t.table_name,
@@ -338,22 +346,21 @@ impl PostgresAdapter {
                 }
             })?;
 
-        let mut tables = Vec::new();
-
+        let mut metadata = Vec::with_capacity(table_rows.len());
         for row in &table_rows {
-            let table_name: String = row.try_get("table_name").map_err(|e| {
+            let name: String = row.try_get("table_name").map_err(|e| {
                 crate::error::DbSurveyorError::collection_failed(
                     "Failed to parse table name from database result",
                     e,
                 )
             })?;
-            let schema_name: Option<String> = row.try_get("table_schema").map_err(|e| {
+            let schema: Option<String> = row.try_get("table_schema").map_err(|e| {
                 crate::error::DbSurveyorError::collection_failed(
                     "Failed to parse schema name from database result",
                     e,
                 )
             })?;
-            let table_comment: Option<String> = row.try_get("table_comment").map_err(|e| {
+            let comment: Option<String> = row.try_get("table_comment").map_err(|e| {
                 crate::error::DbSurveyorError::collection_failed(
                     "Failed to parse table comment from database result",
                     e,
@@ -365,42 +372,49 @@ impl PostgresAdapter {
                     e,
                 )
             })?;
+            metadata.push(TableMetadata {
+                name,
+                schema,
+                comment,
+                estimated_rows,
+            });
+        }
 
-            // Collect columns for this table
-            let columns = self
-                .collect_table_columns(&table_name, &schema_name)
-                .await?;
+        Ok(metadata)
+    }
 
-            // Collect primary key
+    /// Fallback: collects tables using individual per-table queries (N+1 pattern).
+    ///
+    /// Used only when batch collection fails.
+    async fn collect_tables_per_table(
+        &self,
+        table_metadata: &[TableMetadata],
+    ) -> Result<Vec<Table>> {
+        let mut tables = Vec::with_capacity(table_metadata.len());
+
+        for meta in table_metadata {
+            let columns = self.collect_table_columns(&meta.name, &meta.schema).await?;
             let primary_key = self
-                .collect_table_primary_key(&table_name, &schema_name)
+                .collect_table_primary_key(&meta.name, &meta.schema)
                 .await?;
-
-            // Collect foreign keys
             let foreign_keys = self
-                .collect_table_foreign_keys(&table_name, &schema_name)
+                .collect_table_foreign_keys(&meta.name, &meta.schema)
                 .await?;
-
-            // Collect indexes
-            let indexes = self
-                .collect_table_indexes(&table_name, &schema_name)
-                .await?;
-
-            // Collect constraints
+            let indexes = self.collect_table_indexes(&meta.name, &meta.schema).await?;
             let constraints = self
-                .collect_table_constraints(&table_name, &schema_name)
+                .collect_table_constraints(&meta.name, &meta.schema)
                 .await?;
 
             let table = Table {
-                name: table_name.clone(),
-                schema: schema_name,
+                name: meta.name.clone(),
+                schema: meta.schema.clone(),
                 columns,
                 primary_key,
                 foreign_keys,
                 indexes,
                 constraints,
-                comment: table_comment,
-                row_count: estimated_rows.map(|r| r as u64),
+                comment: meta.comment.clone(),
+                row_count: meta.estimated_rows.map(|r| r.max(0) as u64),
             };
 
             tracing::debug!(
@@ -536,7 +550,7 @@ impl PostgresAdapter {
                 is_auto_increment,
                 default_value: column_default,
                 comment: column_comment,
-                ordinal_position: ordinal_position as u32,
+                ordinal_position: u32::try_from(ordinal_position).unwrap_or(0),
             });
         }
 

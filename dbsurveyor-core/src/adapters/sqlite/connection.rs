@@ -16,6 +16,7 @@ use super::{ConnectionConfig, SqliteAdapter};
 use crate::Result;
 use sqlx::SqlitePool;
 use url::Url;
+use zeroize::Zeroizing;
 
 impl SqliteAdapter {
     /// Creates a new SQLite adapter from a connection string.
@@ -44,7 +45,7 @@ impl SqliteAdapter {
         Ok(Self {
             pool,
             config,
-            connection_string: connection_string.to_string(),
+            connection_string: Zeroizing::new(connection_string.to_string()),
         })
     }
 
@@ -61,8 +62,19 @@ impl SqliteAdapter {
         Ok(Self {
             pool,
             config,
-            connection_string: connection_string.to_string(),
+            connection_string: Zeroizing::new(connection_string.to_string()),
         })
+    }
+
+    /// Creates a new SQLite adapter from an existing pool (for testing).
+    ///
+    /// This allows tests to pre-populate a database before creating the adapter.
+    pub fn from_pool(pool: SqlitePool, connection_string: &str, config: ConnectionConfig) -> Self {
+        Self {
+            pool,
+            config,
+            connection_string: Zeroizing::new(connection_string.to_string()),
+        }
     }
 
     /// Checks if the connection is to an in-memory database.
@@ -87,7 +99,7 @@ impl SqliteAdapter {
             || self.connection_string.ends_with(".sqlite")
             || self.connection_string.ends_with(".sqlite3")
         {
-            return Some(self.connection_string.clone());
+            return Some((*self.connection_string).clone());
         }
 
         None

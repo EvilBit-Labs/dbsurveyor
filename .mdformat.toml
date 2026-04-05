@@ -1,4 +1,3 @@
-# Exclude patterns not supported in python earlier than 3.13
 exclude = [
     "venv/**",
     "**/node_modules/**",
@@ -6,24 +5,16 @@ exclude = [
     "**/*.mdc",
     "**/*.tpl.md",
     "**/CHANGELOG.md",
-    "rust_migration/index.md",
+    "target/**",
+    "megalinter-reports/**",
+    "THIRD_PARTY_NOTICES",
+    ".kiro/specs/**",
 ]
 validate = true
 number = true
-wrap = "keep"
+wrap = "no"
 end_of_line = "lf"
-extensions = [
-    "gfm",
-    "frontmatter",
-    "footnote",
-    "simple_breaks",
-    "tables",
-    "gfm_alerts",
-    "toc",
-    "wikilink",
-]
-
 
 [plugin.mkdocs]
 align_semantic_breaks_in_lists = true
-ignore_missing_references = true
+ignore_missing_references      = true

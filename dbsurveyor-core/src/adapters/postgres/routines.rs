@@ -7,8 +7,8 @@
 //! - `FUNCTION` - Returns a value, can be used in expressions
 //! - `PROCEDURE` - Does not return a value (PostgreSQL 11+)
 
+use super::RowExt;
 use crate::Result;
-use crate::adapters::helpers::RowExt;
 use crate::models::{Parameter, ParameterDirection, Procedure, UnifiedDataType};
 use sqlx::PgPool;
 

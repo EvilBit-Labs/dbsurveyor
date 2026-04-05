@@ -50,28 +50,21 @@ password-hash = { version = "0.6", optional = true }
 # base64 is used for both encryption and SQLite BLOB encoding
 base64 = { workspace = true }
 
+# Parallelism
+rayon = { workspace = true }
+
 # JSON Schema validation
 jsonschema = { version = "0.45.0", default-features = false }
 regex = "1.12.3"
+glob-match = "0.2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
 testcontainers-modules = { workspace = true, features = ["postgres", "mysql", "mongo"] }
 serde_json = { workspace = true }
+criterion = { workspace = true }
+chrono = { workspace = true }
 
-# Nextest configuration for this crate
-[package.metadata.nextest]
-# Security tests should run sequentially
-[[package.metadata.nextest.overrides]]
-filter = "test(security) or test(encryption) or test(credential)"
-test-group = "security"
-
-# Integration tests with limited parallelism
-[[package.metadata.nextest.overrides]]
-filter = "test(integration)"
-test-group = "integration"
-
-# Unit tests can run in parallel
-[[package.metadata.nextest.overrides]]
-filter = "not test(security) and not test(encryption) and not test(credential) and not test(integration)"
-test-group = "unit"
+[[bench]]
+name = "benchmarks"
+harness = false

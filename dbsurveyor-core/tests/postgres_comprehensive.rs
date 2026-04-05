@@ -14,37 +14,13 @@
 use dbsurveyor_core::{
     Result,
     adapters::{ConnectionConfig, DatabaseAdapter, postgres::PostgresAdapter},
-    error::DbSurveyorError,
     models::{ConstraintType, DatabaseType, ReferentialAction, UnifiedDataType},
 };
 use sqlx::PgPool;
 use std::time::Duration;
 use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
 
-/// Helper function to wait for PostgreSQL to be ready
-async fn wait_for_postgres_ready(database_url: &str, max_attempts: u32) -> Result<()> {
-    let mut attempts = 0;
-    while attempts < max_attempts {
-        if let Ok(pool) = PgPool::connect(database_url).await {
-            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
-                pool.close().await;
-                return Ok(());
-            }
-            pool.close().await;
-        }
-        attempts += 1;
-        if attempts < max_attempts {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-    }
-    Err(DbSurveyorError::connection_failed(std::io::Error::new(
-        std::io::ErrorKind::TimedOut,
-        format!(
-            "PostgreSQL failed to become ready after {} attempts",
-            max_attempts
-        ),
-    )))
-}
+mod common;
 
 /// Test connection pooling with various configurations
 #[tokio::test]
@@ -54,7 +30,7 @@ async fn test_postgres_connection_pooling_configurations() -> Result<()> {
     let base_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
     // Wait for PostgreSQL to be ready
-    wait_for_postgres_ready(&base_url, 30).await?;
+    common::wait_for_postgres_ready(&base_url, 30).await?;
 
     // Test 1: Default connection configuration
     let adapter1 = PostgresAdapter::new(&base_url).await?;
@@ -131,7 +107,7 @@ async fn test_postgres_schema_collection_versions() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Create comprehensive test schema
     let pool = PgPool::connect(&database_url).await.unwrap();
@@ -336,7 +312,7 @@ async fn test_postgres_edge_cases() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let pool = PgPool::connect(&database_url).await.unwrap();
 
@@ -540,7 +516,7 @@ async fn test_postgres_error_handling() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let admin_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&admin_url, 30).await?;
+    common::wait_for_postgres_ready(&admin_url, 30).await?;
 
     // Create limited user
     let pool = PgPool::connect(&admin_url).await.unwrap();
@@ -587,7 +563,7 @@ async fn test_postgres_timeout_handling() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     // Test with very short timeout
     let config = ConnectionConfig {
@@ -633,7 +609,7 @@ async fn test_postgres_timeout_handling() -> Result<()> {
 /// Test credential sanitization in all error paths
 #[tokio::test]
 async fn test_postgres_credential_sanitization() {
-    use dbsurveyor_core::adapters::redact_database_url;
+    use dbsurveyor_core::error::redact_database_url;
 
     // Test URL redaction function
     let test_cases = vec![
@@ -697,7 +673,7 @@ async fn test_postgres_database_configurations() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let base_url = format!("postgres://postgres:postgres@localhost:{}", port);
 
-    wait_for_postgres_ready(&format!("{}/postgres", base_url), 30).await?;
+    common::wait_for_postgres_ready(&format!("{}/postgres", base_url), 30).await?;
 
     // Create additional test database
     let pool = PgPool::connect(&format!("{}/postgres", base_url))
@@ -736,7 +712,7 @@ async fn test_postgres_version_compatibility() -> Result<()> {
     let port = postgres.get_host_port_ipv4(5432).await.unwrap();
     let database_url = format!("postgres://postgres:postgres@localhost:{}/postgres", port);
 
-    wait_for_postgres_ready(&database_url, 30).await?;
+    common::wait_for_postgres_ready(&database_url, 30).await?;
 
     let adapter = PostgresAdapter::new(&database_url).await?;
     let schema = adapter.collect_schema().await?;

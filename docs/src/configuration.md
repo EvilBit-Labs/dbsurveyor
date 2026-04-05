@@ -33,6 +33,25 @@ export TERM=dumb             # Alternative way to disable color/progress output
 export RUST_LOG=debug
 ```
 
+### Connection Pool Configuration
+
+```bash
+# Maximum connection pool size (default: 10)
+export DBSURVEYOR_MAX_CONNECTIONS=10
+
+# Minimum idle connections in pool (default: 2)
+export DBSURVEYOR_MIN_IDLE_CONNECTIONS=2
+
+# Connection timeout in seconds (default: 30)
+export DBSURVEYOR_CONNECT_TIMEOUT_SECS=30
+
+# Idle connection timeout in seconds (default: 600)
+export DBSURVEYOR_IDLE_TIMEOUT_SECS=600
+
+# Maximum connection lifetime in seconds (default: 3600)
+export DBSURVEYOR_MAX_LIFETIME_SECS=3600
+```
+
 ### Security Configuration
 
 ```bash
@@ -81,7 +100,8 @@ dbsurveyor-collect --max-connections 5 postgres://localhost/db
 #### Data Collection Settings
 
 ```bash
-# Sample size per table (default: 100, 0 to disable)
+# Sample size per table (default: 100, max: 10,000)
+# Values above 10,000 are capped to prevent resource exhaustion
 dbsurveyor-collect --sample 50 postgres://localhost/db
 
 # Throttle delay between operations in milliseconds
@@ -147,7 +167,7 @@ Create a `.dbsurveyor.toml` file in your project root:
 connect_timeout = "30s"
 query_timeout = "30s"
 max_connections = 10
-sample_size = 100
+sample_size = 100       # Max: 10,000 (values above are clamped)
 throttle_ms = 0
 
 # Object collection settings

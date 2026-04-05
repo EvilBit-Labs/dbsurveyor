@@ -58,12 +58,14 @@ impl AnomalyConfig {
     }
 
     /// Builder method to enable/disable anomaly detection.
+    #[must_use]
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
     /// Builder method to set sensitivity level.
+    #[must_use]
     pub fn with_sensitivity(mut self, sensitivity: AnomalySensitivity) -> Self {
         self.sensitivity = sensitivity;
         self
@@ -85,6 +87,12 @@ pub struct QualityConfig {
     pub consistency_min: f64,
     /// Anomaly detection settings
     pub anomaly_detection: AnomalyConfig,
+    /// Weight for completeness in quality score calculation (default 1.0)
+    pub completeness_weight: f64,
+    /// Weight for consistency in quality score calculation (default 1.0)
+    pub consistency_weight: f64,
+    /// Weight for uniqueness in quality score calculation (default 1.0)
+    pub uniqueness_weight: f64,
 }
 
 /// Validation errors for quality configuration.
@@ -109,6 +117,9 @@ impl Default for QualityConfig {
             uniqueness_min: 0.98,
             consistency_min: 0.90,
             anomaly_detection: AnomalyConfig::default(),
+            completeness_weight: 1.0,
+            consistency_weight: 1.0,
+            uniqueness_weight: 1.0,
         }
     }
 }
@@ -120,12 +131,14 @@ impl QualityConfig {
     }
 
     /// Builder method to enable/disable quality analysis.
+    #[must_use]
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
     /// Builder method to set completeness threshold.
+    #[must_use]
     pub fn with_completeness_min(mut self, threshold: f64) -> Self {
         if !(0.0..=1.0).contains(&threshold) {
             tracing::warn!(
@@ -138,6 +151,7 @@ impl QualityConfig {
     }
 
     /// Builder method to set uniqueness threshold.
+    #[must_use]
     pub fn with_uniqueness_min(mut self, threshold: f64) -> Self {
         if !(0.0..=1.0).contains(&threshold) {
             tracing::warn!(
@@ -150,6 +164,7 @@ impl QualityConfig {
     }
 
     /// Builder method to set consistency threshold.
+    #[must_use]
     pub fn with_consistency_min(mut self, threshold: f64) -> Self {
         if !(0.0..=1.0).contains(&threshold) {
             tracing::warn!(
@@ -162,8 +177,36 @@ impl QualityConfig {
     }
 
     /// Builder method to set anomaly detection config.
+    #[must_use]
     pub fn with_anomaly_detection(mut self, config: AnomalyConfig) -> Self {
         self.anomaly_detection = config;
+        self
+    }
+
+    /// Builder method to set the completeness weight for quality score calculation.
+    ///
+    /// Negative values are clamped to 0.0.
+    #[must_use]
+    pub fn with_completeness_weight(mut self, weight: f64) -> Self {
+        self.completeness_weight = weight.max(0.0);
+        self
+    }
+
+    /// Builder method to set the consistency weight for quality score calculation.
+    ///
+    /// Negative values are clamped to 0.0.
+    #[must_use]
+    pub fn with_consistency_weight(mut self, weight: f64) -> Self {
+        self.consistency_weight = weight.max(0.0);
+        self
+    }
+
+    /// Builder method to set the uniqueness weight for quality score calculation.
+    ///
+    /// Negative values are clamped to 0.0.
+    #[must_use]
+    pub fn with_uniqueness_weight(mut self, weight: f64) -> Self {
+        self.uniqueness_weight = weight.max(0.0);
         self
     }
 

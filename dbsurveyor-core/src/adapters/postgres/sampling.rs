@@ -18,33 +18,25 @@
 //! - Respects connection pool timeout settings
 
 use crate::adapters::config::SamplingConfig;
+use crate::adapters::helpers::TIMESTAMP_COLUMN_NAMES;
 use crate::error::DbSurveyorError;
-use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
+use crate::models::{
+    Column, OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample,
+    UnifiedDataType,
+};
 use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 use std::time::Duration;
 
-/// Common timestamp column names used for ordering by "most recent"
-const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
-    "created_at",
-    "updated_at",
-    "modified_at",
-    "inserted_at",
-    "timestamp",
-    "created",
-    "updated",
-    "modified",
-    "date_created",
-    "date_updated",
-    "date_modified",
-    "createdat",
-    "updatedat",
-    "modifiedat",
-    "creation_time",
-    "modification_time",
-    "update_time",
-    "create_time",
-];
+/// Minimum estimated row count to use `TABLESAMPLE BERNOULLI` instead of
+/// `ORDER BY RANDOM()`. For very small tables the overhead of the tablesample
+/// operator is not worthwhile and the percentage calculation becomes unreliable.
+const TABLESAMPLE_MIN_ROWS: u64 = 1000;
+
+/// Oversampling multiplier applied to the Bernoulli percentage so that the
+/// returned set is very likely to contain at least `sample_size` rows.
+/// The LIMIT clause trims the excess.
+const TABLESAMPLE_OVERSAMPLING_FACTOR: f64 = 2.0;
 
 /// Detect the best ordering strategy for a table.
 ///
@@ -85,6 +77,41 @@ pub async fn detect_ordering_strategy(
     schema: &str,
     table: &str,
 ) -> Result<OrderingStrategy, DbSurveyorError> {
+    detect_ordering_strategy_with_columns(pool, schema, table, None).await
+}
+
+/// Detect the best ordering strategy, optionally using pre-collected column metadata.
+///
+/// When `columns` is `Some`, the ordering strategy is derived entirely from the
+/// provided metadata, avoiding redundant database queries for PK, timestamp, and
+/// auto-increment detection. When `None`, falls back to the original query-based
+/// detection.
+///
+/// # Arguments
+///
+/// * `pool` - PostgreSQL connection pool (unused when `columns` is `Some`)
+/// * `schema` - Schema name (e.g., "public")
+/// * `table` - Table name
+/// * `columns` - Optional pre-collected column metadata from schema collection
+pub async fn detect_ordering_strategy_with_columns(
+    pool: &PgPool,
+    schema: &str,
+    table: &str,
+    columns: Option<&[Column]>,
+) -> Result<OrderingStrategy, DbSurveyorError> {
+    // Fast path: derive strategy from pre-collected metadata
+    if let Some(cols) = columns {
+        let strategy = detect_ordering_from_columns(cols);
+        tracing::debug!(
+            "Derived ordering strategy for {}.{} from metadata: {:?}",
+            schema,
+            table,
+            strategy
+        );
+        return Ok(strategy);
+    }
+
+    // Slow path: query the database for ordering info
     // 1. Check for primary key
     if let Some(pk_strategy) = detect_primary_key(pool, schema, table).await? {
         tracing::debug!(
@@ -285,14 +312,83 @@ async fn detect_auto_increment_column(
             )
         })?;
 
-    if let Some(row) = row {
-        let column_name: String = row.get("column_name");
-        return Ok(Some(OrderingStrategy::AutoIncrement {
-            column: column_name,
-        }));
+    let Some(row) = row else {
+        return Ok(None);
+    };
+
+    let column_name: String = row.get("column_name");
+    Ok(Some(OrderingStrategy::AutoIncrement {
+        column: column_name,
+    }))
+}
+
+/// Derive an ordering strategy from pre-collected column metadata.
+///
+/// This avoids redundant database queries when schema collection has already
+/// gathered column information (primary keys, data types, auto-increment flags).
+///
+/// The detection priority mirrors [`detect_ordering_strategy`]:
+/// 1. Primary key columns (ordered by `ordinal_position`)
+/// 2. Timestamp columns matching common naming conventions
+/// 3. Auto-increment/serial columns
+/// 4. Unordered fallback
+fn detect_ordering_from_columns(columns: &[Column]) -> OrderingStrategy {
+    // 1. Check for primary key columns
+    let mut pk_columns: Vec<&Column> = columns.iter().filter(|c| c.is_primary_key).collect();
+    if !pk_columns.is_empty() {
+        pk_columns.sort_by_key(|c| c.ordinal_position);
+        let names = pk_columns.iter().map(|c| c.name.clone()).collect();
+        return OrderingStrategy::PrimaryKey { columns: names };
     }
 
-    Ok(None)
+    // 2. Check for timestamp columns with well-known names
+    let timestamp_columns: Vec<&Column> = columns
+        .iter()
+        .filter(|c| is_timestamp_type(&c.data_type))
+        .collect();
+
+    // Exact match on common timestamp column names (highest priority)
+    for col in &timestamp_columns {
+        let lower = col.name.to_lowercase();
+        if TIMESTAMP_COLUMN_NAMES.iter().any(|&name| lower == name) {
+            return OrderingStrategy::Timestamp {
+                column: col.name.clone(),
+                direction: SortDirection::Descending,
+            };
+        }
+    }
+
+    // Partial match on common patterns
+    for col in &timestamp_columns {
+        let lower = col.name.to_lowercase();
+        if lower.contains("created") || lower.contains("inserted") || lower.contains("timestamp") {
+            return OrderingStrategy::Timestamp {
+                column: col.name.clone(),
+                direction: SortDirection::Descending,
+            };
+        }
+    }
+
+    // 3. Check for auto-increment columns
+    let mut auto_columns: Vec<&Column> = columns.iter().filter(|c| c.is_auto_increment).collect();
+    if !auto_columns.is_empty() {
+        auto_columns.sort_by_key(|c| c.ordinal_position);
+        return OrderingStrategy::AutoIncrement {
+            column: auto_columns[0].name.clone(),
+        };
+    }
+
+    // 4. Fallback
+    OrderingStrategy::Unordered
+}
+
+/// Returns `true` if the unified data type represents a timestamp or date type
+/// suitable for ordering.
+fn is_timestamp_type(data_type: &UnifiedDataType) -> bool {
+    matches!(
+        data_type,
+        UnifiedDataType::DateTime { .. } | UnifiedDataType::Date
+    )
 }
 
 /// Escapes a SQL identifier for use in double-quoted PostgreSQL identifiers.
@@ -391,6 +487,30 @@ pub async fn sample_table(
     table: &str,
     config: &SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
+    sample_table_with_columns(pool, schema, table, config, None).await
+}
+
+/// Sample data from a table, optionally using pre-collected column metadata.
+///
+/// When `columns` is `Some`, ordering strategy detection uses the provided
+/// metadata instead of querying the database, avoiding redundant PK/timestamp/
+/// auto-increment lookups that schema collection already performed.
+///
+/// # Arguments
+///
+/// * `pool` - PostgreSQL connection pool
+/// * `schema` - Optional schema name (e.g., `Some("public")`)
+/// * `table` - Table name
+/// * `config` - Sampling configuration including sample size and throttle settings
+/// * `columns` - Optional pre-collected column metadata from schema collection
+pub async fn sample_table_with_columns(
+    pool: &PgPool,
+    schema: Option<&str>,
+    table: &str,
+    config: &SamplingConfig,
+    columns: Option<&[Column]>,
+) -> Result<TableSample, DbSurveyorError> {
+    config.validate()?;
     let mut warnings = Vec::new();
     let display_name = match schema {
         Some(s) => format!("{}.{}", s, table),
@@ -419,7 +539,8 @@ pub async fn sample_table(
             "public"
         }
     };
-    let strategy = detect_ordering_strategy(pool, detection_schema, table).await?;
+    let strategy =
+        detect_ordering_strategy_with_columns(pool, detection_schema, table, columns).await?;
 
     // Determine sampling strategy and add warnings for unordered tables
     let (sampling_strategy, is_random) = match &strategy {
@@ -463,24 +584,44 @@ pub async fn sample_table(
             )
         })?;
 
-    // Build sample query with ordering
-    let order_clause = generate_order_by_clause(&strategy, true); // DESC for most recent
-
     // Build FROM clause: schema-qualified when schema is present, table-only otherwise.
     // Identifiers are escaped to prevent SQL injection from embedded quotes.
-    let from_clause = match schema {
+    let base_table = match schema {
         Some(s) => format!(
-            r#""{}"."{}" t"#,
+            "\"{}\".\"{}\"",
             escape_identifier(s),
             escape_identifier(table)
         ),
-        None => format!(r#""{}" t"#, escape_identifier(table)),
+        None => format!("\"{}\"", escape_identifier(table)),
     };
 
-    let sample_query = format!(
-        "SELECT row_to_json(t.*) AS row_data FROM {} {} LIMIT $1",
-        from_clause, order_clause
-    );
+    // For unordered tables with a sufficiently large row-count estimate, use
+    // TABLESAMPLE BERNOULLI to avoid the expensive full-table ORDER BY RANDOM().
+    let use_tablesample = is_random
+        && total_rows
+            .and_then(|r| u64::try_from(r.max(0)).ok())
+            .is_some_and(|r| r >= TABLESAMPLE_MIN_ROWS);
+
+    let sample_query = if use_tablesample {
+        // Safety: we checked total_rows is Some and >= TABLESAMPLE_MIN_ROWS above
+        #[allow(clippy::cast_precision_loss)]
+        let estimated = total_rows.unwrap_or(0).max(1) as f64;
+        #[allow(clippy::cast_precision_loss)]
+        let desired = config.sample_size as f64;
+        // Oversample so LIMIT almost always has enough rows
+        let pct =
+            ((desired * TABLESAMPLE_OVERSAMPLING_FACTOR) / estimated * 100.0).clamp(0.01, 100.0);
+        format!(
+            "SELECT row_to_json(t.*) AS row_data FROM {} TABLESAMPLE BERNOULLI({:.4}) AS t LIMIT $1",
+            base_table, pct
+        )
+    } else {
+        let order_clause = generate_order_by_clause(&strategy, true); // DESC for most recent
+        format!(
+            "SELECT row_to_json(t.*) AS row_data FROM {} t {} LIMIT $1",
+            base_table, order_clause
+        )
+    };
 
     tracing::debug!(
         "Sampling {} with query: {} (limit: {})",
@@ -491,7 +632,7 @@ pub async fn sample_table(
 
     // Execute sample query
     let rows: Vec<JsonValue> = sqlx::query_scalar(&sample_query)
-        .bind(config.sample_size as i64)
+        .bind(i64::from(config.sample_size))
         .fetch_all(pool)
         .await
         .map_err(|e| {
@@ -501,7 +642,7 @@ pub async fn sample_table(
             )
         })?;
 
-    let actual_sample_size = rows.len() as u32;
+    let actual_sample_size = u32::try_from(rows.len()).unwrap_or(u32::MAX);
 
     // Add warning if we got fewer rows than requested (table has fewer rows)
     if actual_sample_size < config.sample_size && !is_random {
@@ -612,5 +753,345 @@ mod tests {
         };
         let clause = generate_order_by_clause(&strategy, true);
         assert_eq!(clause, r#"ORDER BY "my""col" DESC"#);
+    }
+
+    /// Helper to build a `Column` with sensible defaults for testing.
+    fn make_column(
+        name: &str,
+        ordinal: u32,
+        data_type: UnifiedDataType,
+        is_pk: bool,
+        is_auto: bool,
+    ) -> Column {
+        Column {
+            name: name.to_string(),
+            data_type,
+            is_nullable: false,
+            is_primary_key: is_pk,
+            is_auto_increment: is_auto,
+            default_value: None,
+            comment: None,
+            ordinal_position: ordinal,
+        }
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_primary_key() {
+        let columns = vec![
+            make_column(
+                "id",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true,
+                },
+                true,
+                false,
+            ),
+            make_column(
+                "name",
+                2,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::PrimaryKey {
+                columns: vec!["id".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_composite_pk() {
+        let columns = vec![
+            make_column(
+                "tenant_id",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true,
+                },
+                true,
+                false,
+            ),
+            make_column(
+                "name",
+                2,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+            make_column(
+                "id",
+                3,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true,
+                },
+                true,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::PrimaryKey {
+                columns: vec!["tenant_id".to_string(), "id".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_timestamp() {
+        let columns = vec![
+            make_column(
+                "name",
+                1,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+            make_column(
+                "created_at",
+                2,
+                UnifiedDataType::DateTime {
+                    with_timezone: true,
+                },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::Timestamp {
+                column: "created_at".to_string(),
+                direction: SortDirection::Descending,
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_timestamp_partial_match() {
+        let columns = vec![make_column(
+            "record_created_date",
+            1,
+            UnifiedDataType::DateTime {
+                with_timezone: false,
+            },
+            false,
+            false,
+        )];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::Timestamp {
+                column: "record_created_date".to_string(),
+                direction: SortDirection::Descending,
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_auto_increment() {
+        let columns = vec![
+            make_column(
+                "row_id",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 64,
+                    signed: true,
+                },
+                false,
+                true,
+            ),
+            make_column(
+                "data",
+                2,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::AutoIncrement {
+                column: "row_id".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_unordered() {
+        let columns = vec![
+            make_column(
+                "data",
+                1,
+                UnifiedDataType::String { max_length: None },
+                false,
+                false,
+            ),
+            make_column(
+                "value",
+                2,
+                UnifiedDataType::Float { precision: None },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(strategy, OrderingStrategy::Unordered);
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_pk_takes_priority() {
+        // PK should win even when timestamp and auto-increment are present
+        let columns = vec![
+            make_column(
+                "id",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 32,
+                    signed: true,
+                },
+                true,
+                true,
+            ),
+            make_column(
+                "created_at",
+                2,
+                UnifiedDataType::DateTime {
+                    with_timezone: true,
+                },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::PrimaryKey {
+                columns: vec!["id".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_timestamp_over_auto_increment() {
+        // Timestamp should win over auto-increment when no PK
+        let columns = vec![
+            make_column(
+                "seq",
+                1,
+                UnifiedDataType::Integer {
+                    bits: 64,
+                    signed: true,
+                },
+                false,
+                true,
+            ),
+            make_column(
+                "created_at",
+                2,
+                UnifiedDataType::DateTime {
+                    with_timezone: true,
+                },
+                false,
+                false,
+            ),
+        ];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(
+            strategy,
+            OrderingStrategy::Timestamp {
+                column: "created_at".to_string(),
+                direction: SortDirection::Descending,
+            }
+        );
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_empty() {
+        let strategy = detect_ordering_from_columns(&[]);
+        assert_eq!(strategy, OrderingStrategy::Unordered);
+    }
+
+    #[test]
+    fn test_is_timestamp_type() {
+        assert!(is_timestamp_type(&UnifiedDataType::DateTime {
+            with_timezone: true
+        }));
+        assert!(is_timestamp_type(&UnifiedDataType::DateTime {
+            with_timezone: false
+        }));
+        assert!(is_timestamp_type(&UnifiedDataType::Date));
+        assert!(!is_timestamp_type(&UnifiedDataType::String {
+            max_length: None
+        }));
+        assert!(!is_timestamp_type(&UnifiedDataType::Integer {
+            bits: 32,
+            signed: true
+        }));
+        assert!(!is_timestamp_type(&UnifiedDataType::Time {
+            with_timezone: false
+        }));
+    }
+
+    #[test]
+    fn test_detect_ordering_from_columns_date_type_not_timestamp_name() {
+        // A Date column named "birthday" should NOT match timestamp heuristics
+        let columns = vec![make_column(
+            "birthday",
+            1,
+            UnifiedDataType::Date,
+            false,
+            false,
+        )];
+
+        let strategy = detect_ordering_from_columns(&columns);
+        assert_eq!(strategy, OrderingStrategy::Unordered);
+    }
+
+    #[test]
+    fn test_tablesample_constants_are_sane() {
+        const { assert!(TABLESAMPLE_MIN_ROWS > 0) };
+        const { assert!(TABLESAMPLE_OVERSAMPLING_FACTOR >= 1.0) };
+    }
+
+    /// Verify that `TABLESAMPLE BERNOULLI` percentage calculation stays within bounds.
+    #[test]
+    fn test_tablesample_percentage_clamped() {
+        let sample_size: f64 = 10.0;
+        let estimated: f64 = 1_000_000.0;
+        let pct =
+            (sample_size * TABLESAMPLE_OVERSAMPLING_FACTOR / estimated * 100.0).clamp(0.01, 100.0);
+        // 10 * 2 / 1_000_000 * 100 = 0.002 -> clamped to 0.01
+        assert!((pct - 0.01).abs() < f64::EPSILON);
+
+        // Very small table just above threshold
+        let estimated_small: f64 = 1000.0;
+        let pct_small = (sample_size * TABLESAMPLE_OVERSAMPLING_FACTOR / estimated_small * 100.0)
+            .clamp(0.01, 100.0);
+        // 10 * 2 / 1000 * 100 = 2.0
+        assert!((pct_small - 2.0).abs() < f64::EPSILON);
+
+        // When sample_size > total, pct should clamp to 100
+        let estimated_tiny: f64 = 1.0;
+        let pct_over =
+            (10000.0 * TABLESAMPLE_OVERSAMPLING_FACTOR / estimated_tiny * 100.0).clamp(0.01, 100.0);
+        assert!((pct_over - 100.0).abs() < f64::EPSILON);
     }
 }

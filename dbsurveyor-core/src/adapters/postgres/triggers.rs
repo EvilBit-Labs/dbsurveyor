@@ -14,8 +14,8 @@
 //! - `DELETE` - Row deletion
 //! - `TRUNCATE` - Table truncation (PostgreSQL 8.4+)
 
+use super::RowExt;
 use crate::Result;
-use crate::adapters::helpers::RowExt;
 use crate::models::{Trigger, TriggerEvent, TriggerTiming};
 use sqlx::PgPool;
 

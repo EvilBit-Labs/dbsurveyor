@@ -149,6 +149,8 @@ pub async fn sample_collection(
     collection: &str,
     config: &SamplingConfig,
 ) -> Result<TableSample> {
+    config.validate()?;
+
     let mut warnings = Vec::new();
 
     // Apply rate limiting delay if configured
@@ -195,9 +197,9 @@ pub async fn sample_collection(
         }
     };
 
-    let documents: Vec<Document> = if use_random {
+    let rows: Vec<JsonValue> = if use_random {
         // Use $sample aggregation for random sampling
-        sample_random(client, database, collection, config.sample_size).await?
+        sample_random_as_json(client, database, collection, config.sample_size).await?
     } else {
         // Use find with sort for ordered sampling
         let sort_doc = generate_sort_document(&strategy, true);
@@ -220,7 +222,7 @@ pub async fn sample_collection(
                 )
             })?;
 
-        let mut docs = Vec::new();
+        let mut json_rows = Vec::new();
         while cursor.advance().await.map_err(|e| {
             crate::error::DbSurveyorError::collection_failed(
                 format!("Failed to iterate cursor for '{}.{}'", database, collection),
@@ -236,18 +238,12 @@ pub async fn sample_collection(
                     e,
                 )
             })?;
-            docs.push(doc);
+            json_rows.push(bson_doc_to_json(&doc));
         }
-        docs
+        json_rows
     };
 
-    // Convert BSON documents to JSON
-    let rows: Vec<JsonValue> = documents
-        .into_iter()
-        .map(|doc| bson_doc_to_json(&doc))
-        .collect();
-
-    let actual_sample_size = rows.len() as u32;
+    let actual_sample_size = u32::try_from(rows.len()).unwrap_or(u32::MAX);
 
     if actual_sample_size < config.sample_size && !use_random {
         tracing::debug!(
@@ -272,18 +268,19 @@ pub async fn sample_collection(
     })
 }
 
-/// Samples documents using the $sample aggregation stage for random sampling.
-async fn sample_random(
+/// Samples documents using the $sample aggregation stage for random sampling,
+/// converting each BSON document to JSON as it arrives from the cursor.
+async fn sample_random_as_json(
     client: &Client,
     database: &str,
     collection: &str,
     sample_size: u32,
-) -> Result<Vec<Document>> {
+) -> Result<Vec<JsonValue>> {
     let db = client.database(database);
     let coll = db.collection::<Document>(collection);
 
     // Use $sample aggregation stage
-    let pipeline = vec![doc! { "$sample": { "size": sample_size as i64 } }];
+    let pipeline = vec![doc! { "$sample": { "size": i64::from(sample_size) } }];
 
     let mut cursor = coll.aggregate(pipeline).await.map_err(|e| {
         crate::error::DbSurveyorError::collection_failed(
@@ -295,7 +292,7 @@ async fn sample_random(
         )
     })?;
 
-    let mut docs = Vec::new();
+    let mut rows = Vec::new();
     while cursor.advance().await.map_err(|e| {
         crate::error::DbSurveyorError::collection_failed(
             format!(
@@ -314,10 +311,10 @@ async fn sample_random(
                 e,
             )
         })?;
-        docs.push(doc);
+        rows.push(bson_doc_to_json(&doc));
     }
 
-    Ok(docs)
+    Ok(rows)
 }
 
 /// Converts a BSON document to a JSON value.

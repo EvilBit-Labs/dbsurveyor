@@ -256,4 +256,93 @@ mod tests {
         let result = parse_connection_string("file:///path/to/db");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_parse_connection_string_password_with_at_sign() {
+        // Password contains @ which must be URL-encoded as %40
+        let (config, creds) =
+            parse_connection_string("postgres://admin:p%40ssword@db.example.com:5432/mydb")
+                .unwrap();
+
+        assert_eq!(config.scheme, "postgres");
+        assert_eq!(config.host, "db.example.com");
+        assert_eq!(config.port, Some(5432));
+        assert_eq!(config.database, Some("mydb".to_string()));
+        assert_eq!(creds.username(), "admin");
+        assert!(creds.has_password());
+    }
+
+    #[test]
+    fn test_parse_connection_string_password_with_percent_encoded_at() {
+        // %40 is the URL encoding of @; the url crate decodes it
+        let (config, creds) =
+            parse_connection_string("postgres://user:secret%40value@localhost:5432/testdb")
+                .unwrap();
+
+        assert_eq!(config.host, "localhost");
+        assert_eq!(config.database, Some("testdb".to_string()));
+        assert_eq!(creds.username(), "user");
+        assert!(creds.has_password());
+    }
+
+    #[test]
+    fn test_parse_connection_string_password_with_unicode() {
+        // Unicode characters in password must be percent-encoded in URLs.
+        // \u{00e9} = e-acute, \u{00f1} = n-tilde
+        // URL-encoded form: %C3%A9 for e-acute, %C3%B1 for n-tilde
+        let (config, creds) =
+            parse_connection_string("postgres://admin:p%C3%A9ss%C3%B1ord@localhost:5432/testdb")
+                .unwrap();
+
+        assert_eq!(config.host, "localhost");
+        assert_eq!(config.database, Some("testdb".to_string()));
+        assert_eq!(creds.username(), "admin");
+        assert!(creds.has_password());
+    }
+
+    #[test]
+    fn test_parse_connection_string_special_chars_in_database_name() {
+        // Database names with hyphens and underscores
+        let (config, _creds) =
+            parse_connection_string("postgres://user:pass@localhost:5432/my-test_db.v2").unwrap();
+
+        assert_eq!(config.database, Some("my-test_db.v2".to_string()));
+    }
+
+    #[test]
+    fn test_parse_connection_string_database_name_with_encoded_chars() {
+        // Database name containing percent-encoded special characters
+        let (config, _creds) =
+            parse_connection_string("postgres://user:pass@localhost:5432/my%20database").unwrap();
+
+        assert_eq!(config.database, Some("my%20database".to_string()));
+    }
+
+    #[test]
+    fn test_parse_connection_string_password_with_multiple_special_chars() {
+        // Password with colon, hash, slash, and other special characters
+        // All must be percent-encoded: : = %3A, # = %23, / = %2F, ? = %3F
+        let (config, creds) =
+            parse_connection_string("postgres://admin:p%3Ass%23w%2Frd%3F@localhost:5432/testdb")
+                .unwrap();
+
+        assert_eq!(config.host, "localhost");
+        assert_eq!(config.database, Some("testdb".to_string()));
+        assert_eq!(creds.username(), "admin");
+        assert!(creds.has_password());
+    }
+
+    #[test]
+    fn test_parse_connection_string_unencoded_at_in_password() {
+        // An unencoded @ in the password: the url crate uses the last @
+        // as the userinfo delimiter, so "user:p@ss" becomes the userinfo
+        // and "localhost" remains the host. The password is parsed as
+        // "p@ss" (with the embedded @). This test verifies the parser
+        // does not panic and produces a parseable result.
+        let result = parse_connection_string("postgres://user:p@ss@localhost:5432/testdb");
+        // The url crate parses this successfully but the credentials
+        // may not match what the user intended. The important thing is
+        // no panic and no undefined behavior.
+        assert!(result.is_ok());
+    }
 }

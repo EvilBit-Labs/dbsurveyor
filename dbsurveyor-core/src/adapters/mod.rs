@@ -218,34 +218,6 @@ pub async fn create_adapter(connection_string: &str) -> Result<Box<dyn DatabaseA
     }
 }
 
-/// Safely redacts credentials from database connection URLs.
-///
-/// This function ensures that passwords in connection strings are never
-/// exposed in logs, error messages, or any output.
-///
-/// # Arguments
-/// * `url` - Database connection URL that may contain credentials
-///
-/// # Returns
-/// Returns a sanitized string with passwords masked as "****"
-///
-/// # Example
-/// ```rust
-/// use dbsurveyor_core::adapters::redact_database_url;
-///
-/// let sanitized = redact_database_url("postgres://user:secret@localhost/db");
-/// assert_eq!(sanitized, "postgres://user:****@localhost/db");
-/// assert!(!sanitized.contains("secret"));
-/// ```
-///
-/// # Note
-/// This function delegates to `crate::error::redact_database_url` for consistency.
-/// Invalid URLs are fully redacted as "<redacted>" for security.
-#[inline]
-pub fn redact_database_url(url: &str) -> String {
-    crate::error::redact_database_url(url)
-}
-
 /// Detects database type from connection string.
 ///
 /// # Arguments
@@ -365,33 +337,6 @@ mod tests {
         );
 
         assert!(detect_database_type("invalid://connection").is_err());
-    }
-
-    #[test]
-    fn test_redact_database_url() {
-        // Test PostgreSQL URL
-        let url = "postgres://user:secret123@localhost:5432/db";
-        let redacted = redact_database_url(url);
-        assert!(!redacted.contains("secret123"));
-        assert!(redacted.contains("user:****"));
-        assert!(redacted.contains("localhost:5432"));
-        assert!(redacted.contains("/db"));
-
-        // Test MySQL URL
-        let url = "mysql://admin:password@example.com:3306/testdb";
-        let redacted = redact_database_url(url);
-        assert!(!redacted.contains("password"));
-        assert!(redacted.contains("admin:****"));
-
-        // Test URL without password
-        let url = "postgres://user@localhost/db";
-        let redacted = redact_database_url(url);
-        assert_eq!(redacted, url); // Should be unchanged
-
-        // Test SQLite file path (not a valid URL, gets fully redacted for security)
-        let url = "/path/to/database.db";
-        let redacted = redact_database_url(url);
-        assert_eq!(redacted, "<redacted>"); // Invalid URLs are fully redacted
     }
 
     #[test]

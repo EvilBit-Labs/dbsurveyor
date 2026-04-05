@@ -5,6 +5,7 @@
 
 use crate::Result;
 use crate::models::TableSample;
+use rayon::prelude::*;
 
 use super::anomaly::analyze_anomalies;
 use super::completeness::analyze_completeness;
@@ -145,29 +146,37 @@ impl QualityAnalyzer {
     /// # Returns
     /// A vector of quality metrics for successfully analyzed samples.
     pub fn analyze_all(&self, samples: &[TableSample]) -> Result<Vec<TableQualityMetrics>> {
-        let mut results = Vec::with_capacity(samples.len());
-        for sample in samples {
-            match self.analyze(sample) {
-                Ok(metrics) => results.push(metrics),
+        let results: Vec<TableQualityMetrics> = samples
+            .par_iter()
+            .filter_map(|sample| match self.analyze(sample) {
+                Ok(metrics) => Some(metrics),
                 Err(e) => {
                     tracing::warn!(
                         "Quality analysis failed for table '{}': {}",
                         sample.table_name,
                         e
                     );
+                    None
                 }
-            }
-        }
+            })
+            .collect();
         Ok(results)
     }
 
     /// Calculates the overall quality score from individual metrics.
     ///
-    /// The score is a weighted average of completeness, consistency,
-    /// and uniqueness scores.
+    /// The score is a normalized weighted average of completeness, consistency,
+    /// and uniqueness scores: `(c*wc + s*ws + u*wu) / (wc + ws + wu)`.
+    /// Returns 0.0 if all weights are zero (division by zero guard).
     fn calculate_quality_score(&self, completeness: f64, consistency: f64, uniqueness: f64) -> f64 {
-        // Equal weighting for all three metrics
-        (completeness + consistency + uniqueness) / 3.0
+        let wc = self.config.completeness_weight;
+        let ws = self.config.consistency_weight;
+        let wu = self.config.uniqueness_weight;
+        let total_weight = wc + ws + wu;
+        if total_weight == 0.0 {
+            return 0.0;
+        }
+        (completeness * wc + consistency * ws + uniqueness * wu) / total_weight
     }
 }
 

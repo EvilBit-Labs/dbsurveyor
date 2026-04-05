@@ -24,17 +24,19 @@ dbsurveyor-collect <COMMAND>
 
 ### Collection Options
 
-| Option                       | Description                      | Default                     | Status         |
-| ---------------------------- | -------------------------------- | --------------------------- | -------------- |
-| `--database-url <URL>`       | Database connection string       | From `DATABASE_URL` env var | ✅ Implemented |
-| `--output <PATH>`            | Output file path                 | `schema.dbsurveyor.json`    | ✅ Implemented |
-| `--sample <N>`               | Number of sample rows per table  | `100`                       | 🚧 Planned     |
-| `--throttle <MS>`            | Delay between operations (ms)    | None                        | 🚧 Planned     |
-| `--compress`                 | Compress output using Zstandard  | `false`                     | ✅ Implemented |
-| `--encrypt`                  | Encrypt output using AES-GCM     | `false`                     | ✅ Implemented |
-| `--all-databases`            | Collect all accessible databases | `false`                     | 🚧 Planned     |
-| `--include-system-databases` | Include system databases         | `false`                     | 🚧 Planned     |
-| `--exclude-databases <LIST>` | Comma-separated list to exclude  | None                        | 🚧 Planned     |
+| Option                       | Description                                                                    | Default                     | Status         |
+| ---------------------------- | ------------------------------------------------------------------------------ | --------------------------- | -------------- |
+| `--database-url <URL>`       | Database connection string                                                     | From `DATABASE_URL` env var | ✅ Implemented |
+| `--output <PATH>`            | Output file path                                                               | `schema.dbsurveyor.json`    | ✅ Implemented |
+| `--sample <N>`               | Number of sample rows per table                                                | `100`                       | 🚧 Planned     |
+| `--throttle <MS>`            | Delay between operations (ms)                                                  | None                        | 🚧 Planned     |
+| `--compress`                 | Compress output using Zstandard                                                | `false`                     | ✅ Implemented |
+| `--encrypt`                  | Encrypt output using AES-GCM                                                   | `false`                     | ✅ Implemented |
+| `--enable-quality`           | Enable data quality analysis on sampled data                                   | `false`                     | ✅ Implemented |
+| `--quality-threshold <LIST>` | Quality thresholds (e.g., `completeness:0.9,uniqueness:0.95,consistency:0.85`) | None                        | ✅ Implemented |
+| `--all-databases`            | Collect all accessible databases                                               | `false`                     | 🚧 Planned     |
+| `--include-system-databases` | Include system databases                                                       | `false`                     | 🚧 Planned     |
+| `--exclude-databases <LIST>` | Comma-separated list to exclude                                                | None                        | 🚧 Planned     |
 
 ### Commands
 
@@ -96,10 +98,15 @@ dbsurveyor-collect --throttle 1000 postgres://localhost/db
 
 ### Environment Variables
 
-| Variable       | Description                                                       |
-| -------------- | ----------------------------------------------------------------- |
-| `DATABASE_URL` | Default database connection string                                |
-| `RUST_LOG`     | Logging configuration (`error`, `warn`, `info`, `debug`, `trace`) |
+| Variable                          | Description                                                       |
+| --------------------------------- | ----------------------------------------------------------------- |
+| `DATABASE_URL`                    | Default database connection string                                |
+| `RUST_LOG`                        | Logging configuration (`error`, `warn`, `info`, `debug`, `trace`) |
+| `DBSURVEYOR_MAX_CONNECTIONS`      | Maximum connection pool size (default: `10`)                      |
+| `DBSURVEYOR_MIN_IDLE_CONNECTIONS` | Minimum idle connections in pool (default: `2`)                   |
+| `DBSURVEYOR_CONNECT_TIMEOUT_SECS` | Connection timeout in seconds (default: `30`)                     |
+| `DBSURVEYOR_IDLE_TIMEOUT_SECS`    | Idle connection timeout in seconds (default: `600`)               |
+| `DBSURVEYOR_MAX_LIFETIME_SECS`    | Maximum connection lifetime in seconds (default: `3600`)          |
 
 ---
 
@@ -246,22 +253,24 @@ DBSurveyor automatically detects input file formats:
 
 ### Exit Codes
 
-| Code | Description                  |
-| ---- | ---------------------------- |
-| `0`  | Success                      |
-| `1`  | General error                |
-| `2`  | Invalid arguments            |
-| `3`  | File not found               |
-| `4`  | Permission denied            |
-| `5`  | Database connection failed   |
-| `6`  | Encryption/decryption failed |
+| Code | Description   |
+| ---- | ------------- |
+| `0`  | Success       |
+| `1`  | General error |
+
+> **Note:** Both binaries currently use exit code `1` for all error conditions. Granular exit codes (e.g., file-not-found, connection failure) may be added in a future release.
 
 ### Environment Variables
 
-| Variable   | Description            |
-| ---------- | ---------------------- |
-| `RUST_LOG` | Logging configuration  |
-| `NO_COLOR` | Disable colored output |
+| Variable                          | Description                                              |
+| --------------------------------- | -------------------------------------------------------- |
+| `RUST_LOG`                        | Logging configuration                                    |
+| `NO_COLOR`                        | Disable colored output                                   |
+| `DBSURVEYOR_MAX_CONNECTIONS`      | Maximum connection pool size (default: `10`)             |
+| `DBSURVEYOR_MIN_IDLE_CONNECTIONS` | Minimum idle connections in pool (default: `2`)          |
+| `DBSURVEYOR_CONNECT_TIMEOUT_SECS` | Connection timeout in seconds (default: `30`)            |
+| `DBSURVEYOR_IDLE_TIMEOUT_SECS`    | Idle connection timeout in seconds (default: `600`)      |
+| `DBSURVEYOR_MAX_LIFETIME_SECS`    | Maximum connection lifetime in seconds (default: `3600`) |
 
 ## Common Usage Patterns
 

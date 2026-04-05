@@ -75,8 +75,8 @@ If this PR includes breaking changes:
 
 ## Related Issues
 
-Closes #[issue_number]
-Related to #[issue_number]
+- Closes #[issue_number]
+- Related to #[issue_number]
 
 ## Additional Notes
 

@@ -16,4 +16,4 @@ mod sampling;
 
 pub use collection::{CollectionConfig, OutputFormat};
 pub use connection::ConnectionConfig;
-pub use sampling::{SamplingConfig, SensitivePattern};
+pub use sampling::{MAX_SAMPLE_SIZE, SamplingConfig, SensitivePattern};

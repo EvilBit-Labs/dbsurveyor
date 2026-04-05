@@ -10,9 +10,10 @@
 //! - `PRAGMA index_list()`: Returns index information
 //! - `PRAGMA index_info()`: Returns columns in an index
 
-use super::SqliteAdapter;
 use super::type_mapping::map_sqlite_type;
+use super::{SqliteAdapter, escape_identifier, escape_pragma_arg};
 use crate::Result;
+use crate::adapters::helpers::resolve_optional_collection;
 use crate::models::*;
 use sqlx::Row;
 use std::collections::HashMap;
@@ -58,32 +59,11 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
     };
 
     // Collect views
-    let views = match collect_views(adapter).await {
-        Ok(views) => {
-            tracing::info!("Successfully collected {} views", views.len());
-            views
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect views: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let views = resolve_optional_collection("views", collect_views(adapter).await, &mut warnings);
 
     // Collect triggers
-    let triggers = match collect_triggers(adapter).await {
-        Ok(triggers) => {
-            tracing::info!("Successfully collected {} triggers", triggers.len());
-            triggers
-        }
-        Err(e) => {
-            let warning = format!("Failed to collect triggers: {}", e);
-            tracing::warn!("{}", warning);
-            warnings.push(warning);
-            Vec::new()
-        }
-    };
+    let triggers =
+        resolve_optional_collection("triggers", collect_triggers(adapter).await, &mut warnings);
 
     let collection_duration = start_time.elapsed();
 
@@ -95,22 +75,13 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
         triggers.len()
     );
 
-    // Aggregate all indexes and constraints from tables
-    let mut all_indexes = Vec::new();
-    let mut all_constraints = Vec::new();
-
-    for table in &tables {
-        all_indexes.extend(table.indexes.clone());
-        all_constraints.extend(table.constraints.clone());
-    }
-
-    Ok(DatabaseSchema {
+    let schema = DatabaseSchema {
         format_version: FORMAT_VERSION.to_string(),
         database_info,
         tables,
         views,
-        indexes: all_indexes,
-        constraints: all_constraints,
+        indexes: Vec::new(),
+        constraints: Vec::new(),
         procedures: Vec::new(), // SQLite doesn't have stored procedures
         functions: Vec::new(),  // SQLite doesn't have user-defined functions in schema
         triggers,
@@ -119,11 +90,17 @@ pub(crate) async fn collect_schema(adapter: &SqliteAdapter) -> Result<DatabaseSc
         quality_metrics: None,
         collection_metadata: CollectionMetadata {
             collected_at: chrono::Utc::now(),
-            collection_duration_ms: collection_duration.as_millis() as u64,
+            collection_duration_ms: u64::try_from(collection_duration.as_millis())
+                .unwrap_or(u64::MAX),
             collector_version: env!("CARGO_PKG_VERSION").to_string(),
             warnings,
         },
-    })
+    };
+
+    // Aggregate indexes and constraints from per-table data into schema-level vectors
+    let schema = schema.with_aggregated_indexes_and_constraints();
+
+    Ok(schema)
 }
 
 /// Collects database information from SQLite.
@@ -147,7 +124,7 @@ async fn collect_database_info(adapter: &SqliteAdapter, db_name: &str) -> Result
             .fetch_one(&adapter.pool)
             .await
             .unwrap_or(4096);
-        Some((page_count * page_size) as u64)
+        Some(page_count.max(0) as u64 * page_size.max(0) as u64)
     } else {
         None
     };
@@ -243,7 +220,7 @@ async fn collect_tables(adapter: &SqliteAdapter) -> Result<Vec<Table>> {
 /// Collects column metadata for a specific table.
 async fn collect_table_columns(adapter: &SqliteAdapter, table_name: &str) -> Result<Vec<Column>> {
     // Use PRAGMA table_info to get column details
-    let columns_query = format!("PRAGMA table_info('{}')", table_name.replace('\'', "''"));
+    let columns_query = format!("PRAGMA table_info({})", escape_pragma_arg(table_name));
 
     let column_rows = sqlx::query(&columns_query)
         .fetch_all(&adapter.pool)
@@ -258,12 +235,22 @@ async fn collect_table_columns(adapter: &SqliteAdapter, table_name: &str) -> Res
     let mut columns = Vec::new();
 
     for row in column_rows.iter() {
-        let cid: i32 = row.try_get("cid").unwrap_or(0);
-        let name: String = row.try_get("name").unwrap_or_default();
-        let data_type: String = row.try_get("type").unwrap_or_default();
-        let notnull: i32 = row.try_get("notnull").unwrap_or(0);
+        let cid: i32 = row.try_get("cid").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse cid", e)
+        })?;
+        let name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse column name", e)
+        })?;
+        let data_type: String = row.try_get("type").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse column type", e)
+        })?;
+        let notnull: i32 = row.try_get("notnull").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse notnull", e)
+        })?;
         let default_value: Option<String> = row.try_get("dflt_value").ok();
-        let pk: i32 = row.try_get("pk").unwrap_or(0);
+        let pk: i32 = row.try_get("pk").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse pk", e)
+        })?;
 
         // Map SQLite data type to unified data type
         let unified_data_type = map_sqlite_type(&data_type);
@@ -285,7 +272,7 @@ async fn collect_table_columns(adapter: &SqliteAdapter, table_name: &str) -> Res
             is_auto_increment,
             default_value,
             comment: None, // SQLite doesn't support column comments
-            ordinal_position: cid as u32,
+            ordinal_position: u32::try_from(cid + 1).unwrap_or(0),
         };
 
         columns.push(column);
@@ -317,10 +304,7 @@ async fn collect_table_foreign_keys(
     adapter: &SqliteAdapter,
     table_name: &str,
 ) -> Result<Vec<ForeignKey>> {
-    let fk_query = format!(
-        "PRAGMA foreign_key_list('{}')",
-        table_name.replace('\'', "''")
-    );
+    let fk_query = format!("PRAGMA foreign_key_list({})", escape_pragma_arg(table_name));
 
     let fk_rows = sqlx::query(&fk_query)
         .fetch_all(&adapter.pool)
@@ -336,11 +320,21 @@ async fn collect_table_foreign_keys(
     let mut fk_map: HashMap<i32, ForeignKey> = HashMap::new();
 
     for row in fk_rows {
-        let id: i32 = row.try_get("id").unwrap_or(0);
-        let seq: i32 = row.try_get("seq").unwrap_or(0);
-        let ref_table: String = row.try_get("table").unwrap_or_default();
-        let from_col: String = row.try_get("from").unwrap_or_default();
-        let to_col: String = row.try_get("to").unwrap_or_default();
+        let id: i32 = row.try_get("id").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse FK id", e)
+        })?;
+        let seq: i32 = row.try_get("seq").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse FK seq", e)
+        })?;
+        let ref_table: String = row.try_get("table").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse referenced table", e)
+        })?;
+        let from_col: String = row.try_get("from").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse FK from column", e)
+        })?;
+        let to_col: String = row.try_get("to").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse FK to column", e)
+        })?;
         let on_update: String = row.try_get("on_update").unwrap_or_default();
         let on_delete: String = row.try_get("on_delete").unwrap_or_default();
 
@@ -381,7 +375,7 @@ fn parse_referential_action(action: &str) -> Option<ReferentialAction> {
 
 /// Collects indexes for a table.
 async fn collect_table_indexes(adapter: &SqliteAdapter, table_name: &str) -> Result<Vec<Index>> {
-    let index_list_query = format!("PRAGMA index_list('{}')", table_name.replace('\'', "''"));
+    let index_list_query = format!("PRAGMA index_list({})", escape_pragma_arg(table_name));
 
     let index_rows = sqlx::query(&index_list_query)
         .fetch_all(&adapter.pool)
@@ -396,8 +390,12 @@ async fn collect_table_indexes(adapter: &SqliteAdapter, table_name: &str) -> Res
     let mut indexes = Vec::new();
 
     for row in index_rows {
-        let index_name: String = row.try_get("name").unwrap_or_default();
-        let is_unique: i32 = row.try_get("unique").unwrap_or(0);
+        let index_name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse index name", e)
+        })?;
+        let is_unique: i32 = row.try_get("unique").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse index unique flag", e)
+        })?;
         let origin: String = row.try_get("origin").unwrap_or_default();
 
         // Skip auto-created indexes (pk = primary key, u = unique constraint)
@@ -427,7 +425,7 @@ async fn collect_index_columns(
     adapter: &SqliteAdapter,
     index_name: &str,
 ) -> Result<Vec<IndexColumn>> {
-    let index_info_query = format!("PRAGMA index_info('{}')", index_name.replace('\'', "''"));
+    let index_info_query = format!("PRAGMA index_info({})", escape_pragma_arg(index_name));
 
     let column_rows = sqlx::query(&index_info_query)
         .fetch_all(&adapter.pool)
@@ -442,7 +440,9 @@ async fn collect_index_columns(
     let mut columns = Vec::new();
 
     for row in column_rows {
-        let name: String = row.try_get("name").unwrap_or_default();
+        let name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse index column name", e)
+        })?;
 
         // SQLite doesn't store sort order in index_info, default to ascending
         columns.push(IndexColumn {
@@ -479,10 +479,7 @@ fn collect_table_constraints(columns: &[Column], table_name: &str) -> Vec<Constr
 async fn get_table_row_count(adapter: &SqliteAdapter, table_name: &str) -> Result<u64> {
     // Use a simple COUNT(*) for small tables
     // For larger tables, this could be slow, but SQLite doesn't have table statistics
-    let query = format!(
-        "SELECT COUNT(*) FROM \"{}\"",
-        table_name.replace('"', "\"\"")
-    );
+    let query = format!("SELECT COUNT(*) FROM {}", escape_identifier(table_name));
 
     let count: i64 = sqlx::query_scalar(&query)
         .fetch_one(&adapter.pool)
@@ -494,7 +491,7 @@ async fn get_table_row_count(adapter: &SqliteAdapter, table_name: &str) -> Resul
             )
         })?;
 
-    Ok(count as u64)
+    Ok(count.max(0) as u64)
 }
 
 /// Collects views from the SQLite database.
@@ -517,7 +514,9 @@ async fn collect_views(adapter: &SqliteAdapter) -> Result<Vec<View>> {
     let mut views = Vec::new();
 
     for row in view_rows {
-        let view_name: String = row.try_get("name").unwrap_or_default();
+        let view_name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse view name", e)
+        })?;
         let definition: Option<String> = row.try_get("sql").ok();
 
         // Collect view columns (same method as table columns)
@@ -557,8 +556,15 @@ async fn collect_triggers(adapter: &SqliteAdapter) -> Result<Vec<Trigger>> {
     let mut triggers = Vec::new();
 
     for row in trigger_rows {
-        let trigger_name: String = row.try_get("name").unwrap_or_default();
-        let table_name: String = row.try_get("tbl_name").unwrap_or_default();
+        let trigger_name: String = row.try_get("name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed("Failed to parse trigger name", e)
+        })?;
+        let table_name: String = row.try_get("tbl_name").map_err(|e| {
+            crate::error::DbSurveyorError::collection_failed(
+                "Failed to parse trigger table name",
+                e,
+            )
+        })?;
         let definition: Option<String> = row.try_get("sql").ok();
 
         // Parse trigger timing and event from SQL definition

@@ -58,7 +58,7 @@ skip-tree = []
 yanked = "deny"
 ignore = [
     # RSA timing attack - no fix available, in sqlx-mysql transitive dependency
-    # Review: check for upstream fix periodically (last checked 2026-02-10)
+    # Review: check for upstream fix periodically (last checked 2026-04-04)
     "RUSTSEC-2023-0071",
     # rustls-pemfile unmaintained - in testcontainers dev dependency only
     "RUSTSEC-2025-0134",

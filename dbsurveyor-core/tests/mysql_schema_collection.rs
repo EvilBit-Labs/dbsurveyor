@@ -12,37 +12,12 @@
 use dbsurveyor_core::{
     Result,
     adapters::{DatabaseAdapter, mysql::MySqlAdapter},
-    error::DbSurveyorError,
     models::DatabaseType,
 };
 use sqlx::MySqlPool;
-use std::time::Duration;
 use testcontainers_modules::{mysql::Mysql, testcontainers::runners::AsyncRunner};
 
-/// Helper function to wait for MySQL to be ready
-async fn wait_for_mysql_ready(database_url: &str, max_attempts: u32) -> Result<()> {
-    let mut attempts = 0;
-    while attempts < max_attempts {
-        if let Ok(pool) = MySqlPool::connect(database_url).await {
-            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
-                pool.close().await;
-                return Ok(());
-            }
-            pool.close().await;
-        }
-        attempts += 1;
-        if attempts < max_attempts {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-    }
-    Err(DbSurveyorError::connection_failed(std::io::Error::new(
-        std::io::ErrorKind::TimedOut,
-        format!(
-            "MySQL failed to become ready after {} attempts",
-            max_attempts
-        ),
-    )))
-}
+mod common;
 
 /// Test basic table collection
 #[tokio::test]
@@ -51,7 +26,7 @@ async fn test_collect_tables() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create test tables
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -128,7 +103,7 @@ async fn test_collect_primary_keys() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create table with primary key
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -166,7 +141,7 @@ async fn test_collect_composite_primary_key() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create table with composite primary key
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -207,7 +182,7 @@ async fn test_collect_foreign_keys() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create tables with foreign key
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -260,7 +235,7 @@ async fn test_collect_indexes() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create table with indexes
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -318,7 +293,7 @@ async fn test_collect_views() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create table and view
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -360,7 +335,7 @@ async fn test_data_type_mapping() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create table with various data types
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -418,7 +393,7 @@ async fn test_mysql_connection_config() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     let adapter = MySqlAdapter::new(&database_url).await?;
 
@@ -439,7 +414,7 @@ async fn test_mysql_database_type() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     let adapter = MySqlAdapter::new(&database_url).await?;
     assert_eq!(adapter.database_type(), DatabaseType::MySQL);
@@ -454,7 +429,7 @@ async fn test_mysql_test_connection() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     let adapter = MySqlAdapter::new(&database_url).await?;
     let result = adapter.test_connection().await;

@@ -10,6 +10,7 @@ use crate::Result;
 use sqlx::MySqlPool;
 use std::time::Duration;
 use url::Url;
+use zeroize::Zeroizing;
 
 /// Pool statistics for monitoring connection pool health and usage
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,7 +52,7 @@ impl MySqlAdapter {
         let adapter = Self {
             pool,
             config,
-            connection_url: connection_string.to_string(),
+            connection_url: Zeroizing::new(connection_string.to_string()),
         };
         Ok(adapter)
     }
@@ -77,7 +78,7 @@ impl MySqlAdapter {
         let adapter = Self {
             pool,
             config,
-            connection_url: connection_string.to_string(),
+            connection_url: Zeroizing::new(connection_string.to_string()),
         };
         Ok(adapter)
     }
@@ -337,7 +338,7 @@ async fn create_mysql_connection_pool(
             crate::error::DbSurveyorError::collection_failed(
                 format!(
                     "Failed to create MySQL connection pool to {}",
-                    crate::adapters::redact_database_url(connection_string)
+                    crate::error::redact_database_url(connection_string)
                 ),
                 e,
             )

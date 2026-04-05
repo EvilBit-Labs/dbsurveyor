@@ -296,24 +296,32 @@ async fn get_collection_stats(
     let count = result
         .get_i64("count")
         .ok()
-        .map(|c| c as u64)
-        .or_else(|| result.get_i32("count").ok().map(|c| c as u64));
+        .map(|c| c.max(0) as u64)
+        .or_else(|| result.get_i32("count").ok().map(|c| c.max(0) as u64));
     let size = result
         .get_i64("size")
         .ok()
-        .map(|s| s as u64)
-        .or_else(|| result.get_i32("size").ok().map(|s| s as u64));
+        .map(|s| s.max(0) as u64)
+        .or_else(|| result.get_i32("size").ok().map(|s| s.max(0) as u64));
     let avg_obj_size = result
         .get_i64("avgObjSize")
         .ok()
-        .map(|a| a as u64)
-        .or_else(|| result.get_i32("avgObjSize").ok().map(|a| a as u64));
-    let num_indexes = result.get_i32("nindexes").ok().map(|n| n as u32);
+        .map(|a| a.max(0) as u64)
+        .or_else(|| result.get_i32("avgObjSize").ok().map(|a| a.max(0) as u64));
+    let num_indexes = result
+        .get_i32("nindexes")
+        .ok()
+        .and_then(|n| u32::try_from(n).ok());
     let total_index_size = result
         .get_i64("totalIndexSize")
         .ok()
-        .map(|s| s as u64)
-        .or_else(|| result.get_i32("totalIndexSize").ok().map(|s| s as u64));
+        .map(|s| s.max(0) as u64)
+        .or_else(|| {
+            result
+                .get_i32("totalIndexSize")
+                .ok()
+                .map(|s| s.max(0) as u64)
+        });
     let is_capped = result.get_bool("capped").unwrap_or(false);
 
     // Check if it's a view (views don't have 'count' in collStats, they have 'ns' matching)

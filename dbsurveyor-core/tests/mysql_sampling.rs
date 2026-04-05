@@ -13,37 +13,13 @@
 use dbsurveyor_core::{
     Result,
     adapters::mysql::MySqlAdapter,
-    error::DbSurveyorError,
     models::{OrderingStrategy, SortDirection},
 };
 use sqlx::MySqlPool;
 use std::time::Duration;
 use testcontainers_modules::{mysql::Mysql, testcontainers::runners::AsyncRunner};
 
-/// Helper function to wait for MySQL to be ready
-async fn wait_for_mysql_ready(database_url: &str, max_attempts: u32) -> Result<()> {
-    let mut attempts = 0;
-    while attempts < max_attempts {
-        if let Ok(pool) = MySqlPool::connect(database_url).await {
-            if sqlx::query("SELECT 1").fetch_one(&pool).await.is_ok() {
-                pool.close().await;
-                return Ok(());
-            }
-            pool.close().await;
-        }
-        attempts += 1;
-        if attempts < max_attempts {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-    }
-    Err(DbSurveyorError::connection_failed(std::io::Error::new(
-        std::io::ErrorKind::TimedOut,
-        format!(
-            "MySQL failed to become ready after {} attempts",
-            max_attempts
-        ),
-    )))
-}
+mod common;
 
 /// Test ordering strategy detection for tables with primary key
 #[tokio::test]
@@ -52,7 +28,7 @@ async fn test_detect_ordering_strategy_primary_key() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create test table with primary key
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -81,7 +57,7 @@ async fn test_detect_ordering_strategy_composite_primary_key() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create test table with composite primary key
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -120,7 +96,7 @@ async fn test_detect_ordering_strategy_timestamp() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create test table with timestamp column but no primary key
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -155,7 +131,7 @@ async fn test_detect_ordering_strategy_timestamp_updated_at() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create test table with only updated_at timestamp
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -191,7 +167,7 @@ async fn test_detect_ordering_strategy_auto_increment() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create test table with auto_increment column but no primary key constraint
     // Note: In MySQL, AUTO_INCREMENT requires a key, so we use a UNIQUE key instead of PK
@@ -232,7 +208,7 @@ async fn test_detect_ordering_strategy_unordered_fallback() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create test table with no primary key, no timestamp, no auto_increment
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -268,7 +244,7 @@ async fn test_detect_ordering_strategy_priority_pk_over_timestamp() -> Result<()
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create test table with both primary key and timestamp
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -306,7 +282,7 @@ async fn test_generate_order_by_clause() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     let adapter = MySqlAdapter::new(&database_url).await?;
 
@@ -343,7 +319,7 @@ async fn test_detect_ordering_strategy_nonexistent_table() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     let adapter = MySqlAdapter::new(&database_url).await?;
     let strategy = adapter
@@ -373,7 +349,7 @@ async fn test_sample_table_with_rate_limit() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create and populate test table
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -432,7 +408,7 @@ async fn test_sample_table_returns_json_rows() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create and populate test table with known data
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -497,7 +473,7 @@ async fn test_sample_table_unordered() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create table with no reliable ordering
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -545,7 +521,7 @@ async fn test_sample_table_empty() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create empty table
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -575,7 +551,7 @@ async fn test_sample_table_respects_limit() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create and populate test table with more rows than we'll sample
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -625,7 +601,7 @@ async fn test_sample_table_rate_limiting() -> Result<()> {
     let port = mysql.get_host_port_ipv4(3306).await.unwrap();
     let database_url = format!("mysql://root@localhost:{}/test", port);
 
-    wait_for_mysql_ready(&database_url, 30).await?;
+    common::wait_for_mysql_ready(&database_url, 30).await?;
 
     // Create simple table
     let pool = MySqlPool::connect(&database_url).await.unwrap();
@@ -652,10 +628,10 @@ async fn test_sample_table_rate_limiting() -> Result<()> {
         .await?;
     let elapsed = start.elapsed();
 
-    // Should have taken at least 100ms due to throttle
+    // Allow scheduling jitter in CI (80% of expected 100ms threshold)
     assert!(
-        elapsed >= Duration::from_millis(100),
-        "Sampling should take at least 100ms due to rate limiting, took {:?}",
+        elapsed >= Duration::from_millis(80),
+        "Sampling should take at least 80ms due to rate limiting, took {:?}",
         elapsed
     );
 

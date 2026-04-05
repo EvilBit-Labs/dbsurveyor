@@ -463,7 +463,7 @@ async fn test_postgres_insufficient_privileges() -> Result<(), Box<dyn std::erro
 /// Test connection string redaction in error messages
 #[tokio::test]
 async fn test_postgres_credential_redaction() {
-    use dbsurveyor_core::adapters::redact_database_url;
+    use dbsurveyor_core::error::redact_database_url;
 
     // Test URL redaction
     let url = "postgres://user:secret123@localhost:5432/testdb";

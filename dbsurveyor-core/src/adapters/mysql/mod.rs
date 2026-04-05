@@ -12,10 +12,10 @@
 //! - Query timeouts prevent resource exhaustion
 //! - Connection pooling with configurable limits
 
-pub mod connection;
-pub mod sampling;
-pub mod schema_collection;
-pub mod type_mapping;
+mod connection;
+mod sampling;
+mod schema_collection;
+mod type_mapping;
 
 #[cfg(test)]
 mod tests;
@@ -25,10 +25,11 @@ use crate::Result;
 use crate::models::*;
 use async_trait::async_trait;
 use sqlx::MySqlPool;
+use zeroize::Zeroizing;
 
 // Re-export public items from submodules
 pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
-pub use type_mapping::map_mysql_type;
+pub use type_mapping::{map_mysql_type, map_referential_action};
 
 /// MySQL database adapter with connection pooling and schema collection
 pub struct MySqlAdapter {
@@ -37,8 +38,10 @@ pub struct MySqlAdapter {
     /// Connection configuration (pool settings, timeouts, etc.)
     pub config: ConnectionConfig,
     /// Original connection URL (stored for creating connections to other databases)
-    /// This is kept private to prevent credential exposure
-    connection_url: String,
+    /// This is kept private to prevent credential exposure.
+    /// Wrapped in `Zeroizing` so the URL (which may contain credentials) is
+    /// scrubbed from memory when the adapter is dropped (CWE-316).
+    connection_url: Zeroizing<String>,
 }
 
 impl std::fmt::Debug for MySqlAdapter {

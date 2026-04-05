@@ -116,15 +116,15 @@ const ARGON2_PARALLELISM: u32 = 4;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KdfParams {
     /// Random salt (16 bytes as per requirements)
-    pub salt: Vec<u8>,
+    pub(crate) salt: Vec<u8>,
     /// Memory cost in KiB (64 MiB = 65536 KiB)
-    pub memory_cost: u32,
+    pub(crate) memory_cost: u32,
     /// Time cost (iterations)
-    pub time_cost: u32,
+    pub(crate) time_cost: u32,
     /// Parallelism factor
-    pub parallelism: u32,
+    pub(crate) parallelism: u32,
     /// Argon2 version (always 1.3 for Argon2id)
-    pub version: String,
+    pub(crate) version: String,
 }
 
 impl Default for KdfParams {
@@ -160,29 +160,54 @@ impl KdfParams {
     /// Returns error if parameters don't meet minimum security thresholds
     pub fn validate(&self) -> crate::Result<()> {
         if self.salt.len() < ARGON2_SALT_SIZE {
-            return Err(crate::error::DbSurveyorError::configuration(format!(
+            return Err(crate::error::DbSurveyorError::encryption_error(format!(
                 "Salt must be at least {} bytes",
                 ARGON2_SALT_SIZE
             )));
         }
         if self.memory_cost < ARGON2_MEMORY_COST {
-            return Err(crate::error::DbSurveyorError::configuration(format!(
+            return Err(crate::error::DbSurveyorError::encryption_error(format!(
                 "Memory cost must be at least {} KiB (64 MiB)",
                 ARGON2_MEMORY_COST
             )));
         }
         if self.time_cost < ARGON2_TIME_COST {
-            return Err(crate::error::DbSurveyorError::configuration(format!(
+            return Err(crate::error::DbSurveyorError::encryption_error(format!(
                 "Time cost must be at least {} iterations",
                 ARGON2_TIME_COST
             )));
         }
         if self.parallelism < 1 {
-            return Err(crate::error::DbSurveyorError::configuration(
+            return Err(crate::error::DbSurveyorError::encryption_error(
                 "Parallelism must be at least 1",
             ));
         }
         Ok(())
+    }
+
+    /// Returns the salt bytes.
+    pub fn salt(&self) -> &[u8] {
+        &self.salt
+    }
+
+    /// Returns the memory cost in KiB.
+    pub fn memory_cost(&self) -> u32 {
+        self.memory_cost
+    }
+
+    /// Returns the time cost (number of iterations).
+    pub fn time_cost(&self) -> u32 {
+        self.time_cost
+    }
+
+    /// Returns the parallelism factor.
+    pub fn parallelism(&self) -> u32 {
+        self.parallelism
+    }
+
+    /// Returns the Argon2 version string.
+    pub fn version(&self) -> &str {
+        &self.version
     }
 }
 
@@ -218,7 +243,7 @@ pub struct EncryptedData {
 fn validate_encrypted_data(encrypted: &EncryptedData) -> crate::Result<()> {
     // Validate algorithm
     if encrypted.algorithm != "AES-GCM-256" {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Unsupported encryption algorithm: {}",
             encrypted.algorithm
         )));
@@ -226,7 +251,7 @@ fn validate_encrypted_data(encrypted: &EncryptedData) -> crate::Result<()> {
 
     // Validate nonce length
     if encrypted.nonce.len() != AES_GCM_NONCE_SIZE {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Invalid nonce length: expected {}, got {}",
             AES_GCM_NONCE_SIZE,
             encrypted.nonce.len()
@@ -235,7 +260,7 @@ fn validate_encrypted_data(encrypted: &EncryptedData) -> crate::Result<()> {
 
     // Validate auth tag length
     if encrypted.auth_tag.len() != AES_GCM_TAG_SIZE {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Invalid authentication tag length: expected {}, got {}",
             AES_GCM_TAG_SIZE,
             encrypted.auth_tag.len()
@@ -273,7 +298,7 @@ fn derive_key(password: &str, kdf_params: &KdfParams) -> crate::Result<Zeroizing
         Some(AES_KEY_SIZE), // Output length: 32 bytes for AES-256
     )
     .map_err(|e| {
-        crate::error::DbSurveyorError::configuration(format!("Invalid Argon2 parameters: {}", e))
+        crate::error::DbSurveyorError::encryption_error(format!("Invalid Argon2 parameters: {}", e))
     })?;
 
     // Create Argon2id instance
@@ -281,23 +306,23 @@ fn derive_key(password: &str, kdf_params: &KdfParams) -> crate::Result<Zeroizing
 
     // Create salt string from bytes
     let salt_string = SaltString::encode_b64(&kdf_params.salt).map_err(|e| {
-        crate::error::DbSurveyorError::configuration(format!("Invalid salt: {}", e))
+        crate::error::DbSurveyorError::encryption_error(format!("Invalid salt: {}", e))
     })?;
 
     // Derive key
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt_string)
         .map_err(|e| {
-            crate::error::DbSurveyorError::configuration(format!("Key derivation failed: {}", e))
+            crate::error::DbSurveyorError::encryption_error(format!("Key derivation failed: {}", e))
         })?;
 
     // Extract the hash bytes (32 bytes for AES-256)
     let hash_bytes = password_hash.hash.ok_or_else(|| {
-        crate::error::DbSurveyorError::configuration("Key derivation produced no output")
+        crate::error::DbSurveyorError::encryption_error("Key derivation produced no output")
     })?;
 
     if hash_bytes.as_bytes().len() != AES_KEY_SIZE {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Key derivation produced incorrect key length: expected {}, got {}",
             AES_KEY_SIZE,
             hash_bytes.as_bytes().len()
@@ -352,13 +377,13 @@ pub fn encrypt_data(data: &[u8], password: &str) -> crate::Result<EncryptedData>
 
     // Encrypt data
     let ciphertext = cipher.encrypt(&nonce, data).map_err(|e| {
-        crate::error::DbSurveyorError::configuration(format!("Encryption failed: {}", e))
+        crate::error::DbSurveyorError::encryption_error(format!("Encryption failed: {}", e))
     })?;
 
     // Split ciphertext and auth tag
     // AES-GCM appends the 16-byte auth tag to the ciphertext
     if ciphertext.len() < AES_GCM_TAG_SIZE {
-        return Err(crate::error::DbSurveyorError::configuration(format!(
+        return Err(crate::error::DbSurveyorError::encryption_error(format!(
             "Encrypted data too short (minimum {} bytes for auth tag)",
             AES_GCM_TAG_SIZE
         )));
@@ -427,13 +452,63 @@ pub fn decrypt_data(encrypted: &EncryptedData, password: &str) -> crate::Result<
     let plaintext = cipher
         .decrypt(nonce, full_ciphertext.as_slice())
         .map_err(|e| {
-            crate::error::DbSurveyorError::configuration(format!(
+            crate::error::DbSurveyorError::encryption_error(format!(
                 "Decryption failed (wrong password or corrupted data): {}",
                 e
             ))
         })?;
 
     Ok(plaintext)
+}
+
+/// Async wrapper for [`encrypt_data`] that offloads the CPU-intensive
+/// Argon2id key derivation to a blocking thread via [`tokio::task::spawn_blocking`].
+///
+/// Use this from async contexts to avoid blocking the Tokio executor.
+///
+/// # Arguments
+/// * `data` - Data to encrypt
+/// * `password` - Password for key derivation
+///
+/// # Returns
+/// Encrypted data container with all parameters needed for decryption
+pub async fn encrypt_data_async(data: &[u8], password: &str) -> crate::Result<EncryptedData> {
+    let data = Zeroizing::new(data.to_vec());
+    let password = Zeroizing::new(password.to_string());
+    tokio::task::spawn_blocking(move || encrypt_data(&data, &password))
+        .await
+        .map_err(|e| {
+            crate::error::DbSurveyorError::encryption_error(format!(
+                "encryption task failed: {}",
+                e
+            ))
+        })?
+}
+
+/// Async wrapper for [`decrypt_data`] that offloads the CPU-intensive
+/// Argon2id key derivation to a blocking thread via [`tokio::task::spawn_blocking`].
+///
+/// Use this from async contexts to avoid blocking the Tokio executor.
+///
+/// # Arguments
+/// * `encrypted` - Encrypted data container
+/// * `password` - Password for key derivation
+///
+/// # Returns
+/// Decrypted plaintext data
+pub async fn decrypt_data_async(
+    encrypted: EncryptedData,
+    password: &str,
+) -> crate::Result<Vec<u8>> {
+    let password = Zeroizing::new(password.to_string());
+    tokio::task::spawn_blocking(move || decrypt_data(&encrypted, &password))
+        .await
+        .map_err(|e| {
+            crate::error::DbSurveyorError::encryption_error(format!(
+                "decryption task failed: {}",
+                e
+            ))
+        })?
 }
 
 #[cfg(test)]
@@ -708,5 +783,95 @@ mod tests {
         // Decrypt deserialized data
         let decrypted = decrypt_data(&deserialized, password).unwrap();
         assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_unicode_password_japanese() {
+        // Japanese hiragana: \u{3053}\u{3093}\u{306b}\u{3061}\u{306f} = konnichiwa
+        let password = "\u{3053}\u{3093}\u{306b}\u{3061}\u{306f}";
+        let data = b"data encrypted with unicode password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_unicode_password_accented() {
+        // Accented characters: \u{00e9} = e-acute, \u{00f1} = n-tilde,
+        // \u{00fc} = u-umlaut
+        let password = "caf\u{00e9}_se\u{00f1}or_\u{00fc}ber";
+        let data = b"data encrypted with accented password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_unicode_password_emoji() {
+        // Emoji: \u{1f512} = lock, \u{1f511} = key
+        let password = "\u{1f512}secret\u{1f511}";
+        let data = b"data encrypted with emoji password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_unicode_password_mixed_scripts() {
+        // Mix of CJK, Cyrillic, and Latin:
+        // \u{4e16}\u{754c} = Chinese "world"
+        // \u{043c}\u{0438}\u{0440} = Russian "mir" (peace/world)
+        let password = "\u{4e16}\u{754c}_\u{043c}\u{0438}\u{0440}_world";
+        let data = b"data encrypted with mixed-script password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_single_char_password() {
+        let password = "x";
+        let data = b"data with single character password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_two_char_password() {
+        let password = "ab";
+        let data = b"data with two character password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_three_char_password() {
+        let password = "abc";
+        let data = b"data with three character password";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let decrypted = decrypt_data(&encrypted, password).unwrap();
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_short_unicode_password_wrong_password_fails() {
+        // Verify that a short unicode password still produces correct
+        // authentication: decryption with a different short password must fail.
+        let password = "\u{00e9}";
+        let wrong_password = "\u{00e8}"; // e-grave instead of e-acute
+        let data = b"authenticated data";
+
+        let encrypted = encrypt_data(data, password).unwrap();
+        let result = decrypt_data(&encrypted, wrong_password);
+        assert!(result.is_err());
     }
 }

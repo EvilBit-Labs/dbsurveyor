@@ -12,33 +12,12 @@
 //! 4. Fallback to unordered (will use RAND() for sampling)
 
 use crate::adapters::config::SamplingConfig;
+use crate::adapters::helpers::TIMESTAMP_COLUMN_NAMES;
 use crate::error::DbSurveyorError;
 use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use serde_json::Value as JsonValue;
 use sqlx::{MySqlPool, Row};
 use std::time::Duration;
-
-/// Common timestamp column names used for ordering by "most recent"
-const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
-    "created_at",
-    "updated_at",
-    "modified_at",
-    "inserted_at",
-    "timestamp",
-    "created",
-    "updated",
-    "modified",
-    "date_created",
-    "date_updated",
-    "date_modified",
-    "createdat",
-    "updatedat",
-    "modifiedat",
-    "creation_time",
-    "modification_time",
-    "update_time",
-    "create_time",
-];
 
 /// Detect the best ordering strategy for a MySQL table.
 pub async fn detect_ordering_strategy(
@@ -229,14 +208,14 @@ async fn detect_auto_increment_column(
             )
         })?;
 
-    if let Some(row) = row {
-        let column_name: String = row.get("COLUMN_NAME");
-        return Ok(Some(OrderingStrategy::AutoIncrement {
-            column: column_name,
-        }));
-    }
+    let Some(row) = row else {
+        return Ok(None);
+    };
 
-    Ok(None)
+    let column_name: String = row.get("COLUMN_NAME");
+    Ok(Some(OrderingStrategy::AutoIncrement {
+        column: column_name,
+    }))
 }
 
 /// Escapes a SQL identifier for use in backtick-quoted MySQL identifiers.
@@ -245,6 +224,48 @@ async fn detect_auto_increment_column(
 /// E.g., `` my`table `` becomes `` `my``table` ``.
 fn escape_identifier(ident: &str) -> String {
     ident.replace('`', "``")
+}
+
+/// Build an explicit column projection for a MySQL table.
+///
+/// Queries `INFORMATION_SCHEMA.COLUMNS` to get every column name and returns a
+/// comma-separated, backtick-quoted projection string (e.g.,
+/// `` `col1`, `col2`, `col3` ``). Falls back to `*` if the metadata query fails
+/// so that sampling still works even when `INFORMATION_SCHEMA` is unavailable.
+async fn build_column_projection(pool: &MySqlPool, db_name: &str, table: &str) -> String {
+    let col_query = r#"
+        SELECT CAST(COLUMN_NAME AS CHAR) AS COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = ?
+        ORDER BY ORDINAL_POSITION
+    "#;
+
+    match sqlx::query(col_query)
+        .bind(db_name)
+        .bind(table)
+        .fetch_all(pool)
+        .await
+    {
+        Ok(rows) if !rows.is_empty() => {
+            let cols: Vec<String> = rows
+                .iter()
+                .map(|r| {
+                    let name: String = r.get("COLUMN_NAME");
+                    format!("`{}`", escape_identifier(&name))
+                })
+                .collect();
+            cols.join(", ")
+        }
+        _ => {
+            tracing::debug!(
+                "Could not fetch column names for `{}`.`{}`; falling back to SELECT *",
+                db_name,
+                table
+            );
+            "*".to_string()
+        }
+    }
 }
 
 /// Generate an ORDER BY clause for the given ordering strategy (MySQL syntax).
@@ -282,6 +303,7 @@ pub async fn sample_table(
     table: &str,
     config: &SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
+    config.validate()?;
     let mut warnings = Vec::new();
     let _sample_start = std::time::Instant::now();
 
@@ -296,17 +318,23 @@ pub async fn sample_table(
     // Generate ORDER BY clause
     let order_by = generate_order_by_clause(&strategy, true);
 
+    // Fetch column names so we can project explicitly instead of SELECT *.
+    // This avoids fetching unnecessary BLOB/TEXT columns and gives the caller
+    // control over which columns are transferred.
+    let projection = build_column_projection(pool, db_name, table).await;
+
     // Build and execute the sample query.
     // Identifiers are escaped to prevent SQL injection from embedded backticks.
     let query = format!(
-        "SELECT * FROM `{}`.`{}` {} LIMIT ?",
+        "SELECT {} FROM `{}`.`{}` {} LIMIT ?",
+        projection,
         escape_identifier(db_name),
         escape_identifier(table),
         order_by
     );
 
     let rows = sqlx::query(&query)
-        .bind(config.sample_size as i64)
+        .bind(i64::from(config.sample_size))
         .fetch_all(pool)
         .await
         .map_err(|e| {
@@ -323,27 +351,33 @@ pub async fn sample_table(
         json_rows.push(json_row);
     }
 
-    // Get total row count
-    let count_query = format!(
-        "SELECT COUNT(*) FROM `{}`.`{}`",
-        escape_identifier(db_name),
-        escape_identifier(table)
-    );
-    let total_rows: Option<i64> = match sqlx::query_scalar(&count_query).fetch_one(pool).await {
-        Ok(count) => Some(count),
-        Err(e) => {
-            tracing::warn!(
-                "Failed to get row count for table '{}.{}': {}. \
-                 total_rows will be reported as unknown.",
-                db_name,
-                table,
-                e
-            );
-            warnings.push(format!(
-                "Could not determine total row count for '{}.{}': {}",
-                db_name, table, e
-            ));
-            None
+    // Get row count. Try INFORMATION_SCHEMA first (O(1) estimate for InnoDB),
+    // fall back to COUNT(*) if the estimate is unavailable.
+    let total_rows: Option<i64> = {
+        let estimate_query = "SELECT CAST(TABLE_ROWS AS SIGNED) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+        let estimate = sqlx::query_scalar::<_, Option<i64>>(estimate_query)
+            .bind(db_name)
+            .bind(table)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .flatten();
+
+        match estimate {
+            Some(count) => Some(count),
+            None => {
+                // Fall back to COUNT(*) -- works for all table types
+                let count_query = format!(
+                    "SELECT COUNT(*) FROM `{}`.`{}`",
+                    escape_identifier(db_name),
+                    escape_identifier(table)
+                );
+                sqlx::query_scalar::<_, i64>(&count_query)
+                    .fetch_one(pool)
+                    .await
+                    .ok()
+            }
         }
     };
 
@@ -367,7 +401,7 @@ pub async fn sample_table(
         table_name: table.to_string(),
         schema_name: Some(db_name.to_string()),
         rows: json_rows,
-        sample_size: rows.len() as u32,
+        sample_size: u32::try_from(rows.len()).unwrap_or(u32::MAX),
         total_rows: total_rows.map(|t| t.max(0) as u64),
         sampling_strategy,
         collected_at: chrono::Utc::now(),
@@ -392,13 +426,11 @@ fn row_to_json(
         // Check for sensitive column names if warnings are enabled
         if config.warn_sensitive {
             let name_lower = column_name.to_lowercase();
-            for pattern in &config.sensitive_detection_patterns {
-                if let Ok(regex) = regex::Regex::new(&pattern.pattern)
-                    && regex.is_match(&name_lower)
-                {
+            for (regex, description) in &config.compiled_patterns {
+                if regex.is_match(&name_lower) {
                     warnings.push(format!(
                         "Column '{}' may contain sensitive data ({})",
-                        column_name, pattern.description
+                        column_name, description
                     ));
                     break;
                 }

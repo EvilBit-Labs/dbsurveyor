@@ -232,8 +232,33 @@ pub async fn collect_all_databases(
         config.continue_on_error
     );
 
-    // Step 1: Get server information
-    let server_info = get_server_info(adapter, config).await?;
+    // Step 1: Enumerate all databases once (including system) to avoid
+    // redundant pg_database queries. Derive the user-visible subset by filtering.
+    let all_databases_including_system = adapter.list_databases_with_options(true).await?;
+
+    let system_databases_excluded = if config.include_system {
+        0
+    } else {
+        all_databases_including_system
+            .iter()
+            .filter(|db| db.is_system_database)
+            .count()
+    };
+
+    let all_databases: Vec<_> = if config.include_system {
+        all_databases_including_system
+    } else {
+        all_databases_including_system
+            .into_iter()
+            .filter(|db| !db.is_system_database)
+            .collect()
+    };
+
+    let databases_discovered = all_databases.len();
+
+    // Step 2: Get server information (reuses pre-fetched counts)
+    let server_info =
+        get_server_info(adapter, databases_discovered, system_databases_excluded).await?;
 
     tracing::info!(
         "Connected to {} {} at {}:{}",
@@ -242,13 +267,6 @@ pub async fn collect_all_databases(
         server_info.host,
         server_info.port.unwrap_or(5432)
     );
-
-    // Step 2: List all databases
-    let all_databases = adapter
-        .list_databases_with_options(config.include_system)
-        .await?;
-
-    let databases_discovered = all_databases.len();
     tracing::info!("Discovered {} databases on server", databases_discovered);
 
     // Step 3: Filter databases by patterns and accessibility
@@ -285,7 +303,7 @@ pub async fn collect_all_databases(
 
     let collection_metadata = MultiDatabaseMetadata {
         started_at,
-        total_duration_ms: total_duration.as_millis() as u64,
+        total_duration_ms: u64::try_from(total_duration.as_millis()).unwrap_or(u64::MAX),
         databases_discovered,
         databases_filtered,
         databases_collected,
@@ -313,9 +331,12 @@ pub async fn collect_all_databases(
 }
 
 /// Gets server-level information from the PostgreSQL server.
+///
+/// Accepts pre-computed database counts to avoid redundant `pg_database` queries.
 async fn get_server_info(
     adapter: &PostgresAdapter,
-    config: &MultiDatabaseConfig,
+    total_databases: usize,
+    system_databases_excluded: usize,
 ) -> Result<ServerInfo> {
     // Get PostgreSQL version
     let version: String = sqlx::query_scalar("SELECT version()")
@@ -353,24 +374,6 @@ async fn get_server_info(
                 )
             })?
             .unwrap_or(false);
-
-    // Count total databases (including system if configured)
-    let total_databases = adapter
-        .list_databases_with_options(config.include_system)
-        .await?
-        .len();
-
-    // Get count of excluded system databases if not including them
-    let system_databases_excluded = if !config.include_system {
-        adapter
-            .list_databases_with_options(true)
-            .await?
-            .iter()
-            .filter(|db| db.is_system_database)
-            .count()
-    } else {
-        0
-    };
 
     Ok(ServerInfo {
         server_type: DatabaseType::PostgreSQL,
@@ -440,60 +443,14 @@ fn matches_any_pattern(name: &str, patterns: &[String]) -> bool {
     false
 }
 
-/// Simple glob pattern matching.
+/// Glob pattern matching for database name filtering.
 ///
 /// Supports:
 /// - `*` matches any sequence of characters
 /// - `?` matches any single character
+/// - `[abc]` matches any character in the set
 fn glob_match(pattern: &str, text: &str) -> bool {
-    let pattern_chars: Vec<char> = pattern.chars().collect();
-    let text_chars: Vec<char> = text.chars().collect();
-
-    glob_match_recursive(&pattern_chars, &text_chars, 0, 0)
-}
-
-fn glob_match_recursive(pattern: &[char], text: &[char], mut pi: usize, mut ti: usize) -> bool {
-    while pi < pattern.len() {
-        match pattern[pi] {
-            '*' => {
-                // Skip consecutive stars
-                while pi < pattern.len() && pattern[pi] == '*' {
-                    pi += 1;
-                }
-
-                // Star at end matches everything
-                if pi == pattern.len() {
-                    return true;
-                }
-
-                // Try matching rest of pattern at each position
-                while ti <= text.len() {
-                    if glob_match_recursive(pattern, text, pi, ti) {
-                        return true;
-                    }
-                    ti += 1;
-                }
-                return false;
-            }
-            '?' => {
-                if ti >= text.len() {
-                    return false;
-                }
-                pi += 1;
-                ti += 1;
-            }
-            c => {
-                if ti >= text.len() || text[ti] != c {
-                    return false;
-                }
-                pi += 1;
-                ti += 1;
-            }
-        }
-    }
-
-    // Pattern exhausted - text should also be exhausted
-    ti == text.len()
+    glob_match::glob_match(pattern, text)
 }
 
 /// Collects schemas from multiple databases concurrently.
@@ -557,6 +514,10 @@ async fn collect_databases_concurrent(
 }
 
 /// Collects schema from a single database.
+///
+/// Uses a reduced connection pool (max 2 connections, 0 min idle) to prevent
+/// connection exhaustion when scanning many databases concurrently. The pool
+/// is explicitly closed after collection to release connections promptly.
 async fn collect_single_database(
     adapter: &PostgresAdapter,
     database_name: &str,
@@ -565,19 +526,36 @@ async fn collect_single_database(
 
     tracing::debug!("Connecting to database: {}", database_name);
 
-    // Create a new adapter for this database
-    let db_adapter = adapter.connect_to_database(database_name).await?;
+    // Build connection URL for this database
+    let db_url = adapter.connection_url_for_database(database_name)?;
+
+    // Create a reduced-pool config for per-database connections to prevent
+    // connection exhaustion when scanning many databases concurrently.
+    // Only 1-2 queries run at a time per database, so 2 max connections suffice.
+    let reduced_config = adapter
+        .config
+        .clone()
+        .with_max_connections(2)
+        .with_min_idle_connections(0);
+
+    let db_adapter = PostgresAdapter::with_config(&db_url, reduced_config).await?;
 
     // Collect schema
     tracing::debug!("Collecting schema from database: {}", database_name);
-    let schema = db_adapter.collect_schema().await?;
+    let result = db_adapter.collect_schema().await;
 
     let duration = start.elapsed();
+
+    // Explicitly close the pool to release connections promptly
+    // This must happen regardless of success/failure to prevent connection exhaustion
+    db_adapter.close().await;
+
+    let schema = result?;
 
     Ok(DatabaseCollectionResult {
         database_name: database_name.to_string(),
         schema,
-        collection_duration_ms: duration.as_millis() as u64,
+        collection_duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX),
     })
 }
 

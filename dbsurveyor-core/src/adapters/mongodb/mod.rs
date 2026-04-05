@@ -20,10 +20,10 @@
 //! - Query timeouts prevent resource exhaustion
 
 mod connection;
-pub mod enumeration;
-pub mod sampling;
-pub mod schema_inference;
-pub mod type_mapping;
+mod enumeration;
+mod sampling;
+mod schema_inference;
+mod type_mapping;
 
 #[cfg(test)]
 mod tests;
@@ -35,6 +35,7 @@ use async_trait::async_trait;
 use mongodb::Client;
 use mongodb::bson::doc;
 use schema_inference::SchemaInferrer;
+use zeroize::Zeroizing;
 
 // Re-export public items from submodules
 pub use enumeration::{
@@ -59,8 +60,10 @@ pub struct MongoAdapter {
     pub client: Client,
     /// Connection configuration
     pub config: ConnectionConfig,
-    /// Original connection URL (kept private to prevent credential exposure)
-    connection_url: String,
+    /// Original connection URL (kept private to prevent credential exposure).
+    /// Wrapped in `Zeroizing` so the URL (which may contain credentials) is
+    /// scrubbed from memory when the adapter is dropped (CWE-316).
+    connection_url: Zeroizing<String>,
 }
 
 impl std::fmt::Debug for MongoAdapter {
@@ -207,7 +210,8 @@ impl MongoAdapter {
             quality_metrics: None,
             collection_metadata: CollectionMetadata {
                 collected_at: chrono::Utc::now(),
-                collection_duration_ms: collection_duration.as_millis() as u64,
+                collection_duration_ms: u64::try_from(collection_duration.as_millis())
+                    .unwrap_or(u64::MAX),
                 collector_version: env!("CARGO_PKG_VERSION").to_string(),
                 warnings,
             },
@@ -234,7 +238,7 @@ impl MongoAdapter {
             .as_ref()
             .and_then(|info| info.get_str("version").ok().map(|s| s.to_string()));
 
-        let size_bytes = stats.get_i64("dataSize").ok().map(|s| s as u64);
+        let size_bytes = stats.get_i64("dataSize").ok().map(|s| s.max(0) as u64);
 
         // Check if this is a system database
         let is_system_database =
@@ -271,7 +275,7 @@ impl MongoAdapter {
 
         let row_count = stats
             .as_ref()
-            .and_then(|s| s.get_i64("count").ok().map(|c| c as u64));
+            .and_then(|s| s.get_i64("count").ok().map(|c| c.max(0) as u64));
 
         // Sample documents to infer schema
         let mut inferrer = SchemaInferrer::new();

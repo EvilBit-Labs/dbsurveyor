@@ -17,10 +17,12 @@
 //! - Query timeouts prevent resource exhaustion
 //! - Connection pooling with configurable limits
 
+mod batch_collection;
 mod connection;
 mod enumeration;
 mod multi_database;
 mod routines;
+mod row_ext;
 mod sampling;
 mod schema_collection;
 mod triggers;
@@ -34,6 +36,7 @@ use super::{AdapterFeature, ConnectionConfig, DatabaseAdapter, TableRef};
 use crate::{Result, models::*};
 use async_trait::async_trait;
 use sqlx::PgPool;
+use zeroize::Zeroizing;
 
 // Re-export public items from submodules
 pub use connection::PoolStats;
@@ -45,7 +48,11 @@ pub use multi_database::{
     DatabaseCollectionResult, DatabaseFailure, MultiDatabaseConfig, MultiDatabaseMetadata,
     MultiDatabaseResult, collect_all_databases,
 };
-pub use sampling::{detect_ordering_strategy, generate_order_by_clause, sample_table};
+pub use row_ext::RowExt;
+pub use sampling::{
+    detect_ordering_strategy, detect_ordering_strategy_with_columns, generate_order_by_clause,
+    sample_table, sample_table_with_columns,
+};
 pub use type_mapping::{map_postgresql_type, map_referential_action};
 
 /// PostgreSQL database adapter with connection pooling and comprehensive schema collection
@@ -55,8 +62,10 @@ pub struct PostgresAdapter {
     /// Connection configuration (pool settings, timeouts, etc.)
     pub config: ConnectionConfig,
     /// Original connection URL (stored for creating connections to other databases)
-    /// This is kept private to prevent credential exposure
-    connection_url: String,
+    /// This is kept private to prevent credential exposure.
+    /// Wrapped in `Zeroizing` so the URL (which may contain credentials) is
+    /// scrubbed from memory when the adapter is dropped (CWE-316).
+    connection_url: Zeroizing<String>,
 }
 
 impl std::fmt::Debug for PostgresAdapter {
@@ -73,9 +82,6 @@ impl std::fmt::Debug for PostgresAdapter {
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
     async fn test_connection(&self) -> Result<()> {
-        // Set up session security settings first
-        self.setup_session().await?;
-
         // Test basic connectivity
         let connectivity_result: i32 = sqlx::query_scalar("SELECT 1")
             .fetch_one(&self.pool)

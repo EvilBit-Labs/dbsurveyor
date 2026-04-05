@@ -26,12 +26,11 @@ async fn create_test_adapter() -> Result<SqliteAdapter> {
 
 /// Helper function to create an adapter with pre-populated data
 async fn create_adapter_with_pool(pool: SqlitePool) -> SqliteAdapter {
-    SqliteAdapter {
+    SqliteAdapter::from_pool(
         pool,
-        config: ConnectionConfig::new("localhost".to_string())
-            .with_database(":memory:".to_string()),
-        connection_string: "sqlite::memory:".to_string(),
-    }
+        "sqlite::memory:",
+        ConnectionConfig::new("localhost".to_string()).with_database(":memory:".to_string()),
+    )
 }
 
 // =============================================================================

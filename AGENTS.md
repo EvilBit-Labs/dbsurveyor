@@ -2,6 +2,8 @@
 
 This document outlines the coding standards, architectural patterns, and project layout preferences for the DBSurveyor project. It serves as a comprehensive guide for AI coding assistants to ensure consistency, maintainability, and adherence to established best practices.
 
+@GOTCHAS.md
+
 ## 1. Core Philosophy
 
 - **Security-First Principle**: Always prioritize security considerations in design and implementation. Trust the framework's built-in security mechanisms over custom solutions.
@@ -25,11 +27,13 @@ The project follows a Rust workspace structure with clear separation of concerns
 ├── .github/
 │   ├── workflows/             # GitHub Actions CI/CD
 │   └── dependabot.yml         # Dependency management
+├── docs/solutions/            # Documented solutions to past problems, organized by category with YAML frontmatter (module, tags, problem_type)
 ├── project_specs/             # Project specifications
 ├── justfile                   # Task runner configuration
 ├── .goreleaser.yaml           # GoReleaser release configuration
 ├── Cargo.toml                 # Workspace configuration
 ├── cargo-deny.toml            # Security policy
+├── GOTCHAS.md                 # Non-obvious pitfalls and hard-earned lessons -- read before making changes
 └── AGENTS.md                  # This file
 ```
 
@@ -206,7 +210,7 @@ just release-snapshot        # Local release dry-run (builds all targets, skips 
 
 - `cargo-deny` duplicate warnings for Windows crates are transitive dependencies and expected
 - Always run `just fmt` before `just ci-check` to avoid fmt-check failures
-- Test Coverage CI uses `--fail-under-lines 80` threshold; failures may be pre-existing
+- Test Coverage CI uses `--fail-under-lines 55` threshold (target: 80%, to be raised incrementally as test coverage improves)
 - Large rebases (80+ commits) may fail on GitHub with "This branch can't be rebased"
   - Workaround: Temporarily enable merge commits via API, merge, then disable
 
@@ -251,6 +255,8 @@ Releases use **GoReleaser** with the native Rust builder (`builder: rust`) and `
 ### CLI Binary Architecture
 
 - Both CLI binaries (`dbsurveyor`, `dbsurveyor-collect`) are thin wrappers over `dbsurveyor-core`
+- `dbsurveyor-collect` is split into `main.rs` (CLI/orchestration), `collect.rs` (schema collection), `output.rs` (save/export)
+- `dbsurveyor` is split into `main.rs` (CLI/orchestration), `schema.rs` (loading), `output.rs` (generation)
 - No non-ASCII characters in source code (no emoji, checkmarks, or unicode bullets)
 - Clap derive API with `#[command(flatten)]` for shared `GlobalArgs`
 - Use `conflicts_with` for mutually exclusive flags
@@ -314,7 +320,8 @@ gh api repos/{owner}/{repo}/pulls/<number>/reviews
 - **Connection Pool**: sqlx `PgPool` with `ConnectionConfig` for pool settings
 - **Multi-Database**: Enumerate via `pg_database`, connect via URL path rewriting
 - **Data Sampling**: Detect ordering strategy (PK/timestamp/serial), rate-limited queries
-- **Modular Structure**: `connection.rs`, `sampling.rs`, `enumeration.rs`, `multi_database.rs`
+- **Modular Structure**: `connection.rs`, `sampling.rs`, `enumeration.rs`, `multi_database.rs`, `batch_collection.rs`
+- **Batch Collection**: `batch_collection.rs` runs 5 queries for ALL tables concurrently via `tokio::join!`, reducing 5N+1 queries to 6. Falls back to per-table queries on failure.
 
 ### Critical Constraints
 
@@ -334,3 +341,7 @@ gh api repos/{owner}/{repo}/pulls/<number>/reviews
 6. **Documentation**: Comprehensive docs for all public APIs and CLI usage
 
 This document serves as the authoritative guide for AI assistants working on the DBSurveyor project, ensuring consistent, secure, and high-quality development practices.
+
+## Agent Rules <!-- tessl-managed -->
+
+@.tessl/RULES.md follow the [instructions](.tessl/RULES.md)

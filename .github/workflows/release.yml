@@ -12,23 +12,46 @@ on:
         tags:
             - "v*.*.*"
 
-permissions:
-    contents: write
-    id-token: write
-    attestations: write
-
 env:
     CARGO_TERM_COLOR: always
 
 jobs:
+    validate:
+        name: Quality Gate
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+            - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+              with:
+                  install: true
+                  cache: true
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Check formatting
+              run: cargo fmt --all -- --check
+            - name: Run clippy
+              run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+            - name: Run tests
+              run: cargo nextest run --workspace --all-features
+              env:
+                  CARGO_TERM_COLOR: never
+                  TERM: dumb
+
     release:
+        needs: validate
         name: Release
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            id-token: write
+            attestations: write
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
               with:
                   fetch-depth: 0
-            - uses: jdx/mise-action@v4
+            - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
               with:
                   install: true
                   cache: true
@@ -60,3 +83,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+            - name: Attest build provenance
+              uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+              with:
+                  subject-path: "dist/**/*"

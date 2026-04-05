@@ -14,8 +14,8 @@
 //! - Permission errors are handled gracefully
 //! - Size retrieval fails gracefully for inaccessible databases
 
+use super::RowExt;
 use crate::Result;
-use crate::adapters::helpers::RowExt;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -190,7 +190,7 @@ pub async fn list_databases(
             owner,
             encoding,
             collation,
-            size_bytes: size_bytes.map(|s| s as u64),
+            size_bytes: size_bytes.map(|s| s.max(0) as u64),
             is_system_database,
             is_accessible,
         };

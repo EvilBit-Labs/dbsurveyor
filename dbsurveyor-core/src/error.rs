@@ -209,6 +209,31 @@ impl DbSurveyorError {
             timeout,
         }
     }
+
+    /// Creates an encryption error with context and a source error.
+    #[cfg(feature = "encryption")]
+    pub fn encryption_failed(
+        context: impl Into<String>,
+        source: impl std::error::Error + Send + Sync + 'static,
+    ) -> Self {
+        Self::Encryption {
+            context: context.into(),
+            source: Box::new(source),
+        }
+    }
+
+    /// Creates an encryption error with context but no underlying source error.
+    #[cfg(feature = "encryption")]
+    pub fn encryption_error(context: impl Into<String>) -> Self {
+        let msg = context.into();
+        Self::Encryption {
+            context: msg,
+            source: Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "encryption operation failed",
+            )),
+        }
+    }
 }
 
 #[cfg(test)]

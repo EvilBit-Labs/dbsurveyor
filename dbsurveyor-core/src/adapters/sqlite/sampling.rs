@@ -12,34 +12,14 @@
 //! 4. ROWID (SQLite's built-in row identifier)
 //! 5. Fallback to unordered (uses RANDOM() for sampling)
 
+use super::{escape_identifier, escape_pragma_arg};
 use crate::adapters::config::SamplingConfig;
+use crate::adapters::helpers::TIMESTAMP_COLUMN_NAMES;
 use crate::error::DbSurveyorError;
 use crate::models::{OrderingStrategy, SampleStatus, SamplingStrategy, SortDirection, TableSample};
 use serde_json::Value as JsonValue;
 use sqlx::{Row, SqlitePool};
 use std::time::Duration;
-
-/// Common timestamp column names used for ordering by "most recent"
-const TIMESTAMP_COLUMN_NAMES: &[&str] = &[
-    "created_at",
-    "updated_at",
-    "modified_at",
-    "inserted_at",
-    "timestamp",
-    "created",
-    "updated",
-    "modified",
-    "date_created",
-    "date_updated",
-    "date_modified",
-    "createdat",
-    "updatedat",
-    "modifiedat",
-    "creation_time",
-    "modification_time",
-    "update_time",
-    "create_time",
-];
 
 /// Detect the best ordering strategy for a SQLite table.
 pub async fn detect_ordering_strategy(
@@ -99,7 +79,7 @@ async fn detect_primary_key(
     pool: &SqlitePool,
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
-    let pk_query = format!("PRAGMA table_info('{}')", table.replace('\'', "''"));
+    let pk_query = format!("PRAGMA table_info({})", escape_pragma_arg(table));
 
     let rows = sqlx::query(&pk_query).fetch_all(pool).await.map_err(|e| {
         DbSurveyorError::collection_failed(
@@ -109,18 +89,18 @@ async fn detect_primary_key(
     })?;
 
     // Collect columns with pk > 0
-    let mut pk_columns: Vec<(i32, String)> = rows
-        .iter()
-        .filter_map(|row| {
-            let pk: i32 = row.try_get("pk").unwrap_or(0);
-            if pk > 0 {
-                let name: String = row.try_get("name").unwrap_or_default();
-                Some((pk, name))
-            } else {
-                None
-            }
-        })
-        .collect();
+    let mut pk_columns: Vec<(i32, String)> = Vec::new();
+    for row in &rows {
+        let pk: i32 = row
+            .try_get("pk")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse pk", e))?;
+        if pk > 0 {
+            let name: String = row.try_get("name").map_err(|e| {
+                DbSurveyorError::collection_failed("Failed to parse column name", e)
+            })?;
+            pk_columns.push((pk, name));
+        }
+    }
 
     if pk_columns.is_empty() {
         return Ok(None);
@@ -138,7 +118,7 @@ async fn detect_timestamp_column(
     pool: &SqlitePool,
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
-    let columns_query = format!("PRAGMA table_info('{}')", table.replace('\'', "''"));
+    let columns_query = format!("PRAGMA table_info({})", escape_pragma_arg(table));
 
     let rows = sqlx::query(&columns_query)
         .fetch_all(pool)
@@ -151,24 +131,24 @@ async fn detect_timestamp_column(
         })?;
 
     // Collect columns with timestamp-like types or names
-    let timestamp_columns: Vec<(String, String)> = rows
-        .iter()
-        .filter_map(|row| {
-            let name: String = row.try_get("name").unwrap_or_default();
-            let data_type: String = row.try_get("type").unwrap_or_default();
-            let type_upper = data_type.to_uppercase();
+    let mut timestamp_columns: Vec<(String, String)> = Vec::new();
+    for row in &rows {
+        let name: String = row
+            .try_get("name")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse column name", e))?;
+        let data_type: String = row
+            .try_get("type")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse column type", e))?;
+        let type_upper = data_type.to_uppercase();
 
-            // Check if type suggests timestamp
-            if type_upper.contains("DATE")
-                || type_upper.contains("TIME")
-                || type_upper.contains("TIMESTAMP")
-            {
-                Some((name, data_type))
-            } else {
-                None
-            }
-        })
-        .collect();
+        // Check if type suggests timestamp
+        if type_upper.contains("DATE")
+            || type_upper.contains("TIME")
+            || type_upper.contains("TIMESTAMP")
+        {
+            timestamp_columns.push((name, data_type));
+        }
+    }
 
     // Look for columns with common timestamp names
     for (column_name, _) in &timestamp_columns {
@@ -208,7 +188,7 @@ async fn detect_auto_increment_column(
     pool: &SqlitePool,
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
-    let columns_query = format!("PRAGMA table_info('{}')", table.replace('\'', "''"));
+    let columns_query = format!("PRAGMA table_info({})", escape_pragma_arg(table));
 
     let rows = sqlx::query(&columns_query)
         .fetch_all(pool)
@@ -225,9 +205,15 @@ async fn detect_auto_increment_column(
 
     // In SQLite, INTEGER PRIMARY KEY is auto-increment
     for row in rows {
-        let name: String = row.try_get("name").unwrap_or_default();
-        let data_type: String = row.try_get("type").unwrap_or_default();
-        let pk: i32 = row.try_get("pk").unwrap_or(0);
+        let name: String = row
+            .try_get("name")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse column name", e))?;
+        let data_type: String = row
+            .try_get("type")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse column type", e))?;
+        let pk: i32 = row
+            .try_get("pk")
+            .map_err(|e| DbSurveyorError::collection_failed("Failed to parse pk", e))?;
 
         if pk > 0 && data_type.to_uppercase() == "INTEGER" {
             return Ok(Some(OrderingStrategy::AutoIncrement { column: name }));
@@ -243,7 +229,7 @@ async fn detect_rowid(
     table: &str,
 ) -> Result<Option<OrderingStrategy>, DbSurveyorError> {
     // Try to query rowid to check if it exists
-    let test_query = format!("SELECT rowid FROM \"{}\" LIMIT 1", escape_identifier(table));
+    let test_query = format!("SELECT rowid FROM {} LIMIT 1", escape_identifier(table));
 
     match sqlx::query(&test_query).fetch_optional(pool).await {
         Ok(_) => Ok(Some(OrderingStrategy::SystemRowId {
@@ -262,11 +248,36 @@ async fn detect_rowid(
     }
 }
 
-/// Escapes a SQL identifier for use in double-quoted SQLite identifiers.
+/// Build an explicit column projection for a SQLite table.
 ///
-/// SQLite escapes embedded double quotes by doubling them.
-fn escape_identifier(ident: &str) -> String {
-    ident.replace('"', "\"\"")
+/// Uses `PRAGMA table_info` to get every column name and returns a
+/// comma-separated, double-quote-escaped projection string (e.g.,
+/// `"col1", "col2", "col3"`). Falls back to `*` if the pragma fails
+/// so that sampling still works even for unusual table types.
+async fn build_column_projection(pool: &SqlitePool, table: &str) -> String {
+    let pragma = format!("PRAGMA table_info({})", escape_pragma_arg(table));
+
+    match sqlx::query(&pragma).fetch_all(pool).await {
+        Ok(rows) if !rows.is_empty() => {
+            let cols: Vec<String> = rows
+                .iter()
+                .filter_map(|r| r.try_get::<String, _>("name").ok())
+                .map(|name| escape_identifier(&name))
+                .collect();
+            if cols.is_empty() {
+                "*".to_string()
+            } else {
+                cols.join(", ")
+            }
+        }
+        _ => {
+            tracing::debug!(
+                "Could not fetch column names for '{}'; falling back to SELECT *",
+                table
+            );
+            "*".to_string()
+        }
+    }
 }
 
 /// Generate an ORDER BY clause for the given ordering strategy (SQLite syntax).
@@ -277,18 +288,18 @@ pub fn generate_order_by_clause(strategy: &OrderingStrategy, descending: bool) -
         OrderingStrategy::PrimaryKey { columns } => {
             let cols: Vec<String> = columns
                 .iter()
-                .map(|c| format!("\"{}\" {}", escape_identifier(c), direction))
+                .map(|c| format!("{} {}", escape_identifier(c), direction))
                 .collect();
             format!("ORDER BY {}", cols.join(", "))
         }
         OrderingStrategy::Timestamp { column, .. } => {
-            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
+            format!("ORDER BY {} {}", escape_identifier(column), direction)
         }
         OrderingStrategy::AutoIncrement { column } => {
-            format!("ORDER BY \"{}\" {}", escape_identifier(column), direction)
+            format!("ORDER BY {} {}", escape_identifier(column), direction)
         }
         OrderingStrategy::SystemRowId { column } => {
-            format!("ORDER BY {} {}", column, direction)
+            format!("ORDER BY {} {}", escape_identifier(column), direction)
         }
         OrderingStrategy::Unordered => {
             // For unordered tables, use RANDOM() for fair sampling
@@ -303,6 +314,7 @@ pub async fn sample_table(
     table: &str,
     config: &SamplingConfig,
 ) -> Result<TableSample, DbSurveyorError> {
+    config.validate()?;
     let mut warnings = Vec::new();
 
     // Apply throttling if configured
@@ -316,16 +328,22 @@ pub async fn sample_table(
     // Generate ORDER BY clause
     let order_by = generate_order_by_clause(&strategy, true);
 
+    // Fetch column names so we can project explicitly instead of SELECT *.
+    // This avoids fetching unnecessary BLOB/TEXT columns and gives the caller
+    // control over which columns are transferred.
+    let projection = build_column_projection(pool, table).await;
+
     // Build and execute the sample query.
     // Identifiers are escaped to prevent SQL injection from embedded quotes.
     let query = format!(
-        "SELECT * FROM \"{}\" {} LIMIT ?",
+        "SELECT {} FROM {} {} LIMIT ?",
+        projection,
         escape_identifier(table),
         order_by
     );
 
     let rows = sqlx::query(&query)
-        .bind(config.sample_size as i64)
+        .bind(i64::from(config.sample_size))
         .fetch_all(pool)
         .await
         .map_err(|e| {
@@ -342,22 +360,34 @@ pub async fn sample_table(
         json_rows.push(json_row);
     }
 
-    // Get total row count
-    let count_query = format!("SELECT COUNT(*) FROM \"{}\"", escape_identifier(table));
-    let total_rows: Option<i64> = match sqlx::query_scalar(&count_query).fetch_one(pool).await {
-        Ok(count) => Some(count),
-        Err(e) => {
-            tracing::warn!(
-                "Failed to get row count for table '{}': {}. \
-                 total_rows will be reported as unknown.",
-                table,
-                e
-            );
-            warnings.push(format!(
-                "Could not determine total row count for '{}': {}",
-                table, e
-            ));
-            None
+    // Get estimated row count using MAX(rowid) which is O(1) for most SQLite tables.
+    // This is an estimate (not exact if rows have been deleted), but avoids a full
+    // table scan. Falls back to COUNT(*) only if the table has no rowid.
+    let estimate_query = format!("SELECT MAX(rowid) FROM {}", escape_identifier(table));
+    let total_rows: Option<i64> = match sqlx::query_scalar::<_, Option<i64>>(&estimate_query)
+        .fetch_one(pool)
+        .await
+    {
+        Ok(count) => Some(count.unwrap_or(0)),
+        Err(_) => {
+            // WITHOUT ROWID tables do not support MAX(rowid); fall back to COUNT(*).
+            let count_query = format!("SELECT COUNT(*) FROM {}", escape_identifier(table));
+            match sqlx::query_scalar(&count_query).fetch_one(pool).await {
+                Ok(count) => Some(count),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to get row count for table '{}': {}. \
+                         total_rows will be reported as unknown.",
+                        table,
+                        e
+                    );
+                    warnings.push(format!(
+                        "Could not determine total row count for '{}': {}",
+                        table, e
+                    ));
+                    None
+                }
+            }
         }
     };
 
@@ -381,7 +411,7 @@ pub async fn sample_table(
         table_name: table.to_string(),
         schema_name: None,
         rows: json_rows,
-        sample_size: rows.len() as u32,
+        sample_size: u32::try_from(rows.len()).unwrap_or(u32::MAX),
         total_rows: total_rows.map(|t| t.max(0) as u64),
         sampling_strategy,
         collected_at: chrono::Utc::now(),
@@ -406,13 +436,11 @@ fn row_to_json(
         // Check for sensitive column names if warnings are enabled
         if config.warn_sensitive {
             let name_lower = column_name.to_lowercase();
-            for pattern in &config.sensitive_detection_patterns {
-                if let Ok(regex) = regex::Regex::new(&pattern.pattern)
-                    && regex.is_match(&name_lower)
-                {
+            for (regex, description) in &config.compiled_patterns {
+                if regex.is_match(&name_lower) {
                     warnings.push(format!(
                         "Column '{}' may contain sensitive data ({})",
-                        column_name, pattern.description
+                        column_name, description
                     ));
                     break;
                 }
@@ -510,7 +538,7 @@ mod tests {
             column: "rowid".to_string(),
         };
         let clause = generate_order_by_clause(&strategy, true);
-        assert_eq!(clause, "ORDER BY rowid DESC");
+        assert_eq!(clause, "ORDER BY \"rowid\" DESC");
     }
 
     #[test]
