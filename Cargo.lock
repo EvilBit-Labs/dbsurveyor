@@ -906,6 +906,8 @@ dependencies = [
 name = "dbsurveyor-collect"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "chrono",
  "clap",
  "clap_complete",
  "criterion",

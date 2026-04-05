@@ -4,9 +4,14 @@
 //! quality-threshold parsing, and the `list` subcommand implementation.
 
 use crate::Cli;
+use crate::outcome::CollectionOutcome;
+use crate::sampling::SamplingOrchestrator;
+#[cfg(feature = "postgresql")]
+use dbsurveyor_core::adapters::postgres::PostgresAdapter;
 use dbsurveyor_core::{
-    Result, SamplingConfig, TableSample,
-    adapters::{TableRef, create_adapter},
+    CollectionMode, CollectionStatus, DatabaseAdapter, DatabaseInfo, DatabaseSchema,
+    DatabaseServerSchema, DatabaseType, Result, SamplingConfig, ServerInfo,
+    adapters::create_adapter,
     error::redact_database_url,
     quality::{AnomalyConfig, QualityAnalyzer, QualityConfig},
 };
@@ -71,31 +76,9 @@ pub(crate) fn build_sampling_config(cli: &Cli) -> SamplingConfig {
     config
 }
 
-/// Samples all tables, logging and skipping any that fail.
-///
-/// Returns a vector of successfully collected `TableSample` values.
-pub(crate) async fn sample_all_tables(
-    adapter: &dyn dbsurveyor_core::DatabaseAdapter,
-    tables: &[dbsurveyor_core::Table],
-    config: &SamplingConfig,
-) -> Vec<TableSample> {
-    let mut samples = Vec::with_capacity(tables.len());
-
-    for table in tables {
-        let table_ref = TableRef {
-            schema_name: table.schema.as_deref(),
-            table_name: &table.name,
-        };
-
-        match adapter.sample_table(table_ref, config).await {
-            Ok(sample) => samples.push(sample),
-            Err(e) => {
-                warn!("Failed to sample table '{}': {}", table.name, e);
-            }
-        }
-    }
-
-    samples
+/// Returns whether sampling is enabled for this CLI invocation.
+pub(crate) fn sampling_enabled(cli: &Cli) -> bool {
+    cli.sample > 0
 }
 
 /// Collects database schema and saves to file.
@@ -103,7 +86,7 @@ pub(crate) async fn collect_schema(
     database_url: &str,
     output_path: &PathBuf,
     cli: &Cli,
-) -> Result<()> {
+) -> Result<CollectionOutcome> {
     // CWE-22: warn if output path contains parent-directory traversal
     if output_path
         .components()
@@ -118,6 +101,10 @@ pub(crate) async fn collect_schema(
     info!("Starting schema collection...");
     info!("Target: {}", redact_database_url(database_url));
     info!("Output: {}", output_path.display());
+
+    if cli.all_databases {
+        return collect_all_databases(database_url, output_path, cli).await;
+    }
 
     let adapter = create_adapter(database_url).await.map_err(|e| {
         error!("Failed to create database adapter: {}", e);
@@ -137,8 +124,8 @@ pub(crate) async fn collect_schema(
     info!("Found {} views", schema.views.len());
     info!("Found {} indexes", schema.indexes.len());
 
-    // Run sampling if tables exist and sample size > 0
-    if cli.sample > 0 && !schema.tables.is_empty() {
+    // Run sampling only when explicitly enabled.
+    if sampling_enabled(cli) && !schema.tables.is_empty() {
         let sampling_config = build_sampling_config(cli);
         info!(
             "Sampling {} tables (limit {} rows each)...",
@@ -146,13 +133,21 @@ pub(crate) async fn collect_schema(
             sampling_config.sample_size
         );
 
-        let samples = sample_all_tables(&*adapter, &schema.tables, &sampling_config).await;
+        let sampling_run = SamplingOrchestrator::new(&*adapter, &sampling_config)
+            .run(&schema.tables)
+            .await;
 
-        if samples.is_empty() {
+        if sampling_run.samples.is_empty() {
             info!("No samples collected (all tables may have been empty or inaccessible)");
         } else {
-            info!("[OK]Collected samples from {} tables", samples.len());
-            schema = schema.with_samples(samples);
+            info!(
+                "[OK]Collected samples from {} tables",
+                sampling_run.samples.len()
+            );
+            for warning in sampling_run.warnings {
+                schema = schema.with_warning(warning);
+            }
+            schema = schema.with_samples(sampling_run.samples);
         }
     }
 
@@ -234,7 +229,193 @@ pub(crate) async fn collect_schema(
         println!("Quality metrics: {} tables analyzed", metrics.len());
     }
 
-    Ok(())
+    Ok(CollectionOutcome::from_results(&[schema]))
+}
+
+#[cfg(feature = "postgresql")]
+async fn collect_all_databases(
+    database_url: &str,
+    output_path: &PathBuf,
+    cli: &Cli,
+) -> Result<CollectionOutcome> {
+    let adapter = PostgresAdapter::new(database_url).await.map_err(|e| {
+        error!(
+            "Failed to create PostgreSQL adapter for multi-database collection: {}",
+            e
+        );
+        e
+    })?;
+
+    if adapter.database_type() != DatabaseType::PostgreSQL {
+        return Err(dbsurveyor_core::error::DbSurveyorError::configuration(
+            "--all-databases is currently supported only for PostgreSQL",
+        ));
+    }
+
+    let enumerated = adapter
+        .list_databases_with_options(cli.include_system_databases)
+        .await?;
+    let system_databases_excluded = if cli.include_system_databases {
+        0
+    } else {
+        enumerated.iter().filter(|db| db.is_system_database).count()
+    };
+
+    let mut databases = Vec::new();
+
+    for database in &enumerated {
+        if cli
+            .exclude_databases
+            .iter()
+            .any(|excluded| excluded == &database.name)
+        {
+            continue;
+        }
+
+        if !database.is_accessible {
+            databases.push(skipped_database_schema(
+                &database.name,
+                Some(database.owner.clone()),
+                database.is_system_database,
+                "Database is not accessible with current privileges".to_string(),
+            ));
+            continue;
+        }
+
+        match adapter.connect_to_database(&database.name).await {
+            Ok(database_adapter) => match database_adapter.collect_schema().await {
+                Ok(mut schema) => {
+                    if sampling_enabled(cli) && !schema.tables.is_empty() {
+                        let sampling_config = build_sampling_config(cli);
+                        let sampling_run =
+                            SamplingOrchestrator::new(&database_adapter, &sampling_config)
+                                .run(&schema.tables)
+                                .await;
+                        for warning in sampling_run.warnings {
+                            schema = schema.with_warning(warning);
+                        }
+                        schema = schema.with_samples(sampling_run.samples);
+                    }
+                    databases.push(schema);
+                }
+                Err(err) => {
+                    databases.push(failed_database_schema(
+                        &database.name,
+                        Some(database.owner.clone()),
+                        database.is_system_database,
+                        err.to_string(),
+                    ));
+                }
+            },
+            Err(err) => {
+                databases.push(failed_database_schema(
+                    &database.name,
+                    Some(database.owner.clone()),
+                    database.is_system_database,
+                    err.to_string(),
+                ));
+            }
+        }
+    }
+
+    let collected = databases
+        .iter()
+        .filter(|schema| {
+            matches!(
+                schema.database_info.collection_status,
+                CollectionStatus::Success
+            )
+        })
+        .count();
+    let failed = databases
+        .iter()
+        .filter(|schema| {
+            matches!(
+                schema.database_info.collection_status,
+                CollectionStatus::Failed { .. }
+            )
+        })
+        .count();
+
+    let server_schema = DatabaseServerSchema {
+        format_version: dbsurveyor_core::FORMAT_VERSION.to_string(),
+        server_info: ServerInfo {
+            server_type: DatabaseType::PostgreSQL,
+            version: "unknown".to_string(),
+            host: adapter.config.host.clone(),
+            port: adapter.config.port,
+            total_databases: databases.len(),
+            collected_databases: collected,
+            system_databases_excluded,
+            connection_user: adapter
+                .config
+                .username
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
+            has_superuser_privileges: false,
+            collection_mode: CollectionMode::MultiDatabase {
+                discovered: databases.len(),
+                collected,
+                failed,
+            },
+        },
+        databases: databases.clone(),
+        collection_metadata: dbsurveyor_core::models::CollectionMetadata {
+            collected_at: chrono::Utc::now(),
+            collection_duration_ms: 0,
+            collector_version: env!("CARGO_PKG_VERSION").to_string(),
+            warnings: Vec::new(),
+        },
+    };
+
+    crate::output::save_server_schema(&server_schema, output_path, cli).await?;
+
+    Ok(CollectionOutcome::from_results(&databases))
+}
+
+#[cfg(not(feature = "postgresql"))]
+async fn collect_all_databases(
+    _database_url: &str,
+    _output_path: &PathBuf,
+    _cli: &Cli,
+) -> Result<CollectionOutcome> {
+    Err(dbsurveyor_core::error::DbSurveyorError::configuration(
+        "--all-databases requires the postgresql feature",
+    ))
+}
+
+fn failed_database_schema(
+    name: &str,
+    owner: Option<String>,
+    is_system_database: bool,
+    error_message: String,
+) -> DatabaseSchema {
+    let mut info = DatabaseInfo::new(name.to_string());
+    info.owner = owner;
+    info.is_system_database = is_system_database;
+    info.collection_status = CollectionStatus::Failed {
+        error: error_message.clone(),
+    };
+    info.access_level = dbsurveyor_core::AccessLevel::None;
+
+    DatabaseSchema::new(info).with_warning(error_message)
+}
+
+fn skipped_database_schema(
+    name: &str,
+    owner: Option<String>,
+    is_system_database: bool,
+    reason: String,
+) -> DatabaseSchema {
+    let mut info = DatabaseInfo::new(name.to_string());
+    info.owner = owner;
+    info.is_system_database = is_system_database;
+    info.collection_status = CollectionStatus::Skipped {
+        reason: reason.clone(),
+    };
+    info.access_level = dbsurveyor_core::AccessLevel::Limited;
+
+    DatabaseSchema::new(info).with_warning(reason)
 }
 
 /// Lists supported database types and their connection string formats.
@@ -366,5 +547,56 @@ mod tests {
         let input = vec!["Completeness:0.8".to_string()];
         let result = parse_quality_thresholds(&input);
         assert!((result.completeness.unwrap_or(0.0) - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_sampling_disabled_for_zero_sample() {
+        let cli = Cli {
+            global: crate::GlobalArgs {
+                verbose: 0,
+                quiet: false,
+            },
+            command: None,
+            database_url: None,
+            output: "schema.dbsurveyor.json".into(),
+            sample: 0,
+            throttle: None,
+            compress: false,
+            encrypt: false,
+            all_databases: false,
+            include_system_databases: false,
+            exclude_databases: Vec::new(),
+            enable_quality: false,
+            quality_threshold: Vec::new(),
+            disable_anomaly_detection: false,
+        };
+
+        assert!(!sampling_enabled(&cli));
+    }
+
+    #[test]
+    fn test_build_sampling_config_preserves_explicit_nonzero_sample() {
+        let cli = Cli {
+            global: crate::GlobalArgs {
+                verbose: 0,
+                quiet: false,
+            },
+            command: None,
+            database_url: None,
+            output: "schema.dbsurveyor.json".into(),
+            sample: 25,
+            throttle: None,
+            compress: false,
+            encrypt: false,
+            all_databases: false,
+            include_system_databases: false,
+            exclude_databases: Vec::new(),
+            enable_quality: false,
+            quality_threshold: Vec::new(),
+            disable_anomaly_detection: false,
+        };
+
+        let config = build_sampling_config(&cli);
+        assert_eq!(config.sample_size, 25);
     }
 }

@@ -68,6 +68,7 @@ mongodb = { workspace = true, optional = true }
 tiberius = { workspace = true, optional = true }
 tokio-util = { version = "0.7.16", features = ["compat"], optional = true }
 futures = "0.3"
+chrono = { workspace = true }
 
 # Security dependencies (for password input)
 rpassword = { workspace = true }
@@ -81,3 +82,4 @@ temp-env = "0.3.6"
 testcontainers-modules = { workspace = true, features = ["mongo"] }
 criterion = { workspace = true }
 proptest = "1.11.0"
+async-trait = { workspace = true }

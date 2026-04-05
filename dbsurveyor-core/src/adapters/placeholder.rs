@@ -27,7 +27,7 @@
 /// Generates a placeholder database adapter implementation.
 ///
 /// This macro reduces boilerplate for database adapters that are not yet
-/// implemented, providing a consistent structure and error handling.
+/// implemented, providing a consistent structure and graceful sampling behavior.
 ///
 /// # Parameters
 ///
@@ -55,7 +55,7 @@ macro_rules! define_placeholder_adapter {
         ///
         /// This adapter will be fully implemented in future releases.
         /// Currently, it provides the structural foundation for the adapter
-        /// but returns errors for all operations.
+        /// and returns placeholder behavior for unsupported operations.
         pub struct $adapter_name {
             config: $crate::adapters::ConnectionConfig,
         }
@@ -99,13 +99,24 @@ macro_rules! define_placeholder_adapter {
 
             async fn sample_table(
                 &self,
-                _table_ref: $crate::adapters::TableRef<'_>,
+                table_ref: $crate::adapters::TableRef<'_>,
                 _config: &$crate::adapters::SamplingConfig,
             ) -> $crate::Result<$crate::models::TableSample> {
-                Err($crate::error::DbSurveyorError::configuration(concat!(
-                    $display_name,
-                    " adapter not yet implemented"
-                )))
+                Ok($crate::models::TableSample {
+                    table_name: table_ref.table_name.to_string(),
+                    schema_name: table_ref.schema_name.map(str::to_string),
+                    rows: Vec::new(),
+                    sample_size: 0,
+                    total_rows: None,
+                    sampling_strategy: $crate::models::SamplingStrategy::None,
+                    collected_at: chrono::Utc::now(),
+                    warnings: vec![
+                        concat!($display_name, " adapter not yet implemented").to_string(),
+                    ],
+                    sample_status: Some($crate::models::SampleStatus::Skipped {
+                        reason: concat!($display_name, " adapter not yet implemented").to_string(),
+                    }),
+                })
             }
 
             fn connection_config(&self) -> $crate::adapters::ConnectionConfig {
@@ -120,8 +131,8 @@ pub use define_placeholder_adapter;
 
 #[cfg(test)]
 mod tests {
-    use crate::adapters::{AdapterFeature, DatabaseAdapter};
-    use crate::models::DatabaseType;
+    use crate::adapters::{AdapterFeature, DatabaseAdapter, SamplingConfig, TableRef};
+    use crate::models::{DatabaseType, SampleStatus};
 
     // Define a test adapter using the macro
     define_placeholder_adapter!(
@@ -191,5 +202,50 @@ mod tests {
             .unwrap();
         let config = adapter.connection_config();
         assert_eq!(config.host, "localhost"); // Default value
+    }
+
+    #[tokio::test]
+    async fn test_placeholder_adapter_sample_table_returns_skipped_status() {
+        let adapter = TestPlaceholderAdapter::new("test://connection")
+            .await
+            .expect("failed to create test adapter");
+
+        let sample = adapter
+            .sample_table(
+                TableRef {
+                    schema_name: Some("public"),
+                    table_name: "users",
+                },
+                &SamplingConfig::default(),
+            )
+            .await
+            .expect("placeholder sampling should return a skipped sample");
+
+        assert_eq!(sample.table_name, "users");
+        assert_eq!(sample.schema_name.as_deref(), Some("public"));
+        assert_eq!(sample.sample_size, 0);
+        assert!(sample.rows.is_empty());
+        assert_eq!(
+            sample.sampling_strategy,
+            crate::models::SamplingStrategy::None
+        );
+        match sample.sample_status {
+            Some(SampleStatus::Skipped { reason }) => {
+                assert!(reason.contains("not yet implemented"));
+            }
+            other => panic!("expected skipped sample status, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_placeholder_adapter_is_object_safe() {
+        fn into_boxed_adapter(adapter: TestPlaceholderAdapter) -> Box<dyn DatabaseAdapter> {
+            Box::new(adapter)
+        }
+
+        let adapter = futures::executor::block_on(TestPlaceholderAdapter::new("test://connection"))
+            .expect("failed to create test adapter");
+        let boxed = into_boxed_adapter(adapter);
+        assert_eq!(boxed.database_type(), DatabaseType::MySQL);
     }
 }

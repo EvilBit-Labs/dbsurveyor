@@ -11,21 +11,48 @@ pub(crate) async fn save_schema(
     output_path: &PathBuf,
     cli: &Cli,
 ) -> Result<()> {
-    // Convert to Value for validation
     let json_value = serde_json::to_value(schema).map_err(|e| {
         dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON serialization", e)
     })?;
+    save_json_value(&json_value, output_path, cli, true).await
+}
 
-    dbsurveyor_core::validate_schema_output(&json_value).map_err(|e| {
-        dbsurveyor_core::error::DbSurveyorError::collection_failed("Schema validation failed", e)
+/// Saves a multi-database server schema to file.
+pub(crate) async fn save_server_schema(
+    schema: &dbsurveyor_core::models::DatabaseServerSchema,
+    output_path: &PathBuf,
+    cli: &Cli,
+) -> Result<()> {
+    let json_value = serde_json::to_value(schema).map_err(|e| {
+        dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON serialization", e)
     })?;
+    save_json_value(&json_value, output_path, cli, false).await
+}
 
-    info!("[OK]Output validation passed");
+async fn save_json_value(
+    json_value: &serde_json::Value,
+    output_path: &PathBuf,
+    cli: &Cli,
+    validate_schema: bool,
+) -> Result<()> {
+    // Convert to Value for validation
+    if validate_schema {
+        dbsurveyor_core::validate_schema_output(json_value).map_err(|e| {
+            dbsurveyor_core::error::DbSurveyorError::collection_failed(
+                "Schema validation failed",
+                e,
+            )
+        })?;
+
+        info!("[OK]Output validation passed");
+    } else {
+        info!("[OK]Output serialization prepared for multi-database schema");
+    }
 
     if cli.encrypt {
         #[cfg(feature = "encryption")]
         {
-            let json_data = serde_json::to_string_pretty(&json_value).map_err(|e| {
+            let json_data = serde_json::to_string_pretty(json_value).map_err(|e| {
                 dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON formatting", e)
             })?;
             save_encrypted(&json_data, output_path).await
@@ -39,7 +66,7 @@ pub(crate) async fn save_schema(
     } else if cli.compress {
         #[cfg(feature = "compression")]
         {
-            let json_data = serde_json::to_string_pretty(&json_value).map_err(|e| {
+            let json_data = serde_json::to_string_pretty(json_value).map_err(|e| {
                 dbsurveyor_core::error::DbSurveyorError::collection_failed("JSON formatting", e)
             })?;
             save_compressed(&json_data, output_path).await
@@ -51,7 +78,7 @@ pub(crate) async fn save_schema(
             ))
         }
     } else {
-        save_json_streaming(&json_value, output_path)
+        save_json_streaming(json_value, output_path)
     }
 }
 

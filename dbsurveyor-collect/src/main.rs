@@ -11,10 +11,13 @@
 //! - Optional AES-GCM encryption for outputs
 
 mod collect;
+mod outcome;
 mod output;
+mod sampling;
 
 use clap::{Args, CommandFactory, Parser, Subcommand};
-use dbsurveyor_core::{Result, adapters::create_adapter, init_logging};
+use dbsurveyor_core::{Result, adapters::create_adapter, error::DbSurveyorError, init_logging};
+use outcome::CollectionOutcome;
 use std::path::PathBuf;
 use tracing::{error, info};
 
@@ -187,9 +190,26 @@ pub struct GlobalArgs {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     let cli = Cli::parse();
 
+    let outcome = match run_cli(&cli).await {
+        Ok(outcome) => outcome,
+        Err(error) if is_cancellation_error(&error) => CollectionOutcome::Canceled {
+            reason: error.to_string(),
+        },
+        Err(error) => {
+            error!("{error}");
+            CollectionOutcome::TotalFailure {
+                error: error.to_string(),
+            }
+        }
+    };
+
+    std::process::exit(outcome.exit_code());
+}
+
+async fn run_cli(cli: &Cli) -> Result<CollectionOutcome> {
     // Initialize logging
     init_logging(cli.global.verbose, cli.global.quiet)?;
 
@@ -201,32 +221,45 @@ async fn main() -> Result<()> {
         ))
     })?;
 
-    // Handle commands
     match &cli.command {
         Some(Command::Collect(args)) => {
             let output = args
                 .output
                 .clone()
                 .unwrap_or_else(|| "schema.dbsurveyor.json".into());
-            collect::collect_schema(&args.database_url, &output, &cli).await
+            collect::collect_schema(&args.database_url, &output, cli).await
         }
-        Some(Command::Test(args)) => test_connection(&args.database_url).await,
+        Some(Command::Test(args)) => {
+            test_connection(&args.database_url).await?;
+            Ok(CollectionOutcome::Success)
+        }
         Some(Command::List) => {
             collect::list_supported_databases();
-            Ok(())
+            Ok(CollectionOutcome::Success)
         }
-        Some(Command::Completions { shell }) => print_completions(*shell),
+        Some(Command::Completions { shell }) => {
+            print_completions(*shell)?;
+            Ok(CollectionOutcome::Success)
+        }
         None => {
             // Default behavior: collect schema if database_url is provided
             if let Some(ref database_url) = cli.database_url {
-                collect::collect_schema(database_url, &cli.output, &cli).await
+                collect::collect_schema(database_url, &cli.output, cli).await
             } else {
-                eprintln!("Error: Database URL is required");
-                eprintln!("Use --help for usage information");
-                std::process::exit(1);
+                Err(dbsurveyor_core::error::DbSurveyorError::configuration(
+                    "Database URL is required. Use --help for usage information",
+                ))
             }
         }
     }
+}
+
+fn is_cancellation_error(error: &DbSurveyorError) -> bool {
+    matches!(
+        error,
+        DbSurveyorError::Configuration { message }
+            if message.contains("Passwords do not match")
+    )
 }
 
 /// Prints shell completion script to stdout. Invoked via the hidden `completions` subcommand.
