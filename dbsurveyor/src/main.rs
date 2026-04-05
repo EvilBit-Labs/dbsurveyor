@@ -11,10 +11,12 @@
 //! - No telemetry or external reporting
 
 mod output;
+mod redaction;
 mod schema;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use dbsurveyor_core::{Result, init_logging};
+pub use redaction::RedactionMode;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -201,18 +203,6 @@ pub enum OutputFormat {
     #[cfg(feature = "experimental")]
     /// Mermaid ERD diagram (not yet implemented)
     Mermaid,
-}
-
-#[derive(Clone, ValueEnum)]
-pub enum RedactionMode {
-    /// No redaction (show all data)
-    None,
-    /// Minimal redaction (only obvious sensitive fields)
-    Minimal,
-    /// Balanced redaction (recommended default)
-    Balanced,
-    /// Conservative redaction (maximum privacy)
-    Conservative,
 }
 
 #[derive(Clone, ValueEnum)]

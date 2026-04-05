@@ -2,6 +2,7 @@
 
 #[cfg(feature = "experimental")]
 use crate::SqlDialect;
+use crate::redaction::Redactor;
 use crate::{Cli, OutputFormat, RedactionMode, create_spinner, schema};
 use dbsurveyor_core::{Result, models::DatabaseSchema};
 use std::path::PathBuf;
@@ -14,19 +15,25 @@ pub(crate) async fn generate_documentation(
     output_path: Option<&PathBuf>,
     cli: &Cli,
 ) -> Result<()> {
-    // Warn about unimplemented redaction options
-    if cli.no_redact {
-        warn!("--no-redact is not yet implemented and will be ignored");
-    }
-    if !matches!(cli.redact_mode, RedactionMode::Balanced) {
-        warn!("--redact-mode is not yet implemented and will be ignored");
-    }
-
     let schema = schema::load_schema(input_path).await?;
 
     info!("Loaded schema for database: {}", schema.database_info.name);
     info!("Format version: {}", schema.format_version);
     info!("Tables: {}", schema.tables.len());
+
+    // Apply redaction to samples if present
+    let redact_mode = if cli.no_redact {
+        RedactionMode::None
+    } else {
+        cli.redact_mode.clone()
+    };
+
+    let _redacted_samples = if let Some(ref samples) = schema.samples {
+        let redactor = Redactor::new(redact_mode);
+        Some(redactor.redact(samples))
+    } else {
+        None
+    };
 
     let output_file = match output_path {
         Some(path) => path.clone(),

@@ -129,6 +129,7 @@ CLAUDE.md
 .tessl/
 .agent/
 .agents/
+.air/
 .augment/
 .roo/
 .full-review/
