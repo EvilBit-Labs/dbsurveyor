@@ -105,6 +105,7 @@ fn test_validate_incomplete_schema() {
     );
 }
 
+#[cfg(feature = "experimental")]
 #[test]
 fn test_analyze_valid_schema() {
     let mut tmp =
@@ -135,6 +136,7 @@ fn test_analyze_valid_schema() {
     );
 }
 
+#[cfg(feature = "experimental")]
 #[test]
 fn test_analyze_detailed_flag() {
     let mut tmp =

@@ -1,52 +1,52 @@
 [package]
-name = "dbsurveyor-core"
-version.workspace = true
-edition.workspace = true
+name                   = "dbsurveyor-core"
+version.workspace      = true
+edition.workspace      = true
 rust-version.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
-homepage.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Core data structures and utilities for DBSurveyor"
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+homepage.workspace     = true
+keywords.workspace     = true
+categories.workspace   = true
+description            = "Core data structures and utilities for DBSurveyor"
 
 [features]
-default = ["postgresql", "sqlite"]
+default = [ "postgresql", "sqlite" ]
 # Database driver features
-postgresql = ["sqlx", "sqlx/postgres"]
-mysql = ["sqlx", "sqlx/mysql"]
-sqlite = ["sqlx", "sqlx/sqlite"]
-mongodb = ["dep:mongodb"]
-mssql = []
+postgresql = [ "sqlx", "sqlx/postgres" ]
+mysql      = [ "sqlx", "sqlx/mysql" ]
+sqlite     = [ "sqlx", "sqlx/sqlite" ]
+mongodb    = [ "dep:mongodb" ]
+mssql      = [  ]
 # Optional features
-compression = []
-encryption = ["dep:aes-gcm", "dep:argon2", "dep:password-hash"]
+compression = [  ]
+encryption  = [ "dep:aes-gcm", "dep:argon2", "dep:password-hash" ]
 
 [dependencies]
 # Core dependencies
-serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-async-trait = { workspace = true }
-url = { workspace = true }
-chrono = { workspace = true }
-zeroize = { workspace = true }
-tracing = { workspace = true }
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+thiserror          = { workspace = true }
+async-trait        = { workspace = true }
+url                = { workspace = true }
+chrono             = { workspace = true }
+zeroize            = { workspace = true }
+tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
-futures = { workspace = true }
+futures            = { workspace = true }
 
 # Database dependencies (feature-gated)
-sqlx = { workspace = true, optional = true, default-features = false }
+sqlx    = { workspace = true, optional = true, default-features = false }
 mongodb = { workspace = true, optional = true }
 
 # Async runtime (required for rate limiting in sampling)
 tokio = { workspace = true }
 
 # Security dependencies (feature-gated)
-aes-gcm = { workspace = true, optional = true }
-argon2 = { workspace = true, optional = true }
-password-hash = { version = "0.6", optional = true }
+aes-gcm       = { workspace = true, optional = true }
+argon2        = { workspace = true, optional = true }
+password-hash = { workspace = true, optional = true }
 # base64 is used for both encryption and SQLite BLOB encoding
 base64 = { workspace = true }
 
@@ -54,17 +54,25 @@ base64 = { workspace = true }
 rayon = { workspace = true }
 
 # JSON Schema validation
-jsonschema = { version = "0.45.1", default-features = false }
-regex = "1.12.3"
-glob-match = "0.2"
+jsonschema = { version = "0.46.2", default-features = false }
+regex      = "1.12.3"
+glob-match = "0.2.1"
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
-testcontainers-modules = { workspace = true, features = ["postgres", "mysql", "mongo"] }
+tokio = { workspace = true, features = [
+    "test-util",
+    "macros",
+    "rt-multi-thread",
+] }
+testcontainers-modules = { workspace = true, features = [
+    "postgres",
+    "mysql",
+    "mongo",
+] }
 serde_json = { workspace = true }
 criterion = { workspace = true }
 chrono = { workspace = true }
 
 [[bench]]
-name = "benchmarks"
+name    = "benchmarks"
 harness = false
