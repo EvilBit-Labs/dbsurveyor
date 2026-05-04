@@ -60,6 +60,11 @@ builds:
 
     # -------------------------------------------------------------------------
     # Collector: all features (all database drivers)
+    #
+    # musl is excluded: the mssql feature pulls tiberius+native-tls, which
+    # links against system OpenSSL and cannot statically link against musl.
+    # Use the per-driver variants (collect-postgresql/mysql/sqlite/mongodb)
+    # for static musl builds.
     # -------------------------------------------------------------------------
     - id: collect-all
       builder: rust
@@ -74,7 +79,6 @@ builds:
       targets:
           - x86_64-unknown-linux-gnu
           - aarch64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
           - x86_64-apple-darwin
           - aarch64-apple-darwin
           - x86_64-pc-windows-gnu
@@ -174,6 +178,10 @@ builds:
 
     # -------------------------------------------------------------------------
     # Collector: MSSQL only
+    #
+    # musl is excluded: tiberius uses native-tls (the only TLS backend
+    # without unpatched RUSTSEC advisories), which links system OpenSSL
+    # and cannot statically link against musl.
     # -------------------------------------------------------------------------
     - id: collect-mssql
       builder: rust
@@ -189,7 +197,6 @@ builds:
       targets:
           - x86_64-unknown-linux-gnu
           - aarch64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
           - x86_64-apple-darwin
           - aarch64-apple-darwin
           - x86_64-pc-windows-gnu

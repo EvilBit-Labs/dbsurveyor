@@ -60,6 +60,14 @@ ignore = [
     # RSA timing attack - no fix available, in sqlx-mysql transitive dependency
     # Review: check for upstream fix periodically (last checked 2026-04-04)
     "RUSTSEC-2023-0071",
+    # hickory-proto NSEC3 unbounded loop - NO upstream fix.
+    # Via mongodb 3.6.0 (latest) -> hickory-proto 0.25.2; mongodb's ^0.25
+    # requirement blocks upgrade. (last checked 2026-05-03)
+    "RUSTSEC-2026-0118",
+    # hickory-proto O(n^2) name compression - fix in 0.26.1, blocked by mongodb
+    # ^0.25 requirement. dbsurveyor only encodes the configured MongoDB SRV
+    # cluster URI. (last checked 2026-05-03)
+    "RUSTSEC-2026-0119",
 ]
 
 [sources]

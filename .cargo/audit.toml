@@ -7,4 +7,16 @@ ignore = [
     # Transitive dep via sqlx-mysql. MySQL is not enabled by default.
     # Review: check for upstream fix periodically (last checked 2026-04-04)
     "RUSTSEC-2023-0071",
+    # hickory-proto NSEC3 closest-encloser unbounded loop - NO upstream fix.
+    # Transitive dep via mongodb 3.6.0 (latest) -> hickory-proto 0.25.2.
+    # mongodb's ^0.25 requirement blocks upgrade to fixed 0.26.1.
+    # Review: track mongodb upstream for hickory bump (last checked 2026-05-03)
+    "RUSTSEC-2026-0118",
+    # hickory-proto O(n^2) name compression CPU exhaustion - fix in 0.26.1.
+    # Transitive dep via mongodb 3.6.0 (latest) -> hickory-proto 0.25.2.
+    # mongodb's ^0.25 requirement blocks upgrade. dbsurveyor never encodes
+    # untrusted DNS names; impact is limited to MongoDB SRV record lookup
+    # against a configured cluster URI.
+    # Review: track mongodb upstream for hickory bump (last checked 2026-05-03)
+    "RUSTSEC-2026-0119",
 ]
