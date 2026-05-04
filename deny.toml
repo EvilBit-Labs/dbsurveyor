@@ -60,8 +60,23 @@ ignore = [
     # RSA timing attack - no fix available, in sqlx-mysql transitive dependency
     # Review: check for upstream fix periodically (last checked 2026-04-04)
     "RUSTSEC-2023-0071",
-    # rustls-pemfile unmaintained - in testcontainers dev dependency only
-    "RUSTSEC-2025-0134",
+    # hickory-proto NSEC3 unbounded loop on cross-zone responses.
+    # As of 2026-05-04 the advisory has no fixed hickory-proto release,
+    # so a hickory bump alone would not help; pulled in via mongodb,
+    # which pins hickory ^0.25. dbsurveyor only resolves the operator-
+    # supplied MongoDB cluster URI.
+    # Remove when: hickory-proto publishes a fix AND mongodb releases a
+    # version pulling that fix in.
+    # (last checked 2026-05-04)
+    "RUSTSEC-2026-0118",
+    # hickory-proto O(n^2) name compression - fix in hickory-proto
+    # >= 0.26.1; same chain as -0118 but here a fix exists upstream
+    # and is blocked only by mongodb's ^0.25 pin. dbsurveyor only
+    # encodes the operator-supplied MongoDB SRV URI.
+    # Remove when: mongodb publishes a release depending on
+    # hickory-proto >= 0.26.1.
+    # (last checked 2026-05-04)
+    "RUSTSEC-2026-0119",
 ]
 
 [sources]

@@ -684,6 +684,8 @@ DBSurveyor uses GoReleaser v2 with cargo-zigbuild for cross-compilation:
 - `aarch64-apple-darwin` - macOS Apple Silicon
 - `x86_64-pc-windows-gnu` - Windows x86_64
 
+The postprocessor and the per-driver collector variants (`postgresql`, `mysql`, `sqlite`, `mongodb`) build for all six targets. The `all` and `mssql` collector variants exclude `x86_64-unknown-linux-musl`: the `mssql` feature pulls `tiberius` with `native-tls`, which links system OpenSSL and cannot statically link against musl. Static-musl users should pick a per-driver variant.
+
 **Security Features**:
 
 - **Cosign Keyless Signing**: Checksums are signed using GitHub OIDC identity

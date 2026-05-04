@@ -49,16 +49,16 @@ Each release produces:
 
 ## Supported Platforms
 
-All variants are built for all platforms:
+Most variants are built for all six platforms below. The `all` and `mssql` collector variants exclude `x86_64-unknown-linux-musl` because the `mssql` feature pulls `tiberius` with `native-tls`, which links system OpenSSL and cannot statically link against musl. Static-musl users should pick a per-driver variant (`postgresql`, `mysql`, `sqlite`, `mongodb`).
 
-| OS           | Architecture            | Target Triple               |
-| ------------ | ----------------------- | --------------------------- |
-| Linux        | x86_64                  | `x86_64-unknown-linux-gnu`  |
-| Linux        | aarch64                 | `aarch64-unknown-linux-gnu` |
-| Linux (musl) | x86_64                  | `x86_64-unknown-linux-musl` |
-| macOS        | x86_64                  | `x86_64-apple-darwin`       |
-| macOS        | aarch64 (Apple Silicon) | `aarch64-apple-darwin`      |
-| Windows      | x86_64                  | `x86_64-pc-windows-gnu`     |
+| OS           | Architecture            | Target Triple               | mssql / all-features |
+| ------------ | ----------------------- | --------------------------- | -------------------- |
+| Linux        | x86_64                  | `x86_64-unknown-linux-gnu`  | yes                  |
+| Linux        | aarch64                 | `aarch64-unknown-linux-gnu` | yes                  |
+| Linux (musl) | x86_64                  | `x86_64-unknown-linux-musl` | no (see above)       |
+| macOS        | x86_64                  | `x86_64-apple-darwin`       | yes                  |
+| macOS        | aarch64 (Apple Silicon) | `aarch64-apple-darwin`      | yes                  |
+| Windows      | x86_64                  | `x86_64-pc-windows-gnu`     | yes                  |
 
 ## Verification
 
@@ -124,7 +124,7 @@ Validate the GoReleaser configuration:
 goreleaser check
 ```
 
-Build a snapshot locally (no publish). This builds all 42 binaries (1 postprocessor + 6 collector variants, each for 6 targets):
+Build a snapshot locally (no publish). This builds 40 binaries (1 postprocessor for 6 targets + 6 collector variants for 6 targets each, minus the two `mssql`-containing collector variants on `x86_64-unknown-linux-musl`):
 
 ```bash
 goreleaser build --snapshot --clean

@@ -1,15 +1,15 @@
 [package]
-name = "dbsurveyor-collect"
-version.workspace = true
-edition.workspace = true
+name                   = "dbsurveyor-collect"
+version.workspace      = true
+edition.workspace      = true
 rust-version.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
-homepage.workspace = true
-keywords.workspace = true
-categories.workspace = true
-description = "Database schema collection tool for DBSurveyor"
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+homepage.workspace     = true
+keywords.workspace     = true
+categories.workspace   = true
+description            = "Database schema collection tool for DBSurveyor"
 
 [[bin]]
 name = "dbsurveyor-collect"
@@ -17,58 +17,38 @@ path = "src/main.rs"
 
 [features]
 # Default features include the most commonly used secure database drivers
-default = ["postgresql", "sqlite", "mongodb"]
+default = [ "postgresql", "sqlite", "mongodb" ]
 
 # Database driver features (propagate to core and enable local drivers)
-postgresql = [
-    "dbsurveyor-core/postgresql",
-    "dep:sqlx",
-    "sqlx/postgres",
-]
-mysql = [
-    "dbsurveyor-core/mysql",
-    "dep:sqlx",
-    "sqlx/mysql",
-]
-sqlite = [
-    "dbsurveyor-core/sqlite",
-    "dep:sqlx",
-    "sqlx/sqlite",
-]
-mongodb = [
-    "dbsurveyor-core/mongodb",
-    "dep:mongodb",
-]
-mssql = [
-    "dbsurveyor-core/mssql",
-    "dep:tiberius",
-    "tokio-util",
-]
+postgresql = [ "dbsurveyor-core/postgresql", "dep:sqlx", "sqlx/postgres" ]
+mysql      = [ "dbsurveyor-core/mysql", "dep:sqlx", "sqlx/mysql" ]
+sqlite     = [ "dbsurveyor-core/sqlite", "dep:sqlx", "sqlx/sqlite" ]
+mongodb    = [ "dbsurveyor-core/mongodb", "dep:mongodb" ]
+mssql      = [ "dbsurveyor-core/mssql", "dep:tiberius" ]
 # Oracle adapter is currently a stub - requires Oracle Instant Client
-oracle = []
+oracle = [  ]
 
 # Optional features
-compression = ["dbsurveyor-core/compression", "dep:zstd"]
-encryption = ["dbsurveyor-core/encryption"]
+compression = [ "dbsurveyor-core/compression", "dep:zstd" ]
+encryption  = [ "dbsurveyor-core/encryption" ]
 
 [dependencies]
 # Core dependencies
 dbsurveyor-core = { workspace = true }
-tokio = { workspace = true }
-clap = { workspace = true }
-clap_complete = { workspace = true }
-tracing = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-url = { workspace = true }
+tokio           = { workspace = true }
+clap            = { workspace = true }
+clap_complete   = { workspace = true }
+tracing         = { workspace = true }
+serde_json      = { workspace = true }
+thiserror       = { workspace = true }
+url             = { workspace = true }
 
 # Database dependencies (feature-gated)
-sqlx = { workspace = true, optional = true }
-mongodb = { workspace = true, optional = true }
+sqlx     = { workspace = true, optional = true }
+mongodb  = { workspace = true, optional = true }
 tiberius = { workspace = true, optional = true }
-tokio-util = { version = "0.7.16", features = ["compat"], optional = true }
-futures = "0.3"
-chrono = { workspace = true }
+futures  = { workspace = true }
+chrono   = { workspace = true }
 
 # Security dependencies (for password input)
 rpassword = { workspace = true }
@@ -77,9 +57,9 @@ rpassword = { workspace = true }
 zstd = { workspace = true, optional = true }
 
 [dev-dependencies]
-tempfile = "3.27.0"
-temp-env = "0.3.6"
-testcontainers-modules = { workspace = true, features = ["mongo"] }
-criterion = { workspace = true }
-proptest = "1.11.0"
-async-trait = { workspace = true }
+tempfile               = "3.27.0"
+temp-env               = "0.3.6"
+testcontainers-modules = { workspace = true, features = [ "mongo" ] }
+criterion              = { workspace = true }
+proptest               = "1.11.0"
+async-trait            = { workspace = true }
