@@ -179,9 +179,8 @@ builds:
     # -------------------------------------------------------------------------
     # Collector: MSSQL only
     #
-    # musl is excluded: tiberius uses native-tls (the only TLS backend
-    # without unpatched RUSTSEC advisories), which links system OpenSSL
-    # and cannot statically link against musl.
+    # musl is excluded: the mssql feature pulls tiberius+native-tls, which
+    # links against system OpenSSL and cannot statically link against musl.
     # -------------------------------------------------------------------------
     - id: collect-mssql
       builder: rust

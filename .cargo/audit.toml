@@ -8,15 +8,21 @@ ignore = [
     # Review: check for upstream fix periodically (last checked 2026-04-04)
     "RUSTSEC-2023-0071",
     # hickory-proto NSEC3 closest-encloser unbounded loop - NO upstream fix.
-    # Transitive dep via mongodb 3.6.0 (latest) -> hickory-proto 0.25.2.
-    # mongodb's ^0.25 requirement blocks upgrade to fixed 0.26.1.
-    # Review: track mongodb upstream for hickory bump (last checked 2026-05-03)
+    # Pulled in via the mongodb crate, whose manifest pins both
+    # hickory-proto and hickory-resolver to ^0.25; we cannot move to a
+    # fixed version of hickory-proto without an upstream mongodb release
+    # that relaxes that constraint. dbsurveyor only resolves the user-
+    # supplied MongoDB cluster URI, so attacker-controlled DNS responses
+    # would have to come from a compromised/hostile resolver.
+    # Remove when: mongodb publishes a release depending on hickory >= 0.26.
+    # (last checked 2026-05-03)
     "RUSTSEC-2026-0118",
     # hickory-proto O(n^2) name compression CPU exhaustion - fix in 0.26.1.
-    # Transitive dep via mongodb 3.6.0 (latest) -> hickory-proto 0.25.2.
-    # mongodb's ^0.25 requirement blocks upgrade. dbsurveyor never encodes
-    # untrusted DNS names; impact is limited to MongoDB SRV record lookup
-    # against a configured cluster URI.
-    # Review: track mongodb upstream for hickory bump (last checked 2026-05-03)
+    # Same chain as -0118: blocked by mongodb's ^0.25 hickory pin.
+    # dbsurveyor never encodes untrusted DNS names; the only encoded name
+    # is the configured MongoDB SRV cluster URI under the operator's
+    # control.
+    # Remove when: mongodb publishes a release depending on hickory >= 0.26.
+    # (last checked 2026-05-03)
     "RUSTSEC-2026-0119",
 ]

@@ -61,12 +61,16 @@ ignore = [
     # Review: check for upstream fix periodically (last checked 2026-04-04)
     "RUSTSEC-2023-0071",
     # hickory-proto NSEC3 unbounded loop - NO upstream fix.
-    # Via mongodb 3.6.0 (latest) -> hickory-proto 0.25.2; mongodb's ^0.25
-    # requirement blocks upgrade. (last checked 2026-05-03)
+    # Pulled in via mongodb, which pins hickory ^0.25. dbsurveyor only
+    # resolves the operator-supplied MongoDB cluster URI.
+    # Remove when: mongodb publishes a release depending on hickory >= 0.26.
+    # (last checked 2026-05-03)
     "RUSTSEC-2026-0118",
-    # hickory-proto O(n^2) name compression - fix in 0.26.1, blocked by mongodb
-    # ^0.25 requirement. dbsurveyor only encodes the configured MongoDB SRV
-    # cluster URI. (last checked 2026-05-03)
+    # hickory-proto O(n^2) name compression - fix in 0.26.1.
+    # Same chain as -0118; blocked by mongodb's hickory ^0.25 pin.
+    # dbsurveyor only encodes the operator-supplied MongoDB SRV URI.
+    # Remove when: mongodb publishes a release depending on hickory >= 0.26.
+    # (last checked 2026-05-03)
     "RUSTSEC-2026-0119",
 ]
 
