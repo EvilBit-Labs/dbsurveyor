@@ -40,7 +40,7 @@ chrono = { version = "0.4.44", features = ["serde"] }
 
 # CLI dependencies
 clap = { version = "4.6.1", features = ["derive", "env"] }
-clap_complete = "4.6.2"
+clap_complete = "4.6.3"
 indicatif = "0.18.4"
 
 # Database dependencies (feature-gated)
@@ -54,7 +54,7 @@ argon2 = "0.5.3"
 password-hash = "0.6.1"
 zeroize = { version = "1.8.2", features = ["derive"] }
 rand = "0.10.1"
-rpassword = "7.4.0"
+rpassword = "7.5.2"
 base64 = "0.22.1"
 
 # Parallelism
