@@ -7,8 +7,26 @@ ignore = [
     # Transitive dep via sqlx-mysql. MySQL is not enabled by default.
     # Review: check for upstream fix periodically (last checked 2026-04-04)
     "RUSTSEC-2023-0071",
-
-    # rustls-pemfile unmaintained - transitive dep via tiberius (SQL Server adapter)
-    # No alternative available until tiberius updates
-    "RUSTSEC-2025-0134",
+    # hickory-proto NSEC3 closest-encloser unbounded loop on cross-zone
+    # responses. As of 2026-05-04 the advisory has no fixed hickory-proto
+    # release ("No fixed upgrade is available!"), so even bumping the
+    # mongodb -> hickory chain would not help today. Pulled in via the
+    # mongodb crate, which pins hickory-proto and hickory-resolver to
+    # ^0.25. dbsurveyor only resolves the operator-supplied MongoDB
+    # cluster URI; attacker-controlled DNS responses would have to come
+    # from a compromised resolver in the operator's environment.
+    # Remove when: hickory-proto publishes a fix AND mongodb releases a
+    # version pulling that fix in.
+    # (last checked 2026-05-04)
+    "RUSTSEC-2026-0118",
+    # hickory-proto O(n^2) name compression CPU exhaustion. Fix is in
+    # hickory-proto >= 0.26.1, but mongodb's ^0.25 hickory pin (same
+    # chain as -0118) blocks adopting it directly. dbsurveyor never
+    # encodes attacker-controlled DNS names; the only encoded name is
+    # the configured MongoDB SRV cluster URI under the operator's
+    # control.
+    # Remove when: mongodb publishes a release depending on
+    # hickory-proto >= 0.26.1.
+    # (last checked 2026-05-04)
+    "RUSTSEC-2026-0119",
 ]
