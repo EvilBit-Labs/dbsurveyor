@@ -18,7 +18,7 @@ brew install EvilBit-Labs/tap/dbsurveyor
 
 ### Prerequisites
 
-- Rust 1.93.1+ (MSRV)
+- Rust 1.95+ (MSRV)
 - Git
 
 ### Clone and Build
