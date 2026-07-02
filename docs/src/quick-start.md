@@ -80,8 +80,30 @@ For sensitive environments, encrypt the schema file:
 # Collect with encryption (will prompt for password)
 dbsurveyor-collect --encrypt postgres://user:pass@localhost/db
 
+# Output: schema.dbsurveyor.json.enc (extension automatically appended)
+
 # Generate documentation from encrypted file (will prompt for password)
-dbsurveyor generate schema.enc
+dbsurveyor generate schema.dbsurveyor.json.enc
+
+# Non-interactive encryption using environment variable
+DBSURVEYOR_ENCRYPTION_PASSWORD='mysecret123' dbsurveyor-collect --encrypt --output schema.json postgres://localhost/mydb
+
+# Non-interactive decryption
+DBSURVEYOR_ENCRYPTION_PASSWORD='mysecret123' dbsurveyor generate schema.json.enc
+```
+
+## Example 4: Combined Compression and Encryption
+
+Compress the schema before encrypting for smaller encrypted files:
+
+```bash
+# Collect with both compression and encryption
+dbsurveyor-collect --compress --encrypt postgres://user:pass@localhost/db
+
+# Output: schema.dbsurveyor.json.enc (contains compressed+encrypted data)
+
+# Decrypt and decompress (automatically detected)
+DBSURVEYOR_ENCRYPTION_PASSWORD='mysecret123' dbsurveyor generate schema.dbsurveyor.json.enc
 ```
 
 ## Common Commands
@@ -95,7 +117,7 @@ dbsurveyor-collect <database-url>
 # Test connection without collecting
 dbsurveyor-collect test <database-url>
 
-# Collect with compression
+# Collect with compression (output gets .zst extension)
 dbsurveyor-collect --compress <database-url>
 
 # Collect all databases on server
@@ -131,8 +153,9 @@ DBSurveyor generates several types of files:
 ### Schema Files (from collector)
 
 - `schema.dbsurveyor.json` - Standard JSON format ([specification](./json-schema-specification.md))
-- `schema.dbsurveyor.json.zst` - Compressed format (with `--compress`)
-- `schema.enc` - Encrypted format (with `--encrypt`)
+- `schema.dbsurveyor.json.zst` - Compressed format (with `--compress`, extension automatically appended)
+- `schema.dbsurveyor.json.enc` - Encrypted format (with `--encrypt`, extension automatically appended)
+- `schema.dbsurveyor.json.enc` - Combined compressed+encrypted format (with `--compress --encrypt`)
 
 ### Documentation Files (from generator)
 
