@@ -121,6 +121,8 @@ dbsurveyor-collect --compress postgres://localhost/large_db
 dbsurveyor generate schema.dbsurveyor.json.zst
 ```
 
+The collector automatically appends `.zst` to the output path if missing. For example, `--output schema.dbsurveyor.json` becomes `schema.dbsurveyor.json.zst`.
+
 **Benefits:**
 
 - 60-80% size reduction for large schemas
@@ -135,9 +137,22 @@ Sensitive schema data can be encrypted using AES-GCM-256:
 # Generate encrypted output (prompts for password)
 dbsurveyor-collect --encrypt postgres://localhost/sensitive_db
 
+# Non-interactive encryption using environment variable
+DBSURVEYOR_ENCRYPTION_PASSWORD='mysecret123' dbsurveyor-collect --encrypt --output schema.json postgres://localhost/mydb
+
 # Postprocessor prompts for decryption password
 dbsurveyor generate schema.enc
+
+# Non-interactive decryption
+DBSURVEYOR_ENCRYPTION_PASSWORD='mysecret123' dbsurveyor generate schema.json.enc
 ```
+
+The collector automatically appends `.enc` to the output path if missing. For example, `--output schema.dbsurveyor.json` becomes `schema.dbsurveyor.json.enc`.
+
+**Password Options:**
+
+- **Interactive prompt**: Default behavior; includes confirmation on encryption to prevent typos
+- **Environment variable**: Set `DBSURVEYOR_ENCRYPTION_PASSWORD` for non-interactive operation (minimum 8 characters)
 
 **Security Features:**
 
@@ -163,6 +178,27 @@ dbsurveyor generate schema.enc
   }
 }
 ```
+
+### Combined Compression and Encryption
+
+The `--compress --encrypt` flags produce a `.enc` file containing zstd-compressed JSON data that is then AES-GCM encrypted:
+
+```bash
+# Generate combined compressed+encrypted output
+dbsurveyor-collect --compress --encrypt --output schema.json postgres://localhost/mydb
+
+# Produces schema.json.enc containing encrypted+compressed data
+# Postprocessor automatically decrypts and decompresses
+DBSURVEYOR_ENCRYPTION_PASSWORD='mysecret123' dbsurveyor schema.json.enc
+```
+
+The postprocessor detects compressed payloads inside decrypted files via the zstd magic bytes (`0x28, 0xB5, 0x2F, 0xFD`) and decompresses automatically. No special flags are required for decryption—the file extension and content magic determine the processing pipeline.
+
+**Benefits:**
+
+- Maximum file size reduction (70-80% typical)
+- Security for sensitive schemas
+- Single file output with automatic format detection
 
 ## Documentation Formats
 
