@@ -15,7 +15,7 @@ use dbsurveyor_core::{
     error::redact_database_url,
     quality::{AnomalyConfig, QualityAnalyzer, QualityConfig},
 };
-use std::path::PathBuf;
+use std::path::Path;
 use tracing::{error, info, warn};
 
 /// Parsed quality threshold values from CLI arguments.
@@ -84,7 +84,7 @@ pub(crate) fn sampling_enabled(cli: &Cli) -> bool {
 /// Collects database schema and saves to file.
 pub(crate) async fn collect_schema(
     database_url: &str,
-    output_path: &PathBuf,
+    output_path: &Path,
     cli: &Cli,
 ) -> Result<CollectionOutcome> {
     // CWE-22: warn if output path contains parent-directory traversal
@@ -214,11 +214,11 @@ pub(crate) async fn collect_schema(
     }
 
     // Save to file
-    crate::output::save_schema(&schema, output_path, cli).await?;
+    let saved_path = crate::output::save_schema(&schema, output_path, cli).await?;
 
-    info!("[OK]Schema saved to {}", output_path.display());
+    info!("[OK]Schema saved to {}", saved_path.display());
     println!("Schema collection completed successfully");
-    println!("Output: {}", output_path.display());
+    println!("Output: {}", saved_path.display());
     println!("Tables: {}", schema.tables.len());
     println!("Views: {}", schema.views.len());
     println!("Indexes: {}", schema.indexes.len());
@@ -235,7 +235,7 @@ pub(crate) async fn collect_schema(
 #[cfg(feature = "postgresql")]
 async fn collect_all_databases(
     database_url: &str,
-    output_path: &PathBuf,
+    output_path: &Path,
     cli: &Cli,
 ) -> Result<CollectionOutcome> {
     let adapter = PostgresAdapter::new(database_url).await.map_err(|e| {
@@ -368,7 +368,8 @@ async fn collect_all_databases(
         },
     };
 
-    crate::output::save_server_schema(&server_schema, output_path, cli).await?;
+    let saved_path = crate::output::save_server_schema(&server_schema, output_path, cli).await?;
+    info!("[OK]Server schema saved to {}", saved_path.display());
 
     Ok(CollectionOutcome::from_results(&databases))
 }
@@ -376,7 +377,7 @@ async fn collect_all_databases(
 #[cfg(not(feature = "postgresql"))]
 async fn collect_all_databases(
     _database_url: &str,
-    _output_path: &PathBuf,
+    _output_path: &Path,
     _cli: &Cli,
 ) -> Result<CollectionOutcome> {
     Err(dbsurveyor_core::error::DbSurveyorError::configuration(

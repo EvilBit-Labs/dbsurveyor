@@ -65,11 +65,15 @@ Both binaries are thin wrappers over the shared `dbsurveyor-core` library.
 ### Schema Collection
 
 ```bash
-# Collect with encryption (prompts for password)
+# Collect with encryption (prompts for password, or reads
+# DBSURVEYOR_ENCRYPTION_PASSWORD; output gets a .enc extension)
 dbsurveyor-collect --encrypt postgres://localhost/db
 
-# Collect with compression
-dbsurveyor-collect --compress --output schema.json.zst postgres://localhost/db
+# Collect with compression (output gets a .zst extension)
+dbsurveyor-collect --compress postgres://localhost/db
+
+# Combined: compress the schema, then encrypt it (.enc output)
+dbsurveyor-collect --compress --encrypt postgres://localhost/db
 
 # SQLite collection
 dbsurveyor-collect sqlite:///path/to/database.db
@@ -88,7 +92,8 @@ dbsurveyor-collect
 # Markdown documentation
 dbsurveyor generate schema.dbsurveyor.json
 
-# Process encrypted schema (prompts for password)
+# Process encrypted schema (prompts for password, or reads
+# DBSURVEYOR_ENCRYPTION_PASSWORD; compressed payloads are detected)
 dbsurveyor generate schema.enc
 
 # Schema analysis with statistics

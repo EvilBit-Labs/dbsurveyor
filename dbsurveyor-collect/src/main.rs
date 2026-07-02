@@ -92,11 +92,17 @@ pub struct Cli {
     pub throttle: Option<u64>,
 
     /// Enable compression
-    #[arg(long, help = "Compress output using Zstandard (.json.zst)")]
+    #[arg(
+        long,
+        help = "Compress output using Zstandard (.zst appended to output path if missing)"
+    )]
     pub compress: bool,
 
     /// Enable encryption
-    #[arg(long, help = "Encrypt output using AES-GCM (.enc)")]
+    #[arg(
+        long,
+        help = "Encrypt output using AES-GCM (.enc appended to output path if missing). Password read from DBSURVEYOR_ENCRYPTION_PASSWORD or prompted. Combine with --compress to compress before encrypting"
+    )]
     pub encrypt: bool,
 
     /// Collect all accessible databases
