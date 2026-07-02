@@ -64,6 +64,13 @@ Output validation (`validate_and_parse_schema`) performs recursive credential sc
 
 RUSTSEC-2023-0071 (Marvin Attack, RSA timing side-channel) is suppressed in both `deny.toml` and `.cargo/audit.toml`. It is a transitive dependency through sqlx-mysql. Keep both files in sync and update the review date periodically.
 
+### 3.5 Output Writer Format Contracts
+
+- The postprocessor dispatches on the FINAL file extension only (`.enc`, `.zst`, else JSON). The collector therefore normalizes output paths, appending `.zst` or `.enc` when the configured `--output` does not already end with the target extension. `save_schema`/`save_server_schema` return the path actually written.
+- Combined `--compress --encrypt` output compresses the JSON BEFORE encrypting and is written as `.enc`. The postprocessor detects compression inside the decrypted payload via the zstd frame magic (`0x28 0xB5 0x2F 0xFD`), not via the extension. Loading it requires both the `compression` and `encryption` features.
+- `DBSURVEYOR_ENCRYPTION_PASSWORD` provides a non-interactive password for both binaries (encrypt and decrypt); the interactive prompt (with confirmation on encrypt) is the fallback. The 8-character minimum applies to both sources.
+- All collector output writes are atomic: bytes go to a `tempfile::NamedTempFile` in the target directory, then `persist()` (rename) over the destination. Do not add direct `File::create`/`tokio::fs::write` output paths.
+
 ## 4. Async & Concurrency
 
 ### 4.1 `spawn_blocking` for CPU-Intensive Work
