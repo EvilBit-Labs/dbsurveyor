@@ -428,15 +428,17 @@ mod tests {
     async fn combined_payload_round_trips_through_compress_and_encrypt() {
         use dbsurveyor_core::security::encryption::{decrypt_data_async, encrypt_data_async};
 
+        // Generated at runtime so no fixed credential appears in the code.
+        let password = format!("test-password-{}", std::process::id());
         let json = br#"{"format_version":"1.0","tables":[]}"#.to_vec();
         let compressed = compress_bytes(json.clone())
             .await
             .expect("compression failed");
-        let encrypted = encrypt_data_async(&compressed, "test-password-123")
+        let encrypted = encrypt_data_async(&compressed, &password)
             .await
             .expect("encryption failed");
 
-        let decrypted = decrypt_data_async(encrypted, "test-password-123")
+        let decrypted = decrypt_data_async(encrypted, &password)
             .await
             .expect("decryption failed");
         // Combined payloads must be detectable via the zstd frame magic.
