@@ -166,3 +166,152 @@ fn test_analyze_detailed_flag() {
         "detailed output should contain detailed section"
     );
 }
+
+/// Password used for encrypted schema fixtures, provided to the binary via
+/// the `DBSURVEYOR_ENCRYPTION_PASSWORD` environment variable.
+#[cfg(feature = "encryption")]
+const TEST_PASSWORD: &str = "postprocessor-test-password";
+
+/// Runs `dbsurveyor validate <path>` with the given environment variables.
+#[cfg(any(feature = "compression", feature = "encryption"))]
+fn run_validate(path: &std::path::Path, envs: &[(&str, &str)]) -> std::process::Output {
+    let mut cmd = Command::new(bin_path());
+    cmd.args(["validate", path.to_str().expect("non-UTF8 path")]);
+    for (key, value) in envs {
+        cmd.env(key, value);
+    }
+    cmd.output().expect("failed to execute dbsurveyor validate")
+}
+
+#[cfg(feature = "compression")]
+#[test]
+fn test_validate_compressed_schema_file() {
+    let compressed =
+        zstd::encode_all(minimal_valid_schema().as_bytes(), 3).expect("failed to compress schema");
+    let mut tmp =
+        tempfile::NamedTempFile::with_suffix(".json.zst").expect("failed to create temp file");
+    tmp.write_all(&compressed).expect("failed to write");
+    tmp.flush().expect("failed to flush");
+
+    let output = run_validate(tmp.path(), &[]);
+    assert!(
+        output.status.success(),
+        "validate should succeed for a compressed schema file: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("test_db"),
+        "validate output should show database name"
+    );
+}
+
+#[cfg(feature = "encryption")]
+#[test]
+fn test_validate_encrypted_schema_file() {
+    use dbsurveyor_core::security::encryption::encrypt_data;
+
+    let encrypted = encrypt_data(minimal_valid_schema().as_bytes(), TEST_PASSWORD)
+        .expect("failed to encrypt schema");
+    let encrypted_json =
+        serde_json::to_string_pretty(&encrypted).expect("failed to serialize encrypted data");
+    let mut tmp = tempfile::NamedTempFile::with_suffix(".enc").expect("failed to create temp file");
+    tmp.write_all(encrypted_json.as_bytes())
+        .expect("failed to write");
+    tmp.flush().expect("failed to flush");
+
+    let output = run_validate(
+        tmp.path(),
+        &[("DBSURVEYOR_ENCRYPTION_PASSWORD", TEST_PASSWORD)],
+    );
+    assert!(
+        output.status.success(),
+        "validate should succeed for an encrypted schema file: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("test_db"),
+        "validate output should show database name"
+    );
+}
+
+#[cfg(feature = "encryption")]
+#[test]
+fn test_validate_encrypted_schema_wrong_password_fails() {
+    use dbsurveyor_core::security::encryption::encrypt_data;
+
+    let encrypted = encrypt_data(minimal_valid_schema().as_bytes(), TEST_PASSWORD)
+        .expect("failed to encrypt schema");
+    let encrypted_json =
+        serde_json::to_string_pretty(&encrypted).expect("failed to serialize encrypted data");
+    let mut tmp = tempfile::NamedTempFile::with_suffix(".enc").expect("failed to create temp file");
+    tmp.write_all(encrypted_json.as_bytes())
+        .expect("failed to write");
+    tmp.flush().expect("failed to flush");
+
+    let output = run_validate(
+        tmp.path(),
+        &[("DBSURVEYOR_ENCRYPTION_PASSWORD", "wrong-password-123")],
+    );
+    assert!(
+        !output.status.success(),
+        "validate must fail for a wrong decryption password"
+    );
+}
+
+#[cfg(feature = "encryption")]
+#[test]
+fn test_validate_tampered_encrypted_schema_fails() {
+    use dbsurveyor_core::security::encryption::encrypt_data;
+
+    let mut encrypted = encrypt_data(minimal_valid_schema().as_bytes(), TEST_PASSWORD)
+        .expect("failed to encrypt schema");
+    // Flip one bit of the ciphertext to simulate tampering; AES-GCM
+    // authentication must reject the modified payload.
+    encrypted.ciphertext[0] ^= 0x01;
+    let encrypted_json =
+        serde_json::to_string_pretty(&encrypted).expect("failed to serialize encrypted data");
+    let mut tmp = tempfile::NamedTempFile::with_suffix(".enc").expect("failed to create temp file");
+    tmp.write_all(encrypted_json.as_bytes())
+        .expect("failed to write");
+    tmp.flush().expect("failed to flush");
+
+    let output = run_validate(
+        tmp.path(),
+        &[("DBSURVEYOR_ENCRYPTION_PASSWORD", TEST_PASSWORD)],
+    );
+    assert!(
+        !output.status.success(),
+        "validate must fail for a tampered encrypted file"
+    );
+}
+
+#[cfg(all(feature = "compression", feature = "encryption"))]
+#[test]
+fn test_validate_combined_compressed_encrypted_schema_file() {
+    use dbsurveyor_core::security::encryption::encrypt_data;
+
+    // Combined collector output: JSON is zstd-compressed, then encrypted.
+    let compressed =
+        zstd::encode_all(minimal_valid_schema().as_bytes(), 3).expect("failed to compress schema");
+    let encrypted = encrypt_data(&compressed, TEST_PASSWORD).expect("failed to encrypt schema");
+    let encrypted_json =
+        serde_json::to_string_pretty(&encrypted).expect("failed to serialize encrypted data");
+    let mut tmp = tempfile::NamedTempFile::with_suffix(".enc").expect("failed to create temp file");
+    tmp.write_all(encrypted_json.as_bytes())
+        .expect("failed to write");
+    tmp.flush().expect("failed to flush");
+
+    let output = run_validate(
+        tmp.path(),
+        &[("DBSURVEYOR_ENCRYPTION_PASSWORD", TEST_PASSWORD)],
+    );
+    assert!(
+        output.status.success(),
+        "validate should succeed for a compressed-then-encrypted schema file: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("test_db"),
+        "validate output should show database name"
+    );
+}
