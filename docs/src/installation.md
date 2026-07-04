@@ -18,7 +18,7 @@ brew install EvilBit-Labs/tap/dbsurveyor
 
 ### Prerequisites
 
-- Rust 1.95+ (MSRV)
+- Rust 1.85+ (MSRV)
 - Git
 
 ### Clone and Build
@@ -74,15 +74,15 @@ DBSurveyor provides two main binaries:
 
 The database collection tool that connects to databases and extracts schema information.
 
-- **Default Features**: `postgresql`, `sqlite`
-- **Optional Features**: `mysql`, `mongodb`, `mssql`, `compression`, `encryption`
+**Default Features**: `postgresql`, `sqlite`
+**Optional Features**: `mysql`, `mongodb`, `mssql`, `compression`, `encryption`
 
 ### `dbsurveyor`
 
 The documentation generator that processes collected schema files.
 
-- **Default Features**: None (minimal dependencies)
-- **Optional Features**: `compression`, `encryption`
+**Default Features**: None (minimal dependencies)
+**Optional Features**: `compression`, `encryption`
 
 ## Development Setup
 
