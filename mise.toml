@@ -51,3 +51,7 @@ package_manager = "bun"
 
 [settings.pipx]
 uvx = true
+
+[env]
+ECC_DISABLED_HOOKS = "pre:bash:gateguard-fact-force,pre:edit-write:gateguard-fact-force"
+_.file             = [ '.env', ".env.local" ]
