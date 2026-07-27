@@ -128,6 +128,12 @@ linters:
       # the document it illustrates.
       - path: '(_test\.go|tools/genschema/example\.go)$'
         linters: [mnd]
+      # G115 flags int-to-uint conversions that could overflow. In test fixtures
+      # the size is a literal slice a few entries long, so the conversion cannot
+      # overflow; the guard matters for widths that came from a database.
+      - path: '_test\.go$'
+        text: 'G115'
+        linters: [gosec]
       # Adapter collect.go files run a fixed sequence of independent metadata
       # queries. The repetition is structural (one block per object kind), and
       # collapsing it behind a generic helper obscures which query maps to

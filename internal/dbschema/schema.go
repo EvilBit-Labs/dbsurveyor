@@ -27,8 +27,12 @@ type Schema struct {
 	UserTypes   []UserType   `json:"user_types"`
 	// Samples is nil when sampling was not requested, distinct from an empty
 	// slice, which means sampling ran and returned nothing.
-	Samples            []TableSample      `json:"samples,omitempty"`
-	CollectionMetadata CollectionMetadata `json:"collection_metadata"`
+	Samples []TableSample `json:"samples,omitempty"`
+	// QualityMetrics is nil when quality analysis did not run, distinct from an
+	// empty slice, which means it ran over no samples. Metrics carry counts,
+	// ratios, and column names only, never a sampled value.
+	QualityMetrics     []TableQualityMetrics `json:"quality_metrics,omitempty"`
+	CollectionMetadata CollectionMetadata    `json:"collection_metadata"`
 }
 
 // New returns an empty schema for the given database, stamped with the current

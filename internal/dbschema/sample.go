@@ -1,6 +1,8 @@
 package dbschema
 
 import (
+	"maps"
+	"slices"
 	"time"
 )
 
@@ -197,18 +199,17 @@ type TableSample struct {
 	Status *SampleStatus `json:"status,omitempty"`
 }
 
-// ColumnNames returns the column names of the first sampled row, or nil when
-// the sample is empty. Names come from the first row only: a sample whose rows
-// have differing key sets is malformed, and Validate reports it.
+// ColumnNames returns the column names of the first sampled row, sorted, or nil
+// when the sample is empty. Names come from the first row only: a sample whose
+// rows have differing key sets is malformed, and Validate reports it.
+//
+// The order is sorted rather than the row's own, because a row is a map and Go
+// gives no stable iteration order. Everything downstream -- quality metrics,
+// report columns -- would otherwise reorder between runs on identical input.
 func (t *TableSample) ColumnNames() []string {
 	if len(t.Rows) == 0 {
 		return nil
 	}
 
-	names := make([]string, 0, len(t.Rows[0]))
-	for name := range t.Rows[0] {
-		names = append(names, name)
-	}
-
-	return names
+	return slices.Sorted(maps.Keys(t.Rows[0]))
 }

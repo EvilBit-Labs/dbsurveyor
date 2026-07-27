@@ -105,6 +105,12 @@ func fullSchema() *dbschema.Schema {
 	}}
 	schema.Samples = []dbschema.TableSample{completeSample(), skippedSample()}
 
+	// Quality metrics are derived from the samples by the analyzer rather than
+	// written by hand, so the example cannot describe a scoring the code would
+	// not produce.
+	schema.QualityMetrics = dbschema.NewAnalyzer(dbschema.DefaultQualityConfig()).
+		AnalyzeAll(schema.Samples, exampleTime)
+
 	schema.AggregateIndexesAndConstraints()
 
 	return schema

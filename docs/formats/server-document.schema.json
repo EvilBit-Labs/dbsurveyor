@@ -3,6 +3,25 @@
   "$id": "https://evilbitlabs.io/dbsurveyor/server-document.schema.json",
   "$ref": "#/$defs/ServerSchema",
   "$defs": {
+    "AnomalyMetrics": {
+      "properties": {
+        "outlier_count": {
+          "type": "integer"
+        },
+        "outliers": {
+          "items": {
+            "$ref": "#/$defs/ColumnAnomaly"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "outlier_count",
+        "outliers"
+      ]
+    },
     "CollectionMetadata": {
       "properties": {
         "collected_at": {
@@ -115,6 +134,143 @@
         "primary_key",
         "auto_generate",
         "ordinal_position"
+      ]
+    },
+    "ColumnAnomaly": {
+      "properties": {
+        "column_name": {
+          "type": "string"
+        },
+        "outlier_count": {
+          "type": "integer"
+        },
+        "z_score_threshold": {
+          "type": "number"
+        },
+        "mean": {
+          "type": "number"
+        },
+        "std_dev": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "column_name",
+        "outlier_count",
+        "z_score_threshold",
+        "mean",
+        "std_dev"
+      ]
+    },
+    "ColumnCompleteness": {
+      "properties": {
+        "column_name": {
+          "type": "string"
+        },
+        "null_count": {
+          "type": "integer"
+        },
+        "empty_count": {
+          "type": "integer"
+        },
+        "completeness": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "column_name",
+        "null_count",
+        "empty_count",
+        "completeness"
+      ]
+    },
+    "ColumnDuplicates": {
+      "properties": {
+        "column_name": {
+          "type": "string"
+        },
+        "duplicate_count": {
+          "type": "integer"
+        },
+        "unique_count": {
+          "type": "integer"
+        },
+        "uniqueness": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "column_name",
+        "duplicate_count",
+        "unique_count",
+        "uniqueness"
+      ]
+    },
+    "CompletenessMetrics": {
+      "properties": {
+        "score": {
+          "type": "number"
+        },
+        "column_metrics": {
+          "items": {
+            "$ref": "#/$defs/ColumnCompleteness"
+          },
+          "type": "array"
+        },
+        "total_nulls": {
+          "type": "integer"
+        },
+        "total_empty": {
+          "type": "integer"
+        },
+        "analyzed_rows": {
+          "type": "integer"
+        },
+        "analyzed_fields": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "score",
+        "column_metrics",
+        "total_nulls",
+        "total_empty",
+        "analyzed_rows",
+        "analyzed_fields"
+      ]
+    },
+    "ConsistencyMetrics": {
+      "properties": {
+        "score": {
+          "type": "number"
+        },
+        "type_inconsistencies": {
+          "items": {
+            "$ref": "#/$defs/TypeInconsistency"
+          },
+          "type": "array"
+        },
+        "format_violations": {
+          "items": {
+            "$ref": "#/$defs/FormatViolation"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "score",
+        "type_inconsistencies",
+        "format_violations"
       ]
     },
     "Constraint": {
@@ -263,6 +419,26 @@
         "columns",
         "referenced_table",
         "referenced_columns"
+      ]
+    },
+    "FormatViolation": {
+      "properties": {
+        "column_name": {
+          "type": "string"
+        },
+        "expected_format": {
+          "type": "string"
+        },
+        "violation_count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "column_name",
+        "expected_format",
+        "violation_count"
       ]
     },
     "Index": {
@@ -544,6 +720,12 @@
           },
           "type": "array"
         },
+        "quality_metrics": {
+          "items": {
+            "$ref": "#/$defs/TableQualityMetrics"
+          },
+          "type": "array"
+        },
         "collection_metadata": {
           "$ref": "#/$defs/CollectionMetadata"
         }
@@ -703,6 +885,56 @@
         "constraints"
       ]
     },
+    "TableQualityMetrics": {
+      "properties": {
+        "table_name": {
+          "type": "string"
+        },
+        "schema_name": {
+          "type": "string"
+        },
+        "analyzed_rows": {
+          "type": "integer"
+        },
+        "completeness": {
+          "$ref": "#/$defs/CompletenessMetrics"
+        },
+        "consistency": {
+          "$ref": "#/$defs/ConsistencyMetrics"
+        },
+        "uniqueness": {
+          "$ref": "#/$defs/UniquenessMetrics"
+        },
+        "anomalies": {
+          "$ref": "#/$defs/AnomalyMetrics"
+        },
+        "quality_score": {
+          "type": "number"
+        },
+        "threshold_violations": {
+          "items": {
+            "$ref": "#/$defs/ThresholdViolation"
+          },
+          "type": "array"
+        },
+        "analyzed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "table_name",
+        "analyzed_rows",
+        "completeness",
+        "consistency",
+        "uniqueness",
+        "quality_score",
+        "threshold_violations",
+        "analyzed_at"
+      ]
+    },
     "TableSample": {
       "properties": {
         "table_name": {
@@ -754,6 +986,30 @@
         "warnings"
       ]
     },
+    "ThresholdViolation": {
+      "properties": {
+        "metric": {
+          "type": "string"
+        },
+        "threshold": {
+          "type": "number"
+        },
+        "actual": {
+          "type": "number"
+        },
+        "severity": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "metric",
+        "threshold",
+        "actual",
+        "severity"
+      ]
+    },
     "Trigger": {
       "properties": {
         "name": {
@@ -792,6 +1048,33 @@
         "table_name",
         "event",
         "timing"
+      ]
+    },
+    "TypeInconsistency": {
+      "properties": {
+        "column_name": {
+          "type": "string"
+        },
+        "expected_type": {
+          "type": "string"
+        },
+        "found_types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "inconsistent_count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "column_name",
+        "expected_type",
+        "found_types",
+        "inconsistent_count"
       ]
     },
     "UnifiedDataType": {
@@ -839,6 +1122,29 @@
       "type": "object",
       "required": [
         "kind"
+      ]
+    },
+    "UniquenessMetrics": {
+      "properties": {
+        "score": {
+          "type": "number"
+        },
+        "duplicate_columns": {
+          "items": {
+            "$ref": "#/$defs/ColumnDuplicates"
+          },
+          "type": "array"
+        },
+        "duplicate_row_count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "score",
+        "duplicate_columns",
+        "duplicate_row_count"
       ]
     },
     "UserType": {
