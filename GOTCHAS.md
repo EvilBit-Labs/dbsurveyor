@@ -1,155 +1,215 @@
-# Development Gotchas & Pitfalls
+# Development Gotchas and Pitfalls
 
-This document tracks non-obvious behaviors, common pitfalls, and hard-earned lessons in the DBSurveyor codebase. Referenced from AGENTS.md and CONTRIBUTING.md.
+Non-obvious behaviors and hard-earned lessons. Referenced from `AGENTS.md` and
+`CONTRIBUTING.md`. Read it before changing anything in the areas it covers.
 
-## 1. Adapter Architecture
+Entries marked **[carried]** were learned against the retired Rust
+implementation and describe the *database*, not the language. They are believed
+to hold for the Go tree but have not all been re-validated against it yet; the
+adapter unit that lands each engine is responsible for confirming or correcting
+its entries (R3).
 
-### 1.1 `DatabaseAdapter` Trait and Placeholder Macro
+## 1. Tests that report success over nothing
 
-`define_placeholder_adapter!` in `adapters/placeholder.rs` generates `DatabaseAdapter` trait impls. Adding a new trait method requires updating the macro (covers MSSQL placeholder).
+Two repository-level tests in this tree passed for months while checking an
+empty set. Both are fixed; the pattern is the lesson.
 
-### 1.2 `TableSample` Struct Literals
+### 1.1 A skip list that matched the repository root
 
-`TableSample` struct literals exist in ~15 files (quality/{completeness,anomaly,consistency,uniqueness,analyzer}.rs, adapters/{postgres,mysql,sqlite,mongodb}/sampling.rs, models.rs tests, placeholder macro). Adding a field requires updating all of them.
+`tools/ascii_test.go` walks the tree and skips directories by base name. Its skip
+list named the retired Rust crate directories, one of which was `dbsurveyor` --
+which is also the name of the repository root. `filepath.WalkDir` visits the root
+first, matched it, returned `SkipDir`, and the entire walk ended before reading a
+file. R18 had never actually been enforced.
 
-### 1.3 Module Visibility
+The root is now exempt from the name match explicitly. When adding a skip entry,
+consider that a checkout can be named anything, including the thing you are
+trying to skip.
 
-All adapter sub-modules (connection, sampling, schema_collection, type_mapping) are private with explicit `pub use` re-exports. This matches the PostgreSQL adapter pattern established in PR #126. Do not make sub-modules `pub mod`.
+### 1.2 A package pattern relative to the test binary
 
-### 1.4 `RowExt` is PostgreSQL-Only
+`tools/nocgo_test.go` ran `go list -deps ./...` to assert R13 over the whole
+dependency graph. A test binary's working directory is its own package
+directory, so `./...` expanded to `tools` and `tools/genschema` and nothing else.
+Both checks now name the module path explicitly.
 
-The `RowExt` trait lives in `adapters/postgres/row_ext.rs`, not in shared code. It is hardcoded to `PgRow`/`sqlx::Postgres`. MySQL and SQLite adapters use `try_get()` directly.
+Any test that shells out to `go list`, `go build`, or `git` should use absolute
+or module-qualified arguments. Relative ones resolve against a directory that is
+rarely the one you pictured.
 
-### 1.5 `try_get()` Error Handling in MySQL/SQLite
+### 1.3 The general rule
 
-MySQL and SQLite adapters must use `try_get(...).map_err(|e| DbSurveyorError::collection_failed(...))?` for critical schema fields (names, types, ordinal positions). Do NOT use `unwrap_or_default()` on critical fields -- it silently produces ghost columns with empty names. Optional fields (comments, default values, referential actions) may use `unwrap_or_default()`.
+Before trusting a new invariant test, break the invariant on purpose and watch it
+fail. A test that has never failed is not evidence that the property holds.
 
-### 1.6 `DatabaseSchema` Uses Immutable Builder Pattern
+## 2. Artifacts and framing
 
-`DatabaseSchema` methods use `with_*` pattern (consuming `self`, returning `Self`) instead of `&mut self`. Call sites use `schema = schema.with_quality_metrics(...)` reassignment. Do not add `&mut self` methods to `DatabaseSchema`.
+### 2.1 Extension dispatch is asymmetric
 
-## 2. Configuration & Validation
+Writing appends the extension the requested options imply. Reading dispatches on
+the *final* extension only, and then, inside a decrypted payload, on the zstd
+frame magic (`28 B5 2F FD`) rather than on the filename. A
+compressed-and-encrypted artifact is named `.enc` and its name says nothing about
+the zstd frame inside it.
 
-### 2.1 `SamplingConfig` Has Three Construction Paths
+The `.zst` path deliberately does **not** sniff: a file named `.zst` that is not
+a zstd frame is an error, not a JSON file to fall back on.
 
-Builder methods (`.with_sample_size()`), direct struct literals, and deserialization all create `SamplingConfig`. The builder clamps values (e.g., `sample_size` to `[1, MAX_SAMPLE_SIZE]`), but struct literals and deserialization bypass the builder. `validate()` must reject values the builder would never produce.
+Full rules in `docs/formats/compression.md`.
 
-### 2.2 `compiled_patterns` is an Internal Cache
+### 2.2 Compression happens before encryption
 
-`SamplingConfig.compiled_patterns` is `pub(crate)` and `#[serde(skip)]`. After deserialization it will be empty. Callers must invoke `recompile_patterns()` after deserializing. The `Default` impl pre-compiles patterns automatically.
+Never the reverse. Ciphertext is indistinguishable from random and does not
+compress, so encrypting first pays for the compression pass and saves nothing.
 
-### 2.3 `ConnectionConfig` Field Names
+### 2.3 The credential scan runs on bytes, before decoding
 
-`host` = hostname, `database: Option<String>` = database name. Do not confuse host with database. `postgres/sampling.rs` `sample_table()` accepts `Option<&str>` for schema (not `&str`) and defaults to "public" internally.
+`json.Unmarshal` silently drops any field the Go types do not declare. A scan
+that ran on the decoded document would pronounce a file clean while a credential
+sat in a field this version does not know about. `internal/artifact` scans the
+JSON bytes first, then decodes, then validates -- and validation scans again,
+because it is the enforcement point for documents that never touched disk.
 
-### 2.4 Clap `conflicts_with` for Mutually Exclusive Flags
+### 2.4 `os.Create` and `os.WriteFile` are forbidden outside `internal/artifact`
 
-Use `conflicts_with` for flags like `--no-redact` vs `--redact-mode`. Several CLI flags (`--sample`, `--throttle`, `--redact-mode`) are parsed but not yet wired to functionality -- they emit runtime warnings.
+`forbidigo` refuses them repository-wide, and
+`tools/architecture_test.go` additionally reserves `os.Rename`, `os.CreateTemp`,
+and `os.OpenFile` to that package. The rule exists so the atomic-write contract
+and the credential scan cannot be routed around. If you need to write a file, you
+need `internal/artifact`.
 
-## 3. Security
+### 2.5 Unauthenticated input needs a ceiling, not just a floor
 
-### 3.1 Connection URLs are Zeroized
+Both the Argon2id cost parameters and the zstd decompressed size arrive from a
+file and are consumed *before* anything is authenticated -- the key must be
+derived before the GCM tag can be checked, and a plain `.zst` has no tag at all.
+Each therefore has an upper bound as well as a lower one. The Rust
+implementation validated only minimums, which left an artifact naming a
+multi-terabyte memory cost able to crash the process on open.
 
-All adapter structs store connection URLs as `Zeroizing<String>`. When constructing adapters, wrap with `Zeroizing::new(url.to_string())`. The `Deref<Target=String>` impl means read sites work transparently.
+## 3. Linters
 
-### 3.2 Credential Scanning
+### 3.1 `nonamedreturns` versus gocritic `unnamedResult`
 
-Output validation (`validate_and_parse_schema`) performs recursive credential scanning on JSON output. All input paths (plain JSON, compressed `.json.zst`, encrypted `.enc`) must route through this validation -- do not use raw `serde_json::from_str`.
+Both are enabled. `unnamedResult` wants multiple return values named;
+`nonamedreturns` forbids naming them. When they collide -- which happens for
+functions returning two values of the same type -- the resolution is to return a
+small struct instead of two values. This has come up twice; do not resolve it
+with a suppression.
 
-### 3.3 `pub(crate)` for Sensitive Fields
+### 3.2 `errcheck` has `check-blank: true`
 
-`SqliteAdapter.connection_string` and `KdfParams` fields are `pub(crate)`. Integration tests in `tests/` cannot access `pub(crate)` fields (separate compilation units). Use public constructors like `SqliteAdapter::from_pool()` instead of direct struct construction.
+`_ = f()` is flagged just as an unchecked call is. Where an error genuinely must
+be dropped, pass it to a named function that documents the reason (see
+`discardError` in `internal/artifact/write.go`) rather than suppressing the
+linter.
 
-### 3.4 Advisory Suppressions
+### 3.3 `nolintlint` requires a specific linter and an explanation
 
-RUSTSEC-2023-0071 (Marvin Attack, RSA timing side-channel) is suppressed in both `deny.toml` and `.cargo/audit.toml`. It is a transitive dependency through sqlx-mysql. Keep both files in sync and update the review date periodically.
+`//nolint` alone is rejected. Write `//nolint:gosec // G101: this is the name of
+a variable, not a credential.` The formatter will move a trailing directive if
+the line wraps, so put it on its own line above the statement.
 
-### 3.5 Output Writer Format Contracts
+### 3.4 `gosec` G101 fires on constants that merely *name* a secret
 
-- The postprocessor dispatches on the FINAL file extension only (`.enc`, `.zst`, else JSON). The collector therefore normalizes output paths, appending `.zst` or `.enc` when the configured `--output` does not already end with the target extension. `save_schema`/`save_server_schema` return the path actually written.
-- Combined `--compress --encrypt` output compresses the JSON BEFORE encrypting and is written as `.enc`. The postprocessor detects compression inside the decrypted payload via the zstd frame magic (`0x28 0xB5 0x2F 0xFD`), not via the extension. Loading it requires both the `compression` and `encryption` features.
-- `DBSURVEYOR_ENCRYPTION_PASSWORD` provides a non-interactive password for both binaries (encrypt and decrypt); the interactive prompt (with confirmation on encrypt) is the fallback. The 8-character minimum applies to both sources.
-- All collector output writes are atomic: bytes go to a `tempfile::NamedTempFile` in the target directory, then `persist()` (rename) over the destination. Do not add direct `File::create`/`tokio::fs::write` output paths.
+`const PasswordEnvVar = "DBSURVEYOR_ENCRYPTION_PASSWORD"` is the name of an
+environment variable to read, not a credential. It needs a documented
+suppression.
 
-## 4. Async & Concurrency
+## 4. Build and CI
 
-### 4.1 `spawn_blocking` for CPU-Intensive Work
+### 4.1 Run `just format` before `just check`
 
-Argon2id KDF (~0.5-1.0s) and zstd compression/decompression run in `tokio::task::spawn_blocking`. Prefer taking ownership in the closure over cloning large data (e.g., `decrypt_data_async` takes `EncryptedData` by value, not `&EncryptedData`).
+`just check` starts with `format-check`. Skipping the format step turns a
+whitespace difference into a failed gate that reads like a lint error.
 
-### 4.2 `tokio::join!` Error Counting
+### 4.2 `-race` is the one place CGO is allowed
 
-When counting failures from `tokio::join!`, check `is_err()` on the `Result` values BEFORE match arms consume them. Checking `is_empty()` on result vectors after the match conflates "no data" (valid) with "query failed" (error).
+The race detector requires cgo, so `just test-race` overrides the
+repository-wide `CGO_ENABLED=0`. It is a test-only exception and never applies to
+a shipped build.
 
-### 4.3 Multi-Database Pool Sizing
+### 4.3 `govulncheck` may not be on `PATH`
 
-In multi-database mode, each database gets a pool with `max_connections: 2`, `min_idle: 0`. Pools are explicitly closed after collection. This prevents connection exhaustion when scanning many databases.
+`mise` installs Go tools into the Go toolchain's `bin`, not `$GOPATH/bin`. If
+`just vuln` reports "command not found", the binary is likely under
+`$(go env GOBIN)`.
 
-### 4.4 MySQL INFORMATION_SCHEMA Mixed Signedness
+### 4.4 rust-analyzer's descendant: trust the compiler over the IDE
 
-MySQL's `INFORMATION_SCHEMA` uses both signed and unsigned integers inconsistently. `ORDINAL_POSITION` is `INT UNSIGNED` (use `u32`), but `NON_UNIQUE` in `STATISTICS` is signed `INT` (use `i32`). sqlx is strict about this: `i32` cannot decode `INT UNSIGNED` and `u32` cannot decode `INT`. Always check the actual column type before choosing the Rust type. The old `unwrap_or_default()` code silently swallowed these mismatches.
+Editor diagnostics go stale after multi-file edits and do not always enable the
+same build tags. `go build ./...` and `golangci-lint run` are authoritative.
 
-### 4.5 Nullable Row Count Estimates
+## 5. Schema documents
 
-MySQL `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` and SQLite `MAX(rowid)` both return NULL in certain cases (newly created tables, empty tables, some storage engines). Always use `query_scalar::<_, Option<i64>>` and `unwrap_or(0)` instead of assuming a non-null result. PostgreSQL `pg_class.reltuples` has the same risk but currently returns `bigint` which defaults to 0.
+### 5.1 Published artifacts are generated
 
-### 4.5 Raw String Quoting for SQL Identifiers
+`docs/formats/*.schema.json` and the example documents are derived from the Go
+types by `just gen-schema`. `TestPublishedArtifactsAreCurrent` fails when a
+committed file is stale. Change a schema type, regenerate.
 
-Never use `r#""{}""#` to build double-quoted SQL identifiers. The closing `"` is consumed by the `"#` delimiter, producing `"value` instead of `"value"`. Use escaped quotes instead: `"\"{}\""`.
+### 5.2 The envelope specification is held to the code by a test
 
-## 5. SQLite-Specific
+`docs/formats/encrypted-envelope.md` publishes a complete envelope in hex, and
+`TestWorkedExampleMatchesTheSpecification` reproduces it from injected salt and
+nonce bytes. A layout change that is not also a documentation change is a test
+failure, not a review catch.
 
-### 5.1 PRAGMA vs DML Escaping
+### 5.3 Model types have `PartialEq` semantics but float fields
 
-PRAGMA arguments use single-quote escaping (`replace('\'', "''")`). DML identifiers use double-quote escaping (`escape_identifier()`). These are different quoting contexts in SQLite. Use the shared utilities in `sqlite/mod.rs`: `escape_identifier()` and `escape_pragma_arg()`.
+Several types carry `float64` quality scores. Compare them with tolerance where
+it matters; do not assume exact equality survives a serialization round trip on
+every platform.
 
-### 5.2 `ordinal_position` is 1-Based
+## 6. Database behavior [carried]
 
-SQLite's `PRAGMA table_info` returns `cid` as 0-based. Convert with `cid + 1` for `ordinal_position`. The JSON Schema requires minimum 1.
+These describe engine quirks, not language mechanics. They cost real time in the
+Rust tree and the same traps exist in Go.
 
-### 5.3 SystemRowId Quoting
+### 6.1 MySQL `INFORMATION_SCHEMA` mixes signed and unsigned
 
-`ORDER BY` clauses for SystemRowId use quoted identifiers: `ORDER BY "rowid" DESC`. This is defense-in-depth even though `rowid` is always system-generated.
+`ORDINAL_POSITION` in `COLUMNS` is `INT UNSIGNED`. `NON_UNIQUE` in `STATISTICS`
+is signed `INT`. A driver that is strict about integer width will fail to decode
+one if you assume the other. Check the actual column type before choosing the Go
+type.
 
-## 6. Build & CI
+### 6.2 Row-count estimates are nullable
 
-### 6.1 `just ci-check` Takes ~3 Minutes
+MySQL `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` and SQLite `MAX(rowid)` both return
+NULL for newly created tables, empty tables, and some storage engines. Scan into
+a nullable type and default to zero. PostgreSQL `pg_class.reltuples` carries the
+same risk.
 
-The recipe runs: `fmt-check`, `lint` (pre-commit + clippy), `test-ci` (nextest), `coverage-ci`, `audit-ci`, `deny`. Do not re-run repeatedly to troubleshoot. Read the justfile, identify which step failed, and check that step individually.
+### 6.3 SQLite PRAGMA arguments and DML identifiers escape differently
 
-### 6.2 `cargo fmt` Separator
+PRAGMA arguments use single-quote escaping (`'` doubled). DML identifiers use
+double-quote escaping. These are different quoting contexts in the same engine;
+use the per-context helper, not one shared function.
 
-`cargo fmt --all -- --check` requires the `--` separator. Without it, `--check` is silently ignored by cargo and formatting issues pass. The release workflow was fixed for this in PR #126.
+### 6.4 SQLite `PRAGMA table_info` is zero-based
 
-### 6.3 Pre-Commit Hook Behavior
+`cid` starts at 0. The schema document requires `ordinal_position` to start at 1.
+Convert.
 
-- Hooks stash/restore unstaged files. If commit fails (e.g., mdformat reformats docs), re-stage and commit again.
-- `.pre-commit-config.yaml` must not have unstaged changes or `git commit` refuses.
-- `SKIP=<hook-id> git commit` bypasses a single hook (e.g., `SKIP=cargo-audit`).
-- `mdformat` may reformat docs on first run of `just ci-check`. Reset with `git checkout -- docs/` if needed.
+### 6.5 Never build a quoted identifier without escaping the quote character
 
-### 6.4 rust-analyzer vs `cargo check`
+An identifier containing a double quote closes the quoting early. Escape by
+doubling, always, even for identifiers you believe are system-generated.
 
-rust-analyzer diagnostics are often stale after multi-file edits. Always trust `cargo check --workspace --all-features` over IDE hints. In particular, rust-analyzer does not enable all feature gates by default, so modules behind `#[cfg(feature = "postgresql")]`, `#[cfg(feature = "mysql")]`, etc. will show false "unused" and "not found" warnings. Clippy with `--all-features` is the authoritative check.
+### 6.6 Multi-database mode exhausts connections easily
 
-### 6.5 Advisory Ignore Sync
+Scanning many databases on one server means many pools. Cap each pool small
+(2 connections, no idle minimum) and close it explicitly when that database is
+done, rather than relying on scope exit.
 
-`cargo-audit` ignores live in `.cargo/audit.toml`. `cargo deny` ignores live in `deny.toml`. Keep both in sync when adding or removing advisory suppressions.
+### 6.7 PostgreSQL batch collection is worth the complexity
 
-### 6.6 Feature-Gated Dependencies
+Per-table metadata queries make schema collection O(5N+1). Running the five
+queries once for *all* tables and grouping in memory makes it O(6). Keep a
+per-table fallback for the case where the batch query fails.
 
-Before removing deps flagged by `cargo-machete`, check if they are feature-gated with `#[cfg(feature)]`. Empty feature gates (e.g., `mssql = []`) are valid placeholders.
+### 6.8 Every operation is read-only
 
-## 7. Serialization & Models
-
-### 7.1 Serde Round-Trip Tests
-
-When adding `Option` + `skip_serializing_if` fields to models, always add serde round-trip tests: serialize-omits-None, deserialize-without-field, deserialize-each-variant.
-
-### 7.2 Non-ASCII Characters Prohibited
-
-Non-ASCII characters (checkmarks, bullets, emoji) are prohibited in source code per AGENTS.md. Use `[OK]`, `-`, plain text.
-
-### 7.3 `PartialEq` but not `Eq`
-
-Model types derive `PartialEq` but not `Eq` because several types contain `f64` fields (quality scores, thresholds). Do not add `Eq` derives without checking for float fields.
+No temporary tables, no session variables that persist, no `ANALYZE`. An operator
+may be pointed at production with credentials they are not supposed to write
+with, and the tool must not be the reason that becomes a problem.

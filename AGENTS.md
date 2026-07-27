@@ -1,347 +1,228 @@
-# DBSurveyor - AI Coding Assistant Rules
+# dbsurveyor - AI Agent Instructions
 
-This document outlines the coding standards, architectural patterns, and project layout preferences for the DBSurveyor project. It serves as a comprehensive guide for AI coding assistants to ensure consistency, maintainability, and adherence to established best practices.
+## Project Overview
+
+**Description**: Toolchain for surveying database servers, extracting schema and
+sample data, and generating portable structured output.
+
+**Architecture pattern**: Modular monolith -- organized into packages, shipped as
+two binaries.
+
+**Visibility**: Public repository.
+
+**Development OS**: WSL, macOS. Windows is a supported build target, not the
+primary development environment.
+
+**Repository**: GitHub, `EvilBit-Labs/dbsurveyor`.
+
+**Reference repository**: <https://github.com/EvilBit-Labs/opnDossier>. When a
+tooling or layout question has no answer here, read opnDossier's live
+configuration rather than picking a default.
+
+> This tree is a Go rewrite in progress. The Rust implementation it replaces was
+> removed from the default branch and is preserved in full on the `rust-final`
+> branch. Nothing here is obliged to read a Rust-era artifact.
 
 @GOTCHAS.md
 
-## 1. Core Philosophy
+## Technology Stack
 
-- **Security-First Principle**: Always prioritize security considerations in design and implementation. Trust the framework's built-in security mechanisms over custom solutions.
-- **Operator-Centric Design**: Projects are built for operators, by operators. This means prioritizing workflows that are efficient, auditable, and functional in contested or airgapped environments.
-- **Offline-First Architecture**: All functionality must work without internet connectivity. No telemetry, external reporting, or network dependencies in production.
-- **Database-Agnostic Design**: Support for multiple database engines (PostgreSQL, MySQL, SQLite, MongoDB) with unified interfaces and consistent behavior across both SQL and NoSQL databases.
+| Layer            | Choice                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| Language         | Go 1.26, module `github.com/EvilBit-Labs/dbsurveyor` at the repository root              |
+| CLI              | `spf13/cobra` wrapped by `charmbracelet/fang`                                            |
+| Logging          | `charmbracelet/log`                                                                      |
+| Terminal styling | `charmbracelet/lipgloss`; `charmbracelet/glamour` for rendered Markdown                  |
+| Testing          | `stretchr/testify`; `sebdah/goldie/v2` for golden files                                  |
+| Compression      | `klauspost/compress/zstd`                                                                |
+| Cryptography     | `crypto/aes` and `crypto/cipher` from the standard library, `golang.org/x/crypto/argon2` |
+| Task runner      | `just`                                                                                   |
+| Lint and format  | `golangci-lint` v2 (it owns the formatters: gofumpt, goimports, gci, golines)            |
+| Release          | GoReleaser v2, native Go builder                                                         |
+| CI               | GitHub Actions                                                                           |
 
-## 2. Project Structure and Layout
+Every dependency must be pure Go. See R13.
 
-The project follows a Rust workspace structure with clear separation of concerns:
+### Databases
+
+In scope, one adapter package each: PostgreSQL, MySQL, SQLite, MongoDB, MSSQL,
+Oracle.
+
+Cassandra, ClickHouse, and CockroachDB are of interest but are **not** in scope
+for the current rewrite. CockroachDB speaks the PostgreSQL wire protocol, so the
+PostgreSQL adapter may work against it; that is untested and unclaimed.
+
+### Choosing a technology not listed
+
+Analyze the codebase and propose one. Check the actual documentation -- via
+Context7 or the project's own docs -- before assuming anything about an API or a
+library version. Do not assert a library's behavior from memory.
+
+## Requirements
+
+The rewrite plan numbers its requirements R1-R18 and the code refers to them by
+number. The ones that constrain day-to-day work:
+
+**Layout**
+
+- **R1.** The Go module is the repository root.
+- **R5.** Application packages live under `internal/`; only `cmd/` sits outside
+  it, so no package becomes an API the project owes compatibility to.
+- **R7.** No package is named for a container concept. `models`, `util`,
+  `common`, and `output` are disallowed as package names. A package name names a
+  concept.
+- **R8.** Atomic writes, compression, encryption, and output-extension dispatch
+  live in a package separate from the schema core.
+- **R9.** `cmd/` packages hold flag parsing and wiring only. Orchestration lives
+  under `internal/`.
+
+**Adapters**
+
+- **R10.** The adapter interface and its parameter types live in a leaf package
+  that adapter implementations import.
+- **R11.** Concrete adapters are constructed by explicit wiring at the command
+  layer. No `init()`-based registration, no global registry.
+- **R13.** No CGO anywhere in the dependency graph. `CGO_ENABLED=0` in build and
+  CI, and no CGO-requiring dependency may enter `go.sum`. This is why
+  `mattn/go-sqlite3` is rejected outright: pure-Go drivers are what let an
+  operator drop a single binary onto an airgapped host with no vendor client
+  libraries present.
+
+**Formats and security**
+
+- **R15.** On-disk formats are specified fresh under `docs/formats/`, with the Go
+  implementation as the reference.
+- **R16.** Offline-only operation, no telemetry, read-only database access,
+  recursive credential scanning on every load path, atomic writes, airgap
+  compatibility.
+- **R17.** Credentials are held as `[]byte` rather than `string`, zeroed best
+  effort after connection setup, and never passed through `fmt`, logging, or
+  error paths. Documentation states plainly that deterministic zeroization is
+  **not** claimed -- the garbage collector may have copied the bytes and the
+  runtime offers no way to find those copies.
+- **R18.** Source files are ASCII-only. `asciicheck` covers identifiers;
+  `tools/ascii_test.go` covers whole `.go` and `.md` files byte by byte, which is
+  what catches a curly quote in a doc comment or a checkmark in a table.
+
+## Layout
 
 ```text
-/
-+-- bin/
-|   +-- collector/             # Database collection binary
-|   +-- postprocessor/         # Data processing binary
-+-- crates/
-|   +-- shared/                # Shared library code
-+-- .cursor/
-|   +-- rules/                 # Cursor AI rules
-+-- .github/
-|   +-- workflows/             # GitHub Actions CI/CD
-|   +-- dependabot.yml         # Dependency management
-+-- docs/solutions/            # Documented solutions to past problems, organized by category with YAML frontmatter (module, tags, problem_type)
-+-- project_specs/             # Project specifications
-+-- justfile                   # Task runner configuration
-+-- .goreleaser.yaml           # GoReleaser release configuration
-+-- Cargo.toml                 # Workspace configuration
-+-- cargo-deny.toml            # Security policy
-+-- GOTCHAS.md                 # Non-obvious pitfalls and hard-earned lessons -- read before making changes
-+-- AGENTS.md                  # This file
+go.mod                     module github.com/EvilBit-Labs/dbsurveyor
+justfile                   task runner
+mise.toml                  toolchain pinning
+.golangci.yml              strict v2 linter set
+.goreleaser.yaml           release configuration
+cmd/
+  dbsurveyor-collect/      collector CLI: flags, adapter wiring
+  dbsurveyor/              postprocessor CLI: flags, wiring
+internal/
+  dbschema/                schema types, quality, redaction, validation,
+                           credential scanning
+  dbadapter/               adapter interface and parameter types (leaf)
+  postgres/ mysql/ sqlite/ relational adapters
+  mongodb/ mssql/ oracle/  document and enterprise adapters
+  envelope/                AES-256-GCM + Argon2id byte format
+  artifact/                atomic write, zstd, extension dispatch, load
+  survey/                  collection orchestration
+  report/                  Markdown report orchestration
+  progress/                TERM=dumb-aware progress reporting
+docs/
+  formats/                 on-disk format specifications
+  adr/                     architecture decision records
+tools/                     repository-level architecture tests
 ```
 
-## 3. Technology Stack
+Directories not listed as present have not landed yet; the tree is a scope
+declaration, not an inventory.
 
-The preferred technology stack is consistent across the project:
-
-| Layer             | Technology                                | Notes                                            |
-| ----------------- | ----------------------------------------- | ------------------------------------------------ |
-| **Language**      | Rust 2021 Edition                         | Modern Rust with idiomatic patterns              |
-| **CLI**           | Clap v4 with derive macros                | For clean, user-friendly command-line interfaces |
-| **Async**         | Tokio runtime                             | For async database operations                    |
-| **Database**      | SQLx with async drivers                   | Type-safe database access                        |
-| **Serialization** | Serde with JSON support                   | For data interchange and file I/O                |
-| **Encryption**    | AES-GCM with random nonce                 | For secure data at rest                          |
-| **Testing**       | Built-in test framework + testcontainers  | For unit and integration testing                 |
-| **CI/CD**         | GitHub Actions                            | For automated testing, linting, and releases     |
-| **Release**       | GoReleaser with Rust builder              | Cross-compilation via `cargo zigbuild`           |
-| **Tooling**       | `cargo` for deps, `just` for task running | `cargo clippy -- -D warnings` for quality        |
-
-## 4. Coding Standards and Conventions
-
-### Rust
-
-- **Formatting**: `cargo fmt` using standard Rust formatting
-- **Linting**: `cargo clippy -- -D warnings` to enforce strict zero-warning policy
-- **File Organization**: Single-purpose files strictly enforced - one type of code per file, maximum 600 lines preferred, break large files into smaller focused modules
-- **Naming**: Follow standard Rust conventions - `snake_case` for variables/functions, `PascalCase` for types
-- **Error Handling**: Use `Result<T, E>` types and `?` operator. Create custom error types when needed
-- **Documentation**: Comprehensive `///` doc comments for all public APIs
-- **Testing**: Unit tests co-located with code, integration tests in separate files
-- **Security**: `unsafe` code is denied at the workspace level
-
-### Database Operations Standards
-
-- **Connection Management**: Use connection pooling for performance and resource management
-- **Query Safety**: Use parameterized queries only - no string concatenation
-- **Transaction Safety**: Proper transaction boundaries with rollback on errors
-- **Schema Discovery**: Read-only operations only - no schema modifications
-- **Credential Handling**: Never log or output credentials in any form
-
-### Commit Messages
-
-- **Conventional Commits**: All commit messages must adhere to the [Conventional Commits](https://www.conventionalcommits.org) specification
-  - **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`
-  - **Scopes**: `(collector)`, `(processor)`, `(shared)`, `(security)`, `(cli)`, etc.
-  - **Breaking Changes**: Indicated with `!` in the header or `BREAKING CHANGE:` in the footer
-
-### Emoji Usage
-
-- Avoid using emojis and other non-ASCII characters in code, comments, or documentation, except when the code is handling non-plaintext characters (for example: em dash, en dash, or other non-ASCII symbols).
-
-## 5. Security Requirements
-
-### Critical Security Guarantees
-
-1. **Offline-Only Operation**: No network calls except to target databases
-2. **No Telemetry**: Zero data collection or external reporting mechanisms
-3. **Credential Protection**: Database credentials never appear in any output files
-4. **Encryption**: AES-GCM with random nonce, embedded KDF params, authenticated headers
-5. **Airgap Compatibility**: Full functionality in air-gapped environments
-
-### Security Implementation Standards
-
-- **No hardcoded secrets**: Use environment variables or secure configuration
-- **Input validation**: Validate all inputs before processing
-- **Secure defaults**: Default to secure configurations
-- **Error handling**: Don't expose sensitive information in error messages
-- **Dependencies**: Regular security auditing with `cargo audit` and `cargo deny`
-
-## 6. Database Support Standards
-
-### Supported Engines
-
-- **PostgreSQL**: Primary target with full feature support
-- **MySQL**: Secondary target with core functionality
-- **SQLite**: Minimal target for local development and testing
-- **MongoDB**: NoSQL target for document database support (required for initial release)
-
-### Database Operations
-
-- **Read-Only**: All database operations are strictly read-only
-- **Schema Discovery**: Automated discovery of tables, columns, indexes, constraints
-- **Metadata Collection**: Gather statistics and metadata without modifying data
-- **Connection Security**: Use TLS/SSL when available, validate certificates
-
-## 7. EvilBit Labs Standards Integration
-
-### Brand Principles
-
-- **Trust the Operator**: Full control, no black boxes
-- **Polish Over Scale**: Quality over feature-bloat
-- **Offline First**: Built for where the internet isn't
-- **Sane Defaults**: Clean outputs, CLI help that's actually helpful
-- **Ethical Constraints**: No dark patterns, spyware, or telemetry
-
-### Quality Assurance
-
-1. **Code Quality**: All code must pass `cargo clippy -- -D warnings` with zero warnings
-2. **Type Safety**: Comprehensive type safety through Rust's type system
-3. **Testing**: Unit and integration tests with database fixtures
-4. **Documentation**: Clear documentation for all user-facing functionality
-5. **Performance**: Benchmark-driven development with regression detection
-
-## 8. AI Assistant Behavior and Rules of Engagement
-
-### Core Development Rules
-
-- **Clippy Strict Enforcement**: Always use `cargo clippy -- -D warnings` to enforce zero-warning policy
-- **Security-First**: All code changes must maintain security guarantees
-- **TERM=dumb Support**: Ensure terminal output respects `TERM="dumb"` environment variable for CI/automation
-- **CodeRabbit.ai Integration**: Prefer coderabbit.ai for code review over GitHub Copilot auto-reviews
-- **Single Maintainer Workflow**: Configure for single maintainer (UncleSp1d3r) with no second reviewer requirement
-- **No Auto-commits**: Never commit code on behalf of maintainer without explicit permission
-
-### Assistant Guidelines
-
-- **Clarity and Precision**: Be direct, professional, and context-aware in all interactions
-- **Adherence to Standards**: Strictly follow the defined rules for code style and project structure
-- **Tool Usage**: Use `cargo` for Rust development, `just` for task execution
-- **Security Awareness**: Always consider security implications of changes
-- **Database Safety**: Ensure all database operations are read-only and safe
-- **Testing Requirements**: All new functionality must include appropriate tests
-
-### Code Generation Requirements
-
-- Generated code must conform to all established patterns
-- Include comprehensive type safety through Rust's type system
-- Use proper error handling with context preservation
-- Follow architectural patterns (Repository, Service, Factory)
-- Include appropriate documentation and testing
-- Maintain security guarantees (offline-only, no telemetry, credential protection)
-
-## 9. Development Workflow
-
-### Common Commands
+## Commands
 
 ```bash
-# Development setup
-just dev-setup               # Install tools and dependencies
-
-# Quality assurance
-just lint                    # Run clippy with strict warnings
-just fmt                     # Format code (run BEFORE ci-check)
-just test                    # Run test suite
-just pre-commit              # Run all pre-commit checks
-just ci-check                # Full CI validation (fmt, clippy, test, doc, deny)
-
-# Security validation
-just security-audit          # Run security audit and SBOM generation
-just test-encryption         # Verify encryption capabilities
-just test-offline            # Test offline operation
-just security-full           # Full security validation suite
-
-# Building
-just build                   # Build release version
-just build-minimal           # Build minimal airgap-compatible version
-just package-airgap          # Create airgap deployment package
-
-# Release
-just release-check           # Validate GoReleaser config and lint release workflow
-just release-snapshot        # Local release dry-run (builds all targets, skips publishing)
+just build            # both binaries into ./dist
+just test             # go test ./...
+just test-race        # race detector (the one place CGO_ENABLED=1 is allowed)
+just coverage         # coverage report
+just lint             # golangci-lint run
+just format           # golangci-lint fmt -- run this BEFORE just check
+just check            # format-check, lint, test, vuln
+just gen-schema       # regenerate docs/formats artifacts from the Go types
+just release-check    # validate .goreleaser.yaml
+just release-snapshot # local release dry run, publishes nothing
 ```
 
-### Testing Strategy
+`just check` is the gate. Run `just format` first; a formatting-only failure is
+otherwise indistinguishable from a lint failure in the log.
 
-- **Unit Tests**: Test individual functions and modules
-- **Integration Tests**: Test database adapters with real databases using testcontainers
-  - Use `testcontainers-modules` with database-specific features (e.g., `postgres`)
-- **Security Tests**: Verify encryption, credential handling, offline operation
-- **Performance Tests**: Benchmark database operations and memory usage
+## Working Agreements
 
-### CI Notes
+### Communication
 
-- `cargo-deny` duplicate warnings for Windows crates are transitive dependencies and expected
-- Always run `just fmt` before `just ci-check` to avoid fmt-check failures
-- Test Coverage CI uses `--fail-under-lines 55` threshold (target: 80%, to be raised incrementally as test coverage improves)
-- Large rebases (80+ commits) may fail on GitHub with "This branch can't be rebased"
-  - Workaround: Temporarily enable merge commits via API, merge, then disable
+Be concise and direct. The maintainer is a senior fullstack developer -- do not
+explain what a mutex is. State the decision and the reason for it.
 
-### Release Pipeline
+### Before changing anything
 
-Releases use **GoReleaser** with the native Rust builder (`builder: rust`) and `cargo zigbuild` for cross-compilation. Configuration lives in `.goreleaser.yaml`; the workflow is `.github/workflows/release.yml`.
+Read `README.md` and `CONTRIBUTING.md`. Read `GOTCHAS.md`, included above; it
+records behaviors that have already cost time.
 
-- **Trigger**: Push a semver tag (`v0.1.0`, `v1.0.0-rc.1`) via `git tag` + `git push`
-- **Cross-compilation**: All 6 targets built from a single `ubuntu-latest` runner using `cargo zigbuild`
-- **Windows target**: `x86_64-pc-windows-gnu` (not MSVC; `cargo zigbuild` does not support MSVC)
-- **Homebrew**: Published as a Cask to `EvilBit-Labs/homebrew-tap` (requires `HOMEBREW_TAP_TOKEN` secret)
-- **Archives**: `.tar.gz` for Unix, `.zip` for Windows, both containing `dbsurveyor` and `dbsurveyor-collect`
-- **GoReleaser `prebuilt` builder is Pro-only** -- always use `builder: rust` for OSS GoReleaser
-- **Reference config**: `../opnDossier/.goreleaser.yaml` (Go project, same org conventions)
+### While changing it
 
-## 10. Architecture Patterns
+- Match the surrounding style. This codebase favors flat, explicit control flow
+  and few abstractions, and comments that explain *why* rather than restate the
+  code.
+- Handle errors. Wrap with context; do not discard. Where an error genuinely must
+  be dropped, say so in a comment and make the drop visible rather than assigning
+  to the blank identifier.
+- Confirm before a significant change. Do not commit on the maintainer's behalf
+  without being asked to.
 
-- **Repository Pattern**: Database access abstraction layer
-- **Service Pattern**: Business logic encapsulation
-- **Factory Pattern**: Database driver instantiation
-- **Command Pattern**: CLI command organization
-- **Error Chaining**: Comprehensive error context through the call stack
+### Before returning
 
-### Rust Module Structure
+Run the tests. Check the build. Confirm the change does what it claims. When
+tests fail, say so and show the output; do not report partial work as done.
 
-- Avoid having both `module.rs` and `module/mod.rs` - this causes duplicate module errors
-- When refactoring a file to a directory module, delete the original `.rs` file
-- Example: If converting `adapters.rs` to `adapters/mod.rs`, remove `adapters.rs`
-- When resolving Cargo.lock conflicts during rebase, regenerate with `cargo generate-lockfile`
-- Advisory ignores are configured in both `deny.toml` (for `cargo deny`) and `.cargo/audit.toml` (for `cargo audit`) -- keep them in sync
+A test that passes is not evidence until you have checked it can fail. Two
+repository-level tests in this tree reported success over an empty set for
+months -- see `GOTCHAS.md` section 4.
 
-### DatabaseAdapter Trait Sampling
+### Commits
 
-- `DatabaseAdapter::sample_table(TableRef<'_>, &SamplingConfig) -> Result<TableSample>` is the trait-level entry point
-- `TableRef<'a>` holds `schema_name: Option<&'a str>` and `table_name: &'a str`
-- PostgreSQL delegates to `sampling::sample_table()` (full implementation with `SampleStatus::Complete`)
-- MySQL, SQLite, and MongoDB adapters delegate to their real `sampling::sample_table()` implementations (returning `SampleStatus::Complete`)
-- Placeholder adapters return an error (adapter not implemented)
-- `SampleStatus` enum: `Complete`, `PartialRetry { original_limit }`, `Skipped { reason }`
-- `TableSample.sample_status` is `Option<SampleStatus>` with `#[serde(skip_serializing_if = "Option::is_none")]` for v1.0 backward compat
+Conventional Commits, with a scope naming the package:
+`feat(artifact):`, `fix(postgres):`, `docs(formats):`, `chore(deps):`. Breaking
+changes take `!` in the header or `BREAKING CHANGE:` in the footer.
 
-### CLI Binary Architecture
+Versioning is semver.
 
-- Both CLI binaries (`dbsurveyor`, `dbsurveyor-collect`) are thin wrappers over `dbsurveyor-core`
-- `dbsurveyor-collect` is split into `main.rs` (CLI/orchestration), `collect.rs` (schema collection), `output.rs` (save/export)
-- `dbsurveyor` is split into `main.rs` (CLI/orchestration), `schema.rs` (loading), `output.rs` (generation)
-- No non-ASCII characters in source code (no emoji, checkmarks, or unicode bullets)
-- Clap derive API with `#[command(flatten)]` for shared `GlobalArgs`
-- Use `conflicts_with` for mutually exclusive flags
-- `dbsurveyor-collect` supports `DATABASE_URL` env var; `dbsurveyor` does not yet
-- `list_supported_databases()` uses compile-time `#[cfg(feature)]` gates to show only enabled backends
+### When you learn something
 
-## 11. Common Commands and Workflows
+A non-obvious behavior that cost time belongs in `GOTCHAS.md`. A convention that
+should bind future work belongs here. Propose the edit.
 
-### Development Commands
+## Security
 
-- `just dev-setup` - Install dependencies and tools
-- `just lint` - Run strict clippy linting
-- `just test` - Run complete test suite
-- `just build` - Build optimized release version
-- `just security-full` - Run complete security validation
+Do not commit secrets. Use environment variables or a secret manager. The
+credential scan in `internal/dbschema` will fail a document that carries one, and
+that failure is not to be suppressed.
 
-### GitHub Workflow Commands
+The guarantees this tool makes to an operator:
 
-```bash
-# PR Management
-gh pr view <number>              # View PR details
-gh pr checks <number>            # Monitor CI status
-gh pr merge <number> --rebase    # Merge with rebase (preferred)
+- **Offline only.** No network calls except to the target database. No telemetry,
+  no external reporting, no update checks.
+- **Read only.** Every database operation is a read. No schema modification, no
+  DML, no temporary objects.
+- **Credentials never reach output.** Not in an artifact, not in a log line, not
+  in an error message. Every load path terminates in the recursive scan.
+- **Airgap compatible.** Full functionality with no internet access.
 
-# When rebase merge fails (large branches with conflicts)
-gh api -X PATCH repos/{owner}/{repo} -f allow_merge_commit=true
-gh pr merge <number> --merge
-gh api -X PATCH repos/{owner}/{repo} -f allow_merge_commit=false
+Parameterized queries only. Identifiers that must be interpolated are escaped by
+the per-engine helper, never by string concatenation.
 
-# View PR comments and reviews
-gh api repos/{owner}/{repo}/pulls/<number>/comments
-gh api repos/{owner}/{repo}/pulls/<number>/reviews
-```
+When a change touches authentication, credential handling, an output path, or a
+dependency, offer a security review of the affected code before moving on.
 
-### Quality Assurance Commands
+## References
 
-- `cargo clippy -- -D warnings` - Strict linting (zero warnings)
-- `cargo fmt --check` - Check code formatting
-- `cargo audit` - Security vulnerability scan
-- `cargo test --all-features` - Run all tests
-
-### Security Commands
-
-- `just security-audit` - Generate SBOM and vulnerability reports
-- `just test-encryption` - Verify AES-GCM encryption
-- `just test-offline` - Test airgap compatibility
-- `just package-airgap` - Create offline deployment package
-
-## 12. Project-Specific Notes
-
-### DBSurveyor
-
-- **Primary Purpose**: Database schema documentation and analysis
-- **Security Focus**: Offline-only operation with encrypted outputs
-- **Database Support**: PostgreSQL (primary), MySQL, SQLite, MongoDB (NoSQL)
-- **Deployment**: Self-contained binaries with no runtime dependencies
-- **Output Formats**: JSON, Markdown, encrypted bundles
-
-### PostgreSQL Adapter Architecture
-
-- **Connection Pool**: sqlx `PgPool` with `ConnectionConfig` for pool settings
-- **Multi-Database**: Enumerate via `pg_database`, connect via URL path rewriting
-- **Data Sampling**: Detect ordering strategy (PK/timestamp/serial), rate-limited queries
-- **Modular Structure**: `connection.rs`, `sampling.rs`, `enumeration.rs`, `multi_database.rs`, `batch_collection.rs`
-- **Batch Collection**: `batch_collection.rs` runs 5 queries for ALL tables concurrently via `tokio::join!`, reducing 5N+1 queries to 6. Falls back to per-table queries on failure.
-
-### Critical Constraints
-
-- **No Network Access**: Except to target databases for schema collection
-- **No Telemetry**: Zero data collection or external reporting
-- **Credential Security**: Database credentials never stored or logged
-- **Airgap Ready**: Full functionality in disconnected environments
-- **Read-Only**: All database operations are strictly read-only
-
-## 13. Key Reminders
-
-1. **Security First**: Every change must maintain security guarantees
-2. **Rust Quality Gate**: Zero warnings policy with `cargo clippy -- -D warnings`
-3. **Offline Operation**: No external dependencies at runtime
-4. **Database Safety**: Read-only operations with proper connection handling
-5. **Operator Focus**: Build for security professionals and database administrators
-6. **Documentation**: Comprehensive docs for all public APIs and CLI usage
-
-This document serves as the authoritative guide for AI assistants working on the DBSurveyor project, ensuring consistent, secure, and high-quality development practices.
-
-## Agent Rules <!-- tessl-managed -->
-
-@.tessl/RULES.md follow the [instructions](.tessl/RULES.md)
+- `docs/formats/schema-document.md` -- the JSON schema document
+- `docs/formats/encrypted-envelope.md` -- the AES-256-GCM byte layout
+- `docs/formats/compression.md` -- zstd framing, extension dispatch, atomic write
+- `docs/adr/` -- architecture decision records
