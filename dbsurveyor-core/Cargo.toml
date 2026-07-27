@@ -55,7 +55,7 @@ rayon = { workspace = true }
 
 # JSON Schema validation
 jsonschema = { version = "0.48.2", default-features = false }
-regex      = "1.12.4"
+regex      = "1.13.0"
 glob-match = "0.2.1"
 
 [dev-dependencies]
