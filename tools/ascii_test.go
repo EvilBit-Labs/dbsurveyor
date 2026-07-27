@@ -20,15 +20,8 @@ func TestSourcesAreASCII(t *testing.T) {
 
 	skipDirs := map[string]struct{}{
 		".git":         {},
-		"target":       {},
 		"dist":         {},
 		"node_modules": {},
-		// The Rust tree is retired and leaves the default branch in U12; it is
-		// not held to the Go tree's source rules in the meantime.
-		"dbsurveyor":         {},
-		"dbsurveyor-collect": {},
-		"dbsurveyor-core":    {},
-		"project_plan":       {},
 	}
 
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
@@ -37,6 +30,15 @@ func TestSourcesAreASCII(t *testing.T) {
 		}
 
 		if entry.IsDir() {
+			// The root is never skipped. It is matched against the same names
+			// as any other directory, and the repository checkout is normally
+			// named after the project, so a name in this list would silently
+			// skip the entire walk and leave the check reporting success over
+			// nothing.
+			if path == root {
+				return nil
+			}
+
 			if _, skip := skipDirs[entry.Name()]; skip {
 				return filepath.SkipDir
 			}

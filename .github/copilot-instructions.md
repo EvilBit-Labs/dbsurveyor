@@ -59,16 +59,16 @@ DBSurveyor is a security-focused database documentation tool written in Rust tha
 
 ```text
 /
-├── bin/
-│   ├── collector/             # Database collection binary
-│   └── postprocessor/         # Data processing binary
-├── crates/
-│   └── shared/                # Shared library code
-├── .github/workflows/         # GitHub Actions CI/CD
-├── project_specs/             # Project specifications
-├── justfile                   # Task runner configuration
-├── Cargo.toml                 # Workspace configuration
-└── cargo-deny.toml            # Security policy
++-- bin/
+|   +-- collector/             # Database collection binary
+|   +-- postprocessor/         # Data processing binary
++-- crates/
+|   +-- shared/                # Shared library code
++-- .github/workflows/         # GitHub Actions CI/CD
++-- project_specs/             # Project specifications
++-- justfile                   # Task runner configuration
++-- Cargo.toml                 # Workspace configuration
++-- cargo-deny.toml            # Security policy
 ```
 
 ### Architecture Patterns
@@ -279,7 +279,7 @@ Examples:
 When encountering problems:
 
 - Identify the specific issue clearly
-- Explain the problem in ≤ 5 lines
+- Explain the problem in <= 5 lines
 - Propose a concrete path forward
 - Don't proceed without resolving security blockers
 - Always maintain security guarantees in solutions

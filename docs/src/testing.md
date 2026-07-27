@@ -44,26 +44,26 @@ graph TD
 
 ```
 dbsurveyor/
-├── dbsurveyor-core/
-│   └── src/
-│       ├── lib.rs              # Unit tests in #[cfg(test)]
-│       ├── models.rs           # Model unit tests
-│       └── security.rs         # Security unit tests
-├── tests/
-│   ├── integration/
-│   │   ├── postgres_tests.rs   # PostgreSQL integration
-│   │   ├── mysql_tests.rs      # MySQL integration
-│   │   └── sqlite_tests.rs     # SQLite integration
-│   ├── security/
-│   │   ├── credential_tests.rs # Credential protection
-│   │   ├── encryption_tests.rs # Encryption validation
-│   │   └── offline_tests.rs    # Offline operation
-│   └── fixtures/
-│       ├── sample_schemas/     # Test schema files
-│       └── test_data/          # Test databases
-└── benches/
-    ├── collection.rs           # Collection benchmarks
-    └── documentation.rs        # Documentation benchmarks
++-- dbsurveyor-core/
+|   +-- src/
+|       +-- lib.rs              # Unit tests in #[cfg(test)]
+|       +-- models.rs           # Model unit tests
+|       +-- security.rs         # Security unit tests
++-- tests/
+|   +-- integration/
+|   |   +-- postgres_tests.rs   # PostgreSQL integration
+|   |   +-- mysql_tests.rs      # MySQL integration
+|   |   +-- sqlite_tests.rs     # SQLite integration
+|   +-- security/
+|   |   +-- credential_tests.rs # Credential protection
+|   |   +-- encryption_tests.rs # Encryption validation
+|   |   +-- offline_tests.rs    # Offline operation
+|   +-- fixtures/
+|       +-- sample_schemas/     # Test schema files
+|       +-- test_data/          # Test databases
++-- benches/
+    +-- collection.rs           # Collection benchmarks
+    +-- documentation.rs        # Documentation benchmarks
 ```
 
 ## Running Tests
@@ -625,17 +625,17 @@ pub fn create_test_table(name: &str) -> Table {
 
 ```
 tests/fixtures/
-├── sample_schemas/
-│   ├── postgres_sample.json
-│   ├── mysql_sample.json
-│   └── sqlite_sample.json
-├── test_databases/
-│   ├── small_db.sql
-│   ├── medium_db.sql
-│   └── large_db.sql
-└── encrypted_samples/
-    ├── encrypted_schema.enc
-    └── compressed_schema.zst
++-- sample_schemas/
+|   +-- postgres_sample.json
+|   +-- mysql_sample.json
+|   +-- sqlite_sample.json
++-- test_databases/
+|   +-- small_db.sql
+|   +-- medium_db.sql
+|   +-- large_db.sql
++-- encrypted_samples/
+    +-- encrypted_schema.enc
+    +-- compressed_schema.zst
 ```
 
 ## Testing Best Practices

@@ -26,7 +26,7 @@ Always test your connection before collecting:
 dbsurveyor-collect test postgres://user:pass@localhost/db
 
 # Example output:
-# ✓ Connection test successful
+# [OK] Connection test successful
 # Connection to PostgreSQL database successful
 ```
 

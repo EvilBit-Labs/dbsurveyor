@@ -9,10 +9,10 @@ Generate comprehensive, secure database schema documentation for PostgreSQL, MyS
 ## Key Features
 
 - **Dual-Binary Architecture**: Separate collector (`dbsurveyor-collect`) and postprocessor (`dbsurveyor`) for flexible workflows
-- **Database Support**: PostgreSQL (✅), SQLite (✅), MySQL (🚧), MongoDB (🚧), SQL Server (🚧)
+- **Database Support**: PostgreSQL ([OK]), SQLite ([OK]), MySQL ([WIP]), MongoDB ([WIP]), SQL Server ([WIP])
 - **Security-First Design**: AES-GCM encryption, credential protection, zero telemetry
 - **Offline Operation**: Complete functionality in air-gapped environments
-- **Documentation Generation**: Markdown (✅), JSON analysis (✅), HTML/ERD (🚧 in development)
+- **Documentation Generation**: Markdown ([OK]), JSON analysis ([OK]), HTML/ERD ([WIP] in development)
 - **Shell Completion Support**: Built-in completion scripts for bash, zsh, fish, PowerShell, and elvish
 - **Progress Indicators**: Visual feedback with spinners for long-running operations (schema loading, decryption, documentation generation)
 - **Environment-Aware Output**: Respects `NO_COLOR` and `TERM=dumb` environment variables to disable color output and progress indicators

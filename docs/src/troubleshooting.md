@@ -56,8 +56,8 @@ psql -h localhost -U user -d db -c "SELECT 1;"
 sudo tail -f /var/log/postgresql/postgresql-*.log
 
 # Common connection string issues
-# ❌ Wrong: postgres://user:pass@localhost/db:5432
-# ✅ Correct: postgres://user:pass@localhost:5432/db
+# [X] Wrong: postgres://user:pass@localhost/db:5432
+# [OK] Correct: postgres://user:pass@localhost:5432/db
 
 # SSL issues
 dbsurveyor-collect "postgres://user:pass@localhost/db?sslmode=disable"

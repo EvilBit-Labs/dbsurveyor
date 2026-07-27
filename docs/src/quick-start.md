@@ -11,8 +11,8 @@ This guide will get you up and running with DBSurveyor in minutes.
 
 DBSurveyor follows a two-step process:
 
-1. **Collect** schema from database → schema file
-2. **Generate** documentation from schema file → reports
+1. **Collect** schema from database -> schema file
+2. **Generate** documentation from schema file -> reports
 
 ```mermaid
 graph LR
@@ -159,11 +159,11 @@ DBSurveyor generates several types of files:
 
 ### Documentation Files (from generator)
 
-- `schema.md` - Markdown documentation (✅ implemented)
-- `schema_analysis.json` - Analysis report (✅ implemented)
-- `schema.html` - HTML report with search (🚧 placeholder)
-- `schema.sql` - SQL DDL reconstruction (🚧 placeholder)
-- `schema.mmd` - Mermaid ERD diagram (🚧 placeholder)
+- `schema.md` - Markdown documentation ([OK] implemented)
+- `schema_analysis.json` - Analysis report ([OK] implemented)
+- `schema.html` - HTML report with search ([WIP] placeholder)
+- `schema.sql` - SQL DDL reconstruction ([WIP] placeholder)
+- `schema.mmd` - Mermaid ERD diagram ([WIP] placeholder)
 
 ## Next Steps
 

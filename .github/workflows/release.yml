@@ -1,9 +1,14 @@
 # Release workflow for DBSurveyor
 #
 # Triggered by pushing a semver tag (e.g. v0.1.0).
-# Builds 7 Rust binaries (1 postprocessor + 6 collector variants) across 6
-# targets (42 total) using GoReleaser with cargo-zigbuild, Cosign for keyless
-# signing, and Syft for SBOM generation.
+#
+# Builds two binaries across five platforms with GoReleaser, signs the checksum
+# file with Cosign (keyless), and generates an SBOM with Syft.
+#
+# The Rust release needed a pinned toolchain with six explicitly named targets,
+# mingw for Windows, and musl-tools for static Linux. None of that is here: the
+# Go toolchain cross-compiles to every target it supports out of the box, and
+# CGO_ENABLED=0 makes the Linux build static without a second libc.
 
 name: Release
 
@@ -13,7 +18,8 @@ on:
             - "v*.*.*"
 
 env:
-    CARGO_TERM_COLOR: always
+    # R13: no CGO anywhere in the dependency graph.
+    CGO_ENABLED: "0"
 
 jobs:
     validate:
@@ -23,20 +29,25 @@ jobs:
             contents: read
         steps:
             - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-            - uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
+            - uses: actions/setup-go@v6
               with:
-                  install: true
+                  go-version-file: go.mod
                   cache: true
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
 
+            - name: Build
+              run: go build ./...
+            - name: Vet
+              run: go vet ./...
+            - name: Lint
+              uses: golangci/golangci-lint-action@v9
+              with:
+                  version: latest
+                  args: --timeout=10m
             - name: Check formatting
-              run: cargo fmt --all -- --check
-            - name: Run clippy
-              run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-            - name: Run tests
-              run: cargo nextest run --workspace --all-features
+              run: golangci-lint fmt --diff
+            - name: Test
+              run: go test ./...
               env:
-                  CARGO_TERM_COLOR: never
                   TERM: dumb
 
     release:
@@ -51,28 +62,16 @@ jobs:
             - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
               with:
                   fetch-depth: 0
-            - uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
+            - uses: actions/setup-go@v6
               with:
-                  install: true
+                  go-version-file: go.mod
                   cache: true
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Install Rust toolchain
-              uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
-              with:
-                  toolchain: "1.93.1"
-                  targets: >-
-                      x86_64-unknown-linux-gnu,
-                      aarch64-unknown-linux-gnu,
-                      x86_64-unknown-linux-musl,
-                      x86_64-apple-darwin,
-                      aarch64-apple-darwin,
-                      x86_64-pc-windows-gnu
+            - name: Install Cosign
+              uses: sigstore/cosign-installer@v4
 
-            - name: Install cross-compilation dependencies
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y gcc-mingw-w64-x86-64 musl-tools
+            - name: Install Syft
+              uses: anchore/sbom-action/download-syft@v0
 
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@v7

@@ -33,12 +33,12 @@ just dev
 
 ```
 dbsurveyor/
-├── dbsurveyor-core/     # Shared library
-├── dbsurveyor-collect/  # Collection binary
-├── dbsurveyor/          # Documentation binary
-├── docs/                # Documentation source
-│   └── solutions/       # Documented solutions to past problems
-└── justfile            # Development tasks
++-- dbsurveyor-core/     # Shared library
++-- dbsurveyor-collect/  # Collection binary
++-- dbsurveyor/          # Documentation binary
++-- docs/                # Documentation source
+|   +-- solutions/       # Documented solutions to past problems
++-- justfile            # Development tasks
 ```
 
 ## Development Workflow

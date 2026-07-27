@@ -1,13 +1,5 @@
-# Rust/Cargo build artifacts
-/target/
-
-
-# Cargo.lock should be committed for applications, ignored for libraries
-# Since this is a workspace with both binaries and libraries, we keep Cargo.lock
-# Cargo.lock
-
-# Generated documentation
-/doc/
+# Go build output
+/dist/
 
 # Backup files
 *.bak
@@ -37,12 +29,6 @@ Thumbs.db
 .#*
 \#*#
 
-# Rust-analyzer
-rust-project.json
-
-# cargo-audit database
-~/.cargo/audit.toml.sig
-
 # Security and config files that shouldn't be committed
 *.pem
 *.key
@@ -51,7 +37,6 @@ config.toml
 secrets.toml
 
 # Test artifacts
-*.profraw
 cov-report/
 
 # Local development files
@@ -87,7 +72,6 @@ grype-report.json
 site/
 
 # Coverage reports
-*.profdata
 lcov.info
 
 # Python virtual environments
@@ -103,8 +87,6 @@ node_modules/
 # Ephemeral files
 public/
 /.claude.local.md
-/dist
-.intentionally-empty-file.o
 
 
 **/*.local.*

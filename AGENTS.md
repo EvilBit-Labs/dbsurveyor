@@ -17,24 +17,24 @@ The project follows a Rust workspace structure with clear separation of concerns
 
 ```text
 /
-├── bin/
-│   ├── collector/             # Database collection binary
-│   └── postprocessor/         # Data processing binary
-├── crates/
-│   └── shared/                # Shared library code
-├── .cursor/
-│   └── rules/                 # Cursor AI rules
-├── .github/
-│   ├── workflows/             # GitHub Actions CI/CD
-│   └── dependabot.yml         # Dependency management
-├── docs/solutions/            # Documented solutions to past problems, organized by category with YAML frontmatter (module, tags, problem_type)
-├── project_specs/             # Project specifications
-├── justfile                   # Task runner configuration
-├── .goreleaser.yaml           # GoReleaser release configuration
-├── Cargo.toml                 # Workspace configuration
-├── cargo-deny.toml            # Security policy
-├── GOTCHAS.md                 # Non-obvious pitfalls and hard-earned lessons -- read before making changes
-└── AGENTS.md                  # This file
++-- bin/
+|   +-- collector/             # Database collection binary
+|   +-- postprocessor/         # Data processing binary
++-- crates/
+|   +-- shared/                # Shared library code
++-- .cursor/
+|   +-- rules/                 # Cursor AI rules
++-- .github/
+|   +-- workflows/             # GitHub Actions CI/CD
+|   +-- dependabot.yml         # Dependency management
++-- docs/solutions/            # Documented solutions to past problems, organized by category with YAML frontmatter (module, tags, problem_type)
++-- project_specs/             # Project specifications
++-- justfile                   # Task runner configuration
++-- .goreleaser.yaml           # GoReleaser release configuration
++-- Cargo.toml                 # Workspace configuration
++-- cargo-deny.toml            # Security policy
++-- GOTCHAS.md                 # Non-obvious pitfalls and hard-earned lessons -- read before making changes
++-- AGENTS.md                  # This file
 ```
 
 ## 3. Technology Stack

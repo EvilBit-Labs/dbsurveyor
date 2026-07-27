@@ -91,10 +91,10 @@ DBSurveyor uses a Cargo workspace with three main crates:
 
 ```
 dbsurveyor/
-├── dbsurveyor-core/     # Shared library
-├── dbsurveyor-collect/  # Collection binary
-├── dbsurveyor/          # Documentation binary
-└── Cargo.toml          # Workspace configuration
++-- dbsurveyor-core/     # Shared library
++-- dbsurveyor-collect/  # Collection binary
++-- dbsurveyor/          # Documentation binary
++-- Cargo.toml          # Workspace configuration
 ```
 
 ### Dependency Graph
@@ -520,17 +520,17 @@ async fn main() -> Result<()> {
 
 ```
 tests/
-├── integration/          # End-to-end tests
-│   ├── postgres_tests.rs
-│   ├── mysql_tests.rs
-│   └── sqlite_tests.rs
-├── security/            # Security-focused tests
-│   ├── credential_tests.rs
-│   ├── encryption_tests.rs
-│   └── offline_tests.rs
-└── fixtures/            # Test data
-    ├── sample_schemas/
-    └── test_databases/
++-- integration/          # End-to-end tests
+|   +-- postgres_tests.rs
+|   +-- mysql_tests.rs
+|   +-- sqlite_tests.rs
++-- security/            # Security-focused tests
+|   +-- credential_tests.rs
+|   +-- encryption_tests.rs
+|   +-- offline_tests.rs
++-- fixtures/            # Test data
+    +-- sample_schemas/
+    +-- test_databases/
 ```
 
 ### Test Categories

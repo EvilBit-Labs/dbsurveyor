@@ -1,9 +1,7 @@
 # dbsurveyor task runner
 #
-# Go recipes. The Rust workspace still lives in this tree as the domain
-# reference through Phase D of the rewrite; it is removed in U12 and has no
-# recipes here. The prior Rust recipes are recoverable from the rust-final
-# branch.
+# Go recipes. The Rust workspace was removed from this branch in U12; it and its
+# recipes remain recoverable from the rust-final branch.
 
 set shell := ["bash", "-uc"]
 
