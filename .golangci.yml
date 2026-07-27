@@ -122,6 +122,12 @@ linters:
       # than the length costs.
       - path: '_integration_test\.go$'
         linters: [funlen, gocognit, cyclop, dupl]
+      # Fixture and example data is literal by nature: an ordinal position of 3
+      # or a row count of 148231 IS the value, not a threshold hiding behind a
+      # number. Naming each one would make the fixture harder to read against
+      # the document it illustrates.
+      - path: '(_test\.go|tools/genschema/example\.go)$'
+        linters: [mnd]
       # Adapter collect.go files run a fixed sequence of independent metadata
       # queries. The repetition is structural (one block per object kind), and
       # collapsing it behind a generic helper obscures which query maps to
@@ -206,6 +212,14 @@ linters:
         - os.Mkdir.*
         - os.OpenFile
         - os.WriteFile
+    recvcheck:
+      exclusions:
+        # UnmarshalJSON must take a pointer receiver to assign through it, while
+        # Valid and String are value methods so the enums stay usable as map
+        # keys and struct fields. The mix is required by encoding/json, not a
+        # design slip. recvcheck excludes the Marshal side by default but not
+        # the Unmarshal side.
+        - "*.UnmarshalJSON"
     nakedret:
       max-func-lines: 1
     nolintlint:

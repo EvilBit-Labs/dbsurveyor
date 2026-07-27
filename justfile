@@ -18,6 +18,12 @@ default:
 build:
     go build -trimpath -o dist/ ./cmd/...
 
+# Regenerate the published format schemas and examples under docs/formats.
+# These are derived from the Go types; TestPublishedArtifactsAreCurrent fails
+# when a committed file is stale.
+gen-schema:
+    go run ./tools/genschema
+
 # Run the full test suite
 test:
     go test ./...

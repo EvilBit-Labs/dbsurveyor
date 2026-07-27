@@ -20,7 +20,7 @@ import (
 // so a CGO import is caught even when it sits behind a build tag for a platform
 // CI does not cover.
 func TestNoCGODependency(t *testing.T) {
-	out, err := exec.Command("go", "list", "-deps", "./...").Output()
+	out, err := exec.CommandContext(t.Context(), "go", "list", "-deps", "./...").Output()
 	if err != nil {
 		t.Fatalf("go list -deps ./...: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestNoCGODependency(t *testing.T) {
 // files without "C" appearing as a distinct entry in the dependency list, so
 // both checks are needed to cover R13.
 func TestNoCgoFiles(t *testing.T) {
-	out, err := exec.Command("go", "list", "-deps",
+	out, err := exec.CommandContext(t.Context(), "go", "list", "-deps",
 		"-f", "{{if .CgoFiles}}{{.ImportPath}}{{end}}", "./...").Output()
 	if err != nil {
 		t.Fatalf("go list -deps ./...: %v", err)
