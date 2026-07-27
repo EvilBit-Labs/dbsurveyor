@@ -117,6 +117,14 @@ linters:
       # duplication risk.
       - path: 'internal/[a-z]+/types\.go$'
         linters: [goconst]
+      # Validation catalogs and generated-example fixtures are declarative data
+      # for the same reason. In a catalog the string IS the JSON field name
+      # being checked, and in a fixture it IS the column name the example
+      # illustrates. A constant whose body equals its name adds a level of
+      # indirection between the table and the document it describes, which is
+      # precisely the correspondence a reviewer is checking.
+      - path: '(internal/[a-z]+/validation(_catalog)?\.go|tools/genschema/example\.go)$'
+        linters: [goconst]
       # Integration tests stand up containers and fixture databases; the setup
       # helpers are long by nature and splitting them hurts readability more
       # than the length costs.
@@ -226,6 +234,13 @@ linters:
         # design slip. recvcheck excludes the Marshal side by default but not
         # the Unmarshal side.
         - "*.UnmarshalJSON"
+        # dbadapter.Secret is read through value methods so that formatting,
+        # marshalling, and logging a Secret held by value all redact -- a
+        # pointer receiver there would leave a value copy falling back to the
+        # default rendering of its bytes. Zero must take a pointer to drop the
+        # slice header after wiping it. The mix is the security property, not a
+        # slip.
+        - "*.Zero"
     nakedret:
       max-func-lines: 1
     nolintlint:

@@ -88,6 +88,120 @@ func TestAtomicWritePrimitivesAreReservedToArtifact(t *testing.T) {
 	}
 }
 
+// TestNoSecretIsConvertedToString asserts the half of R17 a type cannot
+// enforce on its own.
+//
+// dbadapter.Secret redacts itself through every fmt, JSON, and slog path, so
+// the ordinary ways a credential reaches a log line are closed. Reveal is the
+// deliberate exit, and it returns []byte rather than string precisely so that
+// turning a credential into a string takes a visible conversion. A string is
+// immutable and cannot be zeroed, so once one exists the credential outlives
+// every attempt to erase it, and it is the form that flows effortlessly into
+// error messages and structured log fields.
+//
+// The check is syntactic: a string(...) conversion wrapping anything that calls
+// Reveal. Test files are included -- a test that stringifies a credential is
+// how the pattern gets copied into non-test code.
+func TestNoSecretIsConvertedToString(t *testing.T) {
+	root := repoRoot(t)
+
+	for _, tree := range []string{"cmd", "internal"} {
+		walkAllGoFiles(t, filepath.Join(root, tree), func(path string, file *ast.File) {
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				rel = path
+			}
+
+			for _, line := range stringConversionsOfReveal(file) {
+				t.Errorf("%s: converts a revealed secret to a string at offset %d; "+
+					"a string cannot be zeroed and flows into logs and errors -- keep it []byte",
+					filepath.ToSlash(rel), line)
+			}
+		})
+	}
+}
+
+// stringConversionsOfReveal reports the position of every string(x) whose
+// argument calls Reveal.
+func stringConversionsOfReveal(file *ast.File) []token.Pos {
+	var found []token.Pos
+
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		if ident, isIdent := call.Fun.(*ast.Ident); !isIdent || ident.Name != "string" {
+			return true
+		}
+
+		for _, arg := range call.Args {
+			if callsReveal(arg) {
+				found = append(found, call.Pos())
+			}
+		}
+
+		return true
+	})
+
+	return found
+}
+
+// callsReveal reports whether expression contains a call to a method named
+// Reveal.
+func callsReveal(expression ast.Expr) bool {
+	reveals := false
+
+	ast.Inspect(expression, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		if selector, isSelector := call.Fun.(*ast.SelectorExpr); isSelector && selector.Sel.Name == "Reveal" {
+			reveals = true
+
+			return false
+		}
+
+		return true
+	})
+
+	return reveals
+}
+
+// walkAllGoFiles is walkGoFiles including test files.
+func walkAllGoFiles(t *testing.T, dir string, visit func(path string, file *ast.File)) {
+	t.Helper()
+
+	fset := token.NewFileSet()
+
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+
+		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if parseErr != nil {
+			t.Errorf("parse %s: %v", path, parseErr)
+
+			return nil
+		}
+
+		visit(path, file)
+
+		return nil
+	})
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("walk %s: %v", dir, err)
+	}
+}
+
 // walkGoFiles parses every non-test Go file under dir and hands it to visit. A
 // missing directory is not a failure: the tree grows a package at a time.
 func walkGoFiles(t *testing.T, dir string, visit func(path string, file *ast.File)) {
