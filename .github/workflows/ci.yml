@@ -1,139 +1,88 @@
 name: CI
 
 on:
-    push:
-        branches: [main]
-    pull_request:
-        branches: [main]
-    workflow_dispatch:
-
-defaults:
-    run:
-        shell: bash
-
-concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
-    cancel-in-progress: true
-
-env:
-    CARGO_TERM_COLOR: always
-    CI: true
-    GITHUB_ACTIONS: true
+  push:
+    branches: [main, go-port]
+  pull_request:
+  workflow_dispatch:
 
 permissions:
-    contents: read
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # R13: no CGO anywhere in the dependency graph.
+  CGO_ENABLED: "0"
 
 jobs:
-    # Code quality checks - always run
-    quality:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-            - uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
-              with:
-                  install: true
-                  cache: true
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
+  build:
+    name: Build and vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - run: go build ./...
+      - run: go vet ./...
 
-            - name: Ensure rustfmt and clippy are installed
-              run: rustup component add rustfmt clippy
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: --timeout=10m
+      - name: Check formatting
+        # Checked separately so a formatting-only failure is distinguishable
+        # from a lint failure in the job log.
+        run: golangci-lint fmt --diff
 
-            - name: Check formatting
-              run: just lint-rust
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
 
-    tests:
-        name: Tests
-        runs-on: ubuntu-latest
-        needs: quality
-        strategy:
-            matrix:
-                features:
-                    - postgresql
-                    - sqlite
-                    - mysql
-                    - mongodb
-                    - mssql
-                    - encryption
-                    - compression
-        steps:
-            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-            - uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
-              with:
-                  install: true
-                  cache: true
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Run Rust tests
-              run: cargo nextest run --no-default-features --workspace --features ${{ matrix.features }}
-              env:
-                  CARGO_TERM_COLOR: never
-                  TERM: dumb
-
-    test-coverage:
-        name: Test Coverage
-        runs-on: ubuntu-latest
-        needs: tests
-        steps:
-            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-            - uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
-              with:
-                  install: true
-                  cache: true
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Generate coverage
-              # Use --test-threads=1 to prevent race conditions in stdin-mocking tests
-              # that manipulate file descriptors (dup/dup2) which aren't thread-safe
-              run: cargo llvm-cov -p dbsurveyor-core --all-features --no-report --fail-under-lines 55 -- --test-threads=1
-              env:
-                  CARGO_TERM_COLOR: never
-                  TERM: dumb
-                  RUSTFLAGS: "--cfg coverage"
-
-            - name: Combine coverage reports
-              run: cargo llvm-cov report --lcov --output-path lcov.info
-
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
-              with:
-                  token: ${{ secrets.CODECOV_TOKEN }}
-                  files: lcov.info
-                  flags: rust
-                  name: rust-coverage
-                  fail_ci_if_error: false
-
-    build-binaries:
-        name: Build Binaries
-        runs-on: ubuntu-latest
-        needs: tests
-        steps:
-            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-            - uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
-              with:
-                  install: true
-                  cache: true
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Build release binaries
-              run: cargo build --release --all-features
-
-            - name: Test binaries exist
-              run: |
-                  test -f target/release/dbsurveyor-collect
-                  test -f target/release/dbsurveyor
-
-            - name: Build no-default-features
-              run: cargo build --release --no-default-features
-
-            - name: Test no-default-features binaries exist
-              run: |
-                  test -f target/release/dbsurveyor-collect
-                  test -f target/release/dbsurveyor
-
-            - name: Build encryption-only
-              run: cargo build --release --no-default-features --features encryption
-
-            - name: Test encryption-only binaries exist
-              run: |
-                  test -f target/release/dbsurveyor-collect
-                  test -f target/release/dbsurveyor
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run coverage
+        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Enforce threshold
+        # The Go tree starts from zero coverage; this floor rises as phases
+        # land rather than importing the Rust tree's 55% number.
+        run: |
+          pct=$(go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1)
+          echo "coverage: ${pct}%"
+          awk -v p="$pct" 'BEGIN { if (p < 50) { print "FAIL: below 50% threshold"; exit 1 } }'
