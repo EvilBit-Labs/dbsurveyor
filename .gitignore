@@ -137,3 +137,6 @@ SECURITY_AUDIT.md
 docs/plans/
 todos/
 **/tessl__*
+
+# Go coverage profiles
+coverage.out
