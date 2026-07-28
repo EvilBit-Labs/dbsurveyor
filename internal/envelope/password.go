@@ -147,7 +147,6 @@ func validated(password []byte) ([]byte, error) {
 // The prompt is written to stderr so that piping stdout to a file or another
 // process never captures it.
 func promptTerminal(label string) ([]byte, error) {
-	//nolint:gosec // G115: a file descriptor is small on every supported platform.
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
 		return nil, fmt.Errorf("%w: set %s instead", ErrNoTerminal, PasswordEnvVar)
