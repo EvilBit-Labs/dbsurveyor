@@ -5,9 +5,9 @@ DBSurveyor uses a comprehensive testing strategy to ensure security, reliability
 ## Testing Philosophy
 
 - **Security-First Testing**: All tests must verify security guarantees
-- **Comprehensive Coverage**: 55% minimum test coverage with `cargo llvm-cov` (target: 80%, to be raised incrementally)
+- **Comprehensive Coverage**: measured with `go test -cover`. The floor starts low and rises as the tree fills out; it is not inherited from the retired Rust implementation.
 - **Real Database Integration**: Use testcontainers for authentic testing
-- **Zero Warnings**: All test code must pass `cargo clippy -- -D warnings`
+- **Zero Issues**: All test code must pass `golangci-lint run`, which lints tests as well as production code
 
 ## Test Organization
 
@@ -44,7 +44,7 @@ graph TD
 
 ```
 dbsurveyor/
-+-- dbsurveyor-core/
++-- internal/
 |   +-- src/
 |       +-- lib.rs              # Unit tests in #[cfg(test)]
 |       +-- models.rs           # Model unit tests
@@ -71,7 +71,7 @@ dbsurveyor/
 ### Basic Test Commands
 
 ```bash
-# Run all tests with nextest (default)
+# Run every test that needs no container
 just test
 
 # Run specific test categories
@@ -96,10 +96,10 @@ just test-ci             # CI profile (comprehensive)
 just test-verbose
 
 # Run specific test by name
-cargo nextest run test_postgres_connection
+go test -run TestACollectedSchemaValidates ./internal/postgres/
 
 # Run tests with debug logging
-RUST_LOG=debug cargo nextest run
+go test -v ./...
 ```
 
 ### Coverage Testing
@@ -122,7 +122,7 @@ just coverage-ci
 Unit tests are co-located with source code using `#[cfg(test)]` modules:
 
 ```rust
-// dbsurveyor-core/src/models.rs
+// internal/dbschema/schema.go
 impl DatabaseSchema {
     pub fn new(database_info: DatabaseInfo) -> Self {
         // Implementation
@@ -529,10 +529,10 @@ async fn test_memory_usage_large_schema() {
 
 ### Nextest Configuration
 
-DBSurveyor uses nextest for enhanced test execution:
+Container-backed tests sit behind the `integration` build tag, so the ordinary run needs no container runtime:
 
 ```toml
-# .config/nextest.toml
+# justfile
 [profile.default]
 retries = 2
 test-threads = 4
@@ -563,10 +563,11 @@ max-threads = 8       # Unit tests can run in parallel
   - name: Run Tests
     run: |
       # Run tests with CI profile
-      cargo nextest run --profile ci --workspace --all-features
+      go test ./...
+      go test -tags integration -timeout 20m ./...
 
       # Generate coverage
-      cargo llvm-cov --lcov --output-path lcov.info
+      go test -coverprofile=coverage.out -covermode=atomic ./...
 
       # Security validation
       just security-full
@@ -702,7 +703,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions/setup-go@v6
 
       - name: Install tools
         run: just install

@@ -1,497 +1,76 @@
 # Contributing
 
-We welcome contributions to DBSurveyor! This guide will help you get started with contributing to the project.
+The authoritative contributor guide lives at the repository root, in
+[CONTRIBUTING.md](https://github.com/EvilBit-Labs/dbsurveyor/blob/main/CONTRIBUTING.md).
+It is kept there rather than duplicated here so there is one copy to keep
+current.
 
-## Code of Conduct
+This page is a summary and a set of pointers.
 
-DBSurveyor follows the [Rust Code of Conduct](https://www.rust-lang.org/policies/code-of-conduct). Please be respectful and inclusive in all interactions.
-
-## Getting Started
-
-### Prerequisites
-
-- Rust 1.95+ (MSRV)
-- Git
-- Docker (for integration tests)
-- Just task runner
-
-### Development Setup
+## The short version
 
 ```bash
-# Clone the repository
 git clone https://github.com/EvilBit-Labs/dbsurveyor.git
 cd dbsurveyor
-
-# Install development tools
-just install
-
-# Run initial checks
-just dev
+just dev-setup
+pre-commit install
 ```
-
-### Project Structure
-
-```
-dbsurveyor/
-+-- dbsurveyor-core/     # Shared library
-+-- dbsurveyor-collect/  # Collection binary
-+-- dbsurveyor/          # Documentation binary
-+-- docs/                # Documentation source
-|   +-- solutions/       # Documented solutions to past problems
-+-- justfile            # Development tasks
-```
-
-## Development Workflow
-
-### Daily Development
 
 ```bash
-# Format, lint, test, and check coverage
-just dev
-
-# Run specific test categories
-just test-unit
-just test-integration
-just test-security
-
-# Security validation
-just security-full
-
-# Pre-commit checks
-just pre-commit
+just format           # run this BEFORE just check
+just check            # format-check, lint, test, vuln -- the gate
+just test-integration # container-backed adapter tests (needs Docker)
 ```
 
-### Code Quality Standards
+`just check` is the gate. Run `just format` first: the gate starts with a format
+check, so skipping it turns a whitespace difference into a failure that reads
+like a lint error.
 
-DBSurveyor enforces strict quality standards:
+## Before you write code
 
-- **Zero Warnings**: `cargo clippy -- -D warnings` must pass
-- **Test Coverage**: 55% minimum coverage required (target: 80%, to be raised incrementally)
-- **Security First**: All code must pass security validation
-- **Documentation**: All public APIs must have `///` documentation
+1. **Read [GOTCHAS.md](https://github.com/EvilBit-Labs/dbsurveyor/blob/main/GOTCHAS.md).**
+   It records behaviors that have already cost somebody time: tests that
+   reported success over nothing, the asymmetry between how artifacts are
+   written and read, linter rules that contradict each other, and a per-engine
+   list of database quirks re-validated against the current adapters.
 
-### Testing Requirements
+2. **Open an issue first.** For anything beyond a typo, discuss it before writing
+   code. This saves everyone time if the change does not fit the project's
+   direction.
 
-All contributions must include appropriate tests:
+3. **One issue per pull request.** If a fix needs a refactor, that is a separate
+   pull request, discussed first.
 
-```rust
-// Unit tests in source files
-#[cfg(test)]
-mod tests {
-    use super::*;
+## Non-negotiables
 
-    #[test]
-    fn test_credential_sanitization() {
-        let config = ConnectionConfig::new("postgres://user:secret@host/db");
-        let safe_display = config.to_safe_string();
-        assert!(!safe_display.contains("secret"));
-    }
-}
+Every change must maintain these. They are what the tool exists to promise:
 
-// Integration tests in tests/ directory
-#[tokio::test]
-async fn test_postgres_collection() {
-    let docker = testcontainers::clients::Cli::default();
-    let postgres = docker.run(testcontainers::images::postgres::Postgres::default());
-    // Test implementation
-}
+- **Offline only.** No network call except to the target database. No telemetry.
+- **Read only.** No schema modification, no DML, no temporary objects.
+- **Credentials never reach output.** Not an artifact, not a log line, not an
+  error message.
+- **No cgo.** A repository test fails on any cgo dependency entering the graph.
+- **ASCII only**, in source and in Markdown, checked byte by byte.
 
-// Security tests are mandatory for security-sensitive code
-#[tokio::test]
-async fn test_no_credentials_in_output() {
-    let schema = collect_schema("postgres://user:secret@localhost/db").await?;
-    let json = serde_json::to_string(&schema)?;
-    assert!(!json.contains("secret"));
-}
-```
+Several of these are enforced by tests rather than by review, because a reviewer
+will eventually miss one. See the architecture section of the root guide.
 
-## Contribution Types
+## A test that has never failed is not evidence
 
-### Bug Reports
+Before trusting a new invariant test, break the invariant on purpose and watch it
+fail. Two repository-level tests in this tree reported success over an empty set
+for months. Both are recorded in GOTCHAS.md section 1, and the pattern is the
+lesson rather than the two specific bugs.
 
-When reporting bugs, please include:
+## AI-assisted contributions
 
-1. **System Information**: OS, Rust version, DBSurveyor version
-2. **Reproduction Steps**: Minimal example that reproduces the issue
-3. **Expected vs Actual Behavior**: Clear description of the problem
-4. **Debug Information**: Output with `RUST_LOG=debug`
+Accepted, under the terms in
+[AI_POLICY.md](https://github.com/EvilBit-Labs/dbsurveyor/blob/main/AI_POLICY.md).
+The short version: you own every line you submit and must be able to explain it,
+disclose your tools in the pull request, and do not submit output you have not
+read and run.
 
-**Security Note**: Never include actual database credentials in bug reports.
+## Reporting a vulnerability
 
-### Feature Requests
-
-For new features, please:
-
-1. **Check Existing Issues**: Avoid duplicates
-2. **Describe Use Case**: Why is this feature needed?
-3. **Propose Implementation**: High-level approach
-4. **Consider Security**: How does this maintain security guarantees?
-
-### Code Contributions
-
-#### Pull Request Process
-
-1. **Fork and Branch**: Create a feature branch from `main`
-2. **Implement Changes**: Follow coding standards
-3. **Add Tests**: Comprehensive test coverage
-4. **Update Documentation**: Keep docs in sync
-5. **Run Quality Checks**: `just dev` must pass
-6. **Submit PR**: Clear description and context
-
-#### Commit Standards
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```bash
-# Feature additions
-feat(postgres): add connection pooling with timeout handling
-feat(security): implement AES-GCM encryption with random nonces
-
-# Bug fixes
-fix(mysql): handle connection failures without exposing credentials
-fix(core): ensure proper cleanup of sensitive data structures
-
-# Security improvements
-security(core): prevent credential leakage in error messages
-security(encryption): add key derivation parameter validation
-
-# Documentation
-docs(readme): update installation instructions
-docs(security): add encryption implementation details
-```
-
-## Database Adapter Development
-
-### Adding New Database Support
-
-To add support for a new database:
-
-1. **Create Adapter Module**:
-
-   ```rust
-   // dbsurveyor-core/src/adapters/newdb.rs
-   pub struct NewDbAdapter {
-       config: ConnectionConfig,
-   }
-
-   #[async_trait]
-   impl DatabaseAdapter for NewDbAdapter {
-       async fn test_connection(&self) -> Result<()> { ... }
-       async fn collect_schema(&self) -> Result<DatabaseSchema> { ... }
-       async fn sample_table(&self, table_ref: TableRef<'_>, config: &SamplingConfig) -> Result<TableSample> { ... }
-       fn database_type(&self) -> DatabaseType { ... }
-       fn supports_feature(&self, feature: AdapterFeature) -> bool { ... }
-       fn connection_config(&self) -> ConnectionConfig { ... }
-   }
-   ```
-
-2. **Add Feature Flag**:
-
-   ```toml
-   # Cargo.toml
-   [features]
-   newdb = ["dep:newdb-driver"]
-   ```
-
-3. **Update Factory**:
-
-   ```rust
-   // dbsurveyor-core/src/adapters.rs
-   match database_type {
-       #[cfg(feature = "newdb")]
-       DatabaseType::NewDb => {
-           let adapter = NewDbAdapter::new(connection_string).await?;
-           Ok(Box::new(adapter))
-       }
-       // ...
-   }
-   ```
-
-4. **Add Tests**:
-
-   ```rust
-   // tests/integration/newdb_tests.rs
-   #[tokio::test]
-   async fn test_newdb_collection() {
-       // Integration test with testcontainers
-   }
-   ```
-
-### Database Adapter Requirements
-
-All database adapters must:
-
-- **Implement `DatabaseAdapter` trait** completely
-  - `test_connection()`: Verify database connectivity
-  - `collect_schema()`: Collect full database schema information
-  - `sample_table()`: Sample data from a specific table
-  - `database_type()`: Return the database type
-  - `supports_feature()`: Indicate supported features
-  - `connection_config()`: Provide connection configuration
-- **Use read-only operations** only (SELECT, DESCRIBE, SHOW)
-- **Handle connection timeouts** (default: 30 seconds)
-- **Sanitize credentials** in all error messages
-- **Support connection pooling** where applicable
-- **Include comprehensive tests** with testcontainers
-- **Document database-specific features** and limitations
-
-#### The `sample_table()` Method
-
-The `sample_table()` method performs per-table sampling for a specific table:
-
-```rust
-async fn sample_table(
-    &self,
-    table_ref: TableRef<'_>,
-    config: &SamplingConfig,
-) -> Result<TableSample>;
-```
-
-**Parameters:**
-
-- `table_ref`: A `TableRef` containing the table name and optional schema name
-- `config`: A `SamplingConfig` with sampling parameters (sample size, throttle, etc.)
-
-**Returns:** A `TableSample` that includes:
-
-- Sampled rows as JSON values
-- Sample metadata (size, total rows, strategy used)
-- Collection timestamp and any warnings
-- `sample_status`: An optional field indicating the sampling outcome
-
-**Sample Status Values:**
-
-- `Some(SampleStatus::Complete)`: Sampling completed successfully
-- `Some(SampleStatus::PartialRetry { original_limit })`: Sampling partially completed with a reduced limit
-- `Some(SampleStatus::Skipped { reason })`: Sampling was skipped (e.g., not implemented)
-- `None`: For backward compatibility with existing data
-
-**Implementation Notes:**
-
-- The `TableRef` struct wraps the table name and optional schema for the method signature
-- Implementations should populate `sample_status` with `SampleStatus::Complete` on successful sampling
-- If sampling is not implemented, return `SampleStatus::Skipped` with an appropriate reason
-- The method supports optional schema qualification (e.g., `public.users` vs `users`)
-
-### Testing Database Adapters
-
-```bash
-# Test specific database adapter
-just test-postgres
-just test-mysql
-just test-sqlite
-
-# Test with real databases using testcontainers
-cargo test --test postgres_integration -- --nocapture
-
-# Security testing for new adapters
-cargo test --test security_credential_protection
-```
-
-## Security Contributions
-
-### Security-First Development
-
-All contributions must maintain DBSurveyor's security guarantees:
-
-1. **No Credential Exposure**: Never log or output credentials
-2. **Offline Operation**: No external network calls except to databases
-3. **Encryption Security**: Use AES-GCM with random nonces
-4. **Memory Safety**: Use `zeroize` for sensitive data
-
-### Security Review Process
-
-Security-sensitive changes require additional review:
-
-1. **Security Tests**: Must include security-specific tests
-2. **Threat Model**: Consider impact on threat model
-3. **Documentation**: Update security documentation
-4. **Review**: Additional security-focused code review
-
-### Security Testing
-
-```rust
-// Example security test
-#[tokio::test]
-async fn test_new_feature_credential_security() {
-    // Test that new feature doesn't leak credentials
-    let result = new_feature("postgres://user:secret@localhost/db").await?;
-    let output = format!("{:?}", result);
-    assert!(!output.contains("secret"));
-    assert!(!output.contains("user:secret"));
-}
-```
-
-## Documentation Contributions
-
-### Documentation Standards
-
-- **User-Focused**: Write for the end user
-- **Security-Aware**: Highlight security implications
-- **Example-Rich**: Include working code examples
-- **Up-to-Date**: Keep in sync with code changes
-
-### Documentation Types
-
-1. **API Documentation**: `///` comments in code
-2. **User Guide**: Markdown files in `docs/src/`
-3. **README**: Project overview and quick start
-4. **Security Documentation**: Security features and guarantees
-
-### Building Documentation
-
-```bash
-# Build API documentation
-cargo doc --all-features --document-private-items --open
-
-# Build user guide
-just docs
-
-# Check documentation
-just docs-check
-```
-
-## Release Process
-
-### Version Management
-
-DBSurveyor uses semantic versioning:
-
-- **Major**: Breaking changes
-- **Minor**: New features (backward compatible)
-- **Patch**: Bug fixes
-
-### Release Checklist
-
-1. **Update Version**: Bump version in `Cargo.toml`
-2. **Update Changelog**: Document all changes
-3. **Run Full Tests**: `just security-full`
-4. **Update Documentation**: Ensure docs are current
-5. **Create Release**: Tag and create GitHub release
-6. **Verify Artifacts**: Test release binaries
-
-## Community Guidelines
-
-### Communication
-
-- **GitHub Issues**: Bug reports and feature requests
-- **Pull Requests**: Code contributions and discussions
-- **Security Issues**: Email [security@evilbitlabs.io](mailto:security@evilbitlabs.io)
-
-### Review Process
-
-1. **Automated Checks**: CI must pass
-2. **Code Review**: Maintainer review required
-3. **Security Review**: For security-sensitive changes
-4. **Documentation Review**: For user-facing changes
-
-### Recognition
-
-Contributors are recognized in:
-
-- `CONTRIBUTORS.md` file
-- Release notes
-- Git commit history
-
-## Development Environment
-
-### Recommended Tools
-
-- **IDE**: VS Code with Rust Analyzer
-- **Git Hooks**: Pre-commit hooks for quality checks
-- **Testing**: Nextest for faster test execution
-- **Debugging**: `RUST_LOG=debug` for detailed logging
-
-### Environment Variables
-
-```bash
-# Development environment
-export RUST_LOG=debug
-export DATABASE_URL="postgres://dev:dev@localhost/dev_db"
-
-# Testing environment
-export RUST_LOG=trace
-export DBSURVEYOR_TEST_TIMEOUT=60
-```
-
-### Docker Development
-
-```bash
-# Start test databases
-docker-compose up -d postgres mysql mongodb
-
-# Run integration tests
-just test-integration
-
-# Clean up
-docker-compose down
-```
-
-## Troubleshooting Development Issues
-
-### Common Issues
-
-**Build failures**:
-
-```bash
-# Clean and rebuild
-cargo clean
-cargo build --all-features
-
-# Update toolchain
-rustup update
-```
-
-**Test failures**:
-
-```bash
-# Run specific test with output
-cargo test test_name -- --nocapture
-
-# Run with debug logging
-RUST_LOG=debug cargo test test_name
-```
-
-**Clippy warnings**:
-
-```bash
-# Fix automatically where possible
-cargo clippy --fix --allow-dirty
-
-# Check specific warnings
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-```
-
-### Getting Help
-
-- **Documentation**: Check existing docs first
-- **Issues**: Search existing GitHub issues
-- **Code**: Look at similar implementations
-- **Community**: Ask questions in GitHub discussions
-
-## License and Legal
-
-### License
-
-DBSurveyor is licensed under the Apache License 2.0. By contributing, you agree to license your contributions under the same license.
-
-### Copyright
-
-All contributions must include appropriate copyright headers:
-
-```rust
-// Copyright 2024 EvilBit Labs
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-```
-
-### Contributor License Agreement
-
-By submitting a pull request, you represent that:
-
-1. You have the right to license your contribution
-2. You agree to license it under the Apache License 2.0
-3. Your contribution is your original work
-
-Thank you for contributing to DBSurveyor! Your contributions help make database documentation more secure and accessible for everyone.
+See [SECURITY.md](https://github.com/EvilBit-Labs/dbsurveyor/blob/main/SECURITY.md).
+Do not open a public issue for a security vulnerability.

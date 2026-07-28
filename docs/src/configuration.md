@@ -1,5 +1,10 @@
 # Configuration
 
+> **Note.** `RUST_LOG` belonged to the retired Rust implementation and is not
+> read by this one. Verbosity is controlled by `--quiet` on the collector, which
+> suppresses progress output entirely. Progress decoration is suppressed
+> automatically when `TERM=dumb` or when standard output is not a terminal.
+
 DBSurveyor can be configured through command-line options, environment variables, and configuration files. This guide covers all configuration options and best practices.
 
 ## Environment Variables
@@ -18,10 +23,8 @@ dbsurveyor-collect
 
 ```bash
 # Set log level for all modules
-export RUST_LOG=info
 
 # Set log level for specific modules
-export RUST_LOG=dbsurveyor_collect=debug,dbsurveyor_core=trace
 
 # Disable ANSI color output and progress indicators
 # Follows the no-color.org convention
@@ -30,7 +33,6 @@ export NO_COLOR=1            # Any value disables color and progress output
 export TERM=dumb             # Alternative way to disable color/progress output
 
 # Log levels: error, warn, info, debug, trace
-export RUST_LOG=debug
 ```
 
 ### Connection Pool Configuration
@@ -360,7 +362,6 @@ compress = false
 ```bash
 # .env.development
 DATABASE_URL=postgres://dev_user:dev_pass@localhost:5432/dev_db
-RUST_LOG=debug
 DBSURVEYOR_SAMPLE_SIZE=10
 DBSURVEYOR_THROTTLE=0
 ```
@@ -370,7 +371,6 @@ DBSURVEYOR_THROTTLE=0
 ```bash
 # .env.production
 DATABASE_URL=postgres://readonly_user:secure_pass@prod-db:5432/prod_db
-RUST_LOG=warn
 DBSURVEYOR_SAMPLE_SIZE=0
 DBSURVEYOR_THROTTLE=1000
 DBSURVEYOR_ENCRYPT=true
@@ -381,7 +381,6 @@ DBSURVEYOR_ENCRYPT=true
 ```bash
 # .env.ci
 DATABASE_URL=postgres://ci_user:ci_pass@ci-db:5432/test_db
-RUST_LOG=info
 NO_COLOR=1
 DBSURVEYOR_NO_PROMPT=1
 DBSURVEYOR_OUTPUT_FORMAT=json
@@ -435,7 +434,6 @@ encryption_password = "${ENCRYPTION_PASSWORD}"
 
 ```bash
 # Log configuration usage
-export RUST_LOG=dbsurveyor_core::config=debug
 
 # Review effective configuration
 dbsurveyor-collect --show-config --dry-run
@@ -485,7 +483,6 @@ dbsurveyor-collect --show-config --verbose
 dbsurveyor-collect --check-config --verbose
 
 # Trace configuration loading
-export RUST_LOG=dbsurveyor_core::config=trace
 dbsurveyor-collect --dry-run
 ```
 

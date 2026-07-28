@@ -1,5 +1,10 @@
 # CLI Reference
 
+> **Note.** `RUST_LOG` belonged to the retired Rust implementation and is not
+> read by this one. Verbosity is controlled by `--quiet` on the collector, which
+> suppresses progress output entirely. Progress decoration is suppressed
+> automatically when `TERM=dumb` or when standard output is not a terminal.
+
 Complete reference for all DBSurveyor command-line options.
 
 ## dbsurveyor-collect
@@ -101,7 +106,6 @@ dbsurveyor-collect --throttle 1000 postgres://localhost/db
 | Variable                           | Description                                                                          |
 | ---------------------------------- | ------------------------------------------------------------------------------------ |
 | `DATABASE_URL`                     | Default database connection string                                                   |
-| `RUST_LOG`                         | Logging configuration (`error`, `warn`, `info`, `debug`, `trace`)                    |
 | `DBSURVEYOR_MAX_CONNECTIONS`       | Maximum connection pool size (default: `10`)                                         |
 | `DBSURVEYOR_MIN_IDLE_CONNECTIONS`  | Minimum idle connections in pool (default: `2`)                                      |
 | `DBSURVEYOR_CONNECT_TIMEOUT_SECS`  | Connection timeout in seconds (default: `30`)                                        |
@@ -265,7 +269,6 @@ DBSurveyor automatically detects input file formats:
 
 | Variable                           | Description                                                                              |
 | ---------------------------------- | ---------------------------------------------------------------------------------------- |
-| `RUST_LOG`                         | Logging configuration                                                                    |
 | `NO_COLOR`                         | Disable colored output                                                                   |
 | `DBSURVEYOR_MAX_CONNECTIONS`       | Maximum connection pool size (default: `10`)                                             |
 | `DBSURVEYOR_MIN_IDLE_CONNECTIONS`  | Minimum idle connections in pool (default: `2`)                                          |

@@ -19,7 +19,7 @@ graph TB
             POOL[Connection Pooling]
         end
         
-        subgraph "dbsurveyor-core"
+        subgraph "internal packages"
             MODELS[Data Models]
             SECURITY[Security Module]
             ERROR[Error Handling]
@@ -83,31 +83,55 @@ graph TB
     DOC_CLI --> DIAGRAMS
 ```
 
-## Crate Architecture
+## Package Architecture
 
-### Workspace Structure
+### Module Structure
 
-DBSurveyor uses a Cargo workspace with three main crates:
+One Go module at the repository root, `github.com/EvilBit-Labs/dbsurveyor`.
+Application packages live under `internal/`; only `cmd/` sits outside it, so no
+package becomes an API this project owes compatibility to.
 
 ```
 dbsurveyor/
-+-- dbsurveyor-core/     # Shared library
-+-- dbsurveyor-collect/  # Collection binary
-+-- dbsurveyor/          # Documentation binary
-+-- Cargo.toml          # Workspace configuration
++-- go.mod
++-- cmd/
+|   +-- dbsurveyor-collect/  # collector CLI: flags and adapter wiring
+|   +-- dbsurveyor/          # postprocessor CLI: flags and wiring
++-- internal/
+|   +-- dbschema/            # the document, quality, redaction, validation
+|   +-- dbadapter/           # the adapter contract; a leaf package
+|   +-- postgres/ mysql/ sqlite/ mongodb/ mssql/ oracle/
+|   +-- envelope/            # AES-256-GCM and Argon2id
+|   +-- artifact/            # atomic write, zstd, extension dispatch, load
+|   +-- survey/              # collection orchestration; imports no adapter
+|   +-- report/              # Markdown rendering
+|   +-- progress/            # progress reporting
++-- tools/                   # repository-level architecture tests
 ```
+
+The shape that matters most in the graph below is the one that is *absent*:
+`internal/survey` depends on no adapter. It reaches an engine through a map the
+command layer hands it, which is what keeps the import graph acyclic and the
+orchestration testable without a database.
 
 ### Dependency Graph
 
 ```mermaid
 graph TD
-    COLLECT[dbsurveyor-collect] --> CORE[dbsurveyor-core]
-    DOC[dbsurveyor] --> CORE
+    COLLECT[cmd/dbsurveyor-collect] --> SURVEY[internal/survey]
+    COLLECT --> ADAPTERS[six adapter packages]
+    DOC[cmd/dbsurveyor] --> REPORT[internal/report]
+    SURVEY --> ARTIFACT[internal/artifact]
+    REPORT --> ARTIFACT
+    ADAPTERS --> DBADAPTER[internal/dbadapter]
+    ARTIFACT --> ENVELOPE[internal/envelope]
+    DBADAPTER --> CORE[internal/dbschema]
+    ARTIFACT --> CORE
     
-    CORE --> SERDE[serde]
-    CORE --> TOKIO[tokio]
-    CORE --> SQLX[sqlx]
-    CORE --> MONGO[mongodb]
+    ADAPTERS --> PGX[jackc/pgx/v5]
+    ADAPTERS --> MYSQLD[go-sql-driver/mysql]
+    ADAPTERS --> SQLITED[modernc.org/sqlite]
+    ADAPTERS --> MONGO[mongo-driver/v2]
     CORE --> CRYPTO[aes-gcm + argon2]
     
     COLLECT --> CLAP[clap]
@@ -118,12 +142,12 @@ graph TD
     DOC --> PULLDOWN[pulldown-cmark]
 ```
 
-## Core Library (dbsurveyor-core)
+## Core Packages (internal/dbschema and internal/dbadapter)
 
 ### Module Structure
 
 ```rust
-// dbsurveyor-core/src/lib.rs
+// internal/dbschema/schema.go
 pub mod adapters; // Database adapter traits and factory
 pub mod error; // Comprehensive error handling
 pub mod models; // Unified data models
@@ -596,32 +620,26 @@ DBSurveyor produces multiple binary variants to support different database envir
   - `mongodb` - MongoDB only
   - `mssql` - MSSQL only
 
-Each variant is built with specific feature flags:
+There are no build variants. Every driver is pure Go, so there is nothing to
+gate behind a build flag: one binary speaks all six engines.
 
 ```bash
-# All features (default release artifacts)
-cargo zigbuild --release --all-features -p=dbsurveyor-collect
-
-# PostgreSQL-only variant
-cargo zigbuild --release --no-default-features \
-  --features=postgresql,compression,encryption -p=dbsurveyor-collect
-
-# SQLite-only variant
-cargo zigbuild --release --no-default-features \
-  --features=sqlite,compression,encryption -p=dbsurveyor-collect
+go build -trimpath -o dist/ ./cmd/...
 ```
 
-**Artifact Naming**: Release artifacts follow the pattern:
+**Artifact naming**: release artifacts follow the pattern
 
 ```
-dbsurveyor_{variant}_{OS}_{arch}.{tar.gz|zip}
+dbsurveyor_{OS}_{arch}.{tar.gz|zip}
 ```
 
 Examples:
 
-- `dbsurveyor_all_Linux_x86_64.tar.gz`
-- `dbsurveyor_postgresql_Darwin_x86_64.tar.gz`
-- `dbsurveyor_sqlite_Windows_x86_64.zip`
+- `dbsurveyor_Linux_x86_64.tar.gz`
+- `dbsurveyor_Darwin_arm64.tar.gz`
+- `dbsurveyor_Windows_x86_64.zip`
+
+Each archive contains both binaries.
 
 ## Deployment Architecture
 
@@ -629,7 +647,7 @@ Examples:
 
 ```mermaid
 graph LR
-    CONNECTED[Connected System] --> VENDOR[cargo vendor]
+    CONNECTED[Connected System] --> VENDOR[go mod vendor]
     VENDOR --> PACKAGE[Deployment Package]
     
     PACKAGE --> TRANSFER[Secure Transfer]
@@ -641,22 +659,17 @@ graph LR
 
 ### CI/CD Integration
 
-DBSurveyor uses GoReleaser v2 with cargo-zigbuild for cross-compilation:
+DBSurveyor uses GoReleaser v2 with its native Go builder. Go cross-compiles
+without a C toolchain, so there is no zig, no cross linker, and no per-target
+setup step -- a direct consequence of the no-cgo rule rather than a separate
+decision:
 
 ```yaml
 # GitHub Actions release workflow
-  - name: Install Rust toolchain
-    uses: dtolnay/rust-toolchain@stable
+  - name: Set up Go
+    uses: actions/setup-go@v6
     with:
-      toolchain: 1.93.1
-
-  - name: Install Zig
-    uses: mlugg/setup-zig@v2
-    with:
-      version: 0.13.0
-
-  - name: Install cargo-zigbuild
-    run: cargo install --locked cargo-zigbuild --version 0.19.8
+      go-version-file: go.mod
 
   - name: Install Cosign
     uses: sigstore/cosign-installer@v3

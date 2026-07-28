@@ -15,10 +15,11 @@ This guide covers what you need to know as a human contributor. For AI coding as
 
 ### Prerequisites
 
-- Rust (see `rust-toolchain.toml` for exact version)
+- Go 1.26 or later (see `mise.toml` for the pinned version)
 - [just](https://github.com/casey/just) task runner
 - [mise](https://mise.jdx.dev/) for tool management (optional but recommended)
-- Docker (for integration tests with testcontainers)
+- [golangci-lint](https://golangci-lint.run/) v2 -- it owns the formatters too
+- Docker or another Testcontainers-compatible runtime, for the integration tests
 - [pre-commit](https://pre-commit.com/) for git hooks
 
 ### Setup
@@ -33,18 +34,27 @@ pre-commit install   # Set up git hooks
 ### Common Commands
 
 ```bash
-just fmt             # Format code (run before ci-check)
-just lint            # Clippy with strict warnings
-just test            # Run test suite
-just ci-check        # Full CI validation (~3 min)
-just pre-commit      # Run all pre-commit checks
-just security-audit  # Security audit and SBOM
-just build           # Build release binaries
+just format           # Format. Run this BEFORE just check
+just lint             # golangci-lint run
+just test             # go test ./...
+just test-integration # container-backed adapter tests (needs Docker)
+just test-race        # race detector; the one place CGO_ENABLED=1 is allowed
+just vuln             # govulncheck over the dependency graph
+just check            # format-check, lint, test, vuln -- the gate
+just build            # both binaries into ./dist
 ```
+
+**Run `just format` before `just check`.** The gate starts with a format check,
+so skipping the format step turns a whitespace difference into a failed gate that
+reads like a lint error.
 
 ## Before You Start
 
-1. **Read [GOTCHAS.md](GOTCHAS.md).** It documents pitfalls that have caught every contributor at least once -- adapter architecture, validation edge cases, SQLite escaping, CI quirks.
+1. **Read [GOTCHAS.md](GOTCHAS.md).** It records behaviors that have already
+   cost somebody time: tests that reported success over nothing, the asymmetry
+   between how artifacts are written and read, linter rules that contradict each
+   other, and a per-engine list of database quirks that were re-validated against
+   the Go adapters rather than assumed to carry over.
 
 2. **Open an issue first.** For anything beyond a typo fix, open an issue or discussion before writing code. This saves everyone time if the change does not align with project direction.
 
@@ -52,14 +62,27 @@ just build           # Build release binaries
 
 ## Code Standards
 
-### Rust
+### Go
 
-- **Formatting:** `cargo fmt` -- standard Rust formatting
-- **Linting:** `cargo clippy -- -D warnings` -- zero warnings policy, no exceptions
-- **Safety:** `unsafe` code is denied at the workspace level
-- **File size:** 600 lines preferred max. Break large files into focused modules
-- **Error handling:** `Result<T, E>` with `?` operator. No `unwrap()` or `expect()` in production code (enforced by clippy deny)
-- **No non-ASCII:** No emoji, checkmarks, or unicode bullets in source code
+- **Formatting:** `golangci-lint fmt` -- it owns gofumpt, goimports, gci, and
+  golines, so there is one formatter rather than four to keep in agreement.
+- **Linting:** `golangci-lint run` -- zero issues, no exceptions. A suppression
+  needs a specific linter and a written reason.
+- **No cgo, anywhere.** `CGO_ENABLED=0` in build and CI, and a repository test
+  fails on any cgo dependency entering the graph. This is what makes a single
+  binary work on an airgapped host, and it is why `mattn/go-sqlite3` is rejected
+  outright in favor of `modernc.org/sqlite`.
+- **Error handling:** wrap with context, do not discard. Where an error genuinely
+  must be dropped, pass it to a named function that documents the reason rather
+  than assigning to the blank identifier -- `errcheck` runs with
+  `check-blank: true`, so a blank assignment is flagged like an unchecked call.
+- **ASCII only.** No emoji, no curly quotes, no unicode bullets, in source *or*
+  in Markdown. `tools/ascii_test.go` checks whole files byte by byte, which is
+  what catches a smart quote a copy-paste introduced into a doc comment.
+- **Comments explain why.** The codebase favors flat, explicit control flow and
+  few abstractions. A comment that restates the code is noise; a comment naming
+  the trap the code avoids is the reason the next person does not reintroduce
+  it.
 
 ### Database Operations
 
@@ -73,61 +96,112 @@ just build           # Build release binaries
 Follow [Conventional Commits](https://www.conventionalcommits.org):
 
 ```text
-feat(collector): add MySQL sampling support
-fix(security): cap sample_size to prevent resource exhaustion
-refactor(postgres): parallelize schema collection with tokio::join
+feat(postgres): batch the per-table metadata queries
+fix(envelope): bound the Argon2id cost parameters from above as well as below
+docs(formats): publish a worked envelope example a test reproduces
 ```
 
-Types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci`, `chore` Scopes: `collector`, `processor`, `shared`, `security`, `cli`, `postgres`, `mysql`, `sqlite`, `mongodb`
+Types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
+
+Scopes name a package: `dbschema`, `dbadapter`, `artifact`, `envelope`,
+`survey`, `report`, `progress`, `postgres`, `mysql`, `sqlite`, `mongodb`,
+`mssql`, `oracle`, `adapters`, `formats`, `deps`.
+
+A breaking change takes `!` in the header or `BREAKING CHANGE:` in the footer.
+Versioning is semver.
 
 ### DCO Sign-Off
 
 All commits require a Developer Certificate of Origin sign-off:
 
 ```bash
-git commit -s -m "feat(collector): add MySQL sampling support"
+git commit -s -m "feat(mysql): collect index sort direction"
 ```
 
 The `-s` flag adds the `Signed-off-by` trailer from your git config. This is a legal attestation that you have the right to submit the contribution.
 
 ## Testing
 
-- **Unit tests** co-located with code in `#[cfg(test)]` modules
-- **Integration tests** in `tests/` using testcontainers for real database instances
-- **Security tests** verify encryption, credential handling, offline operation
-- Coverage threshold: 55% (target: 80%, being raised incrementally)
-
-Run specific adapter tests:
+- **Unit tests** live in the package they test, so they can exercise unexported
+  functions. `go test ./...` needs no container runtime.
+- **Integration tests** drive real database servers through
+  [Testcontainers](https://golang.testcontainers.org/) and sit behind the
+  `integration` build tag. They are linted and type-checked anyway: an untagged
+  file is a file nothing compiles, and a stale integration test is discovered at
+  the worst possible moment.
+- **Golden files** use `sebdah/goldie/v2`. They are Go-authored -- they record
+  what this implementation produces so a change is a visible diff. They are not a
+  compatibility corpus, and nothing here claims byte compatibility with the
+  retired Rust implementation.
 
 ```bash
-cargo nextest run --features postgresql
-cargo nextest run --features sqlite
-cargo nextest run --all-features  # Everything
+go test ./...                              # no containers needed
+go test -tags integration ./...            # needs Docker
+go test -tags integration ./internal/postgres/
+go test ./internal/report/ -update         # regenerate golden files
 ```
 
-## Architecture Overview
+### A test that has never failed is not evidence
 
-DBSurveyor is a Rust workspace with three crates:
+Before trusting a new invariant test, break the invariant on purpose and watch it
+fail. This is not a stylistic preference: two repository-level tests in this tree
+reported success over an empty set for months. One had a skip list that matched
+the repository root, so the walk ended before reading a file; the other used a
+package pattern that resolved against the test binary's own directory. Both are
+recorded in [GOTCHAS.md](GOTCHAS.md) section 1.
 
-| Crate                | Purpose                                                      |
-| -------------------- | ------------------------------------------------------------ |
-| `dbsurveyor-core`    | Shared library: adapters, models, security, quality analysis |
-| `dbsurveyor-collect` | CLI binary: collects database schemas                        |
-| `dbsurveyor`         | CLI binary: processes collected schemas into documentation   |
+## Architecture
 
-### Adapter Pattern
+One Go module at the repository root. Application packages live under
+`internal/`; only `cmd/` sits outside it, so no package becomes an API this
+project owes compatibility to.
 
-Each database engine has an adapter module (`postgres/`, `mysql/`, `sqlite/`, `mongodb/`) implementing the `DatabaseAdapter` trait. Sub-modules are private with explicit `pub use` re-exports. See GOTCHAS.md section 1 for details.
+| Package                  | Purpose                                                     |
+| ------------------------ | ----------------------------------------------------------- |
+| `internal/dbschema`      | The schema document, plus quality, redaction, validation, and credential scanning |
+| `internal/dbadapter`     | The adapter contract and its parameter types. A leaf        |
+| `internal/postgres` etc. | One package per engine, each importing `dbadapter`          |
+| `internal/envelope`      | AES-256-GCM and Argon2id, as a byte format                  |
+| `internal/artifact`      | Atomic write, zstd framing, extension dispatch, and load    |
+| `internal/survey`        | Collection orchestration. Imports **no** adapter            |
+| `internal/report`        | Markdown rendering                                          |
+| `internal/progress`      | Progress reporting that knows when to say nothing           |
+| `cmd/`                   | Flag parsing and wiring only                                |
 
-### Security Guarantees
+### Adapters are wired, not registered
 
-These are non-negotiable. Every change must maintain:
+`internal/survey` reaches an engine through a map it is handed, and
+`cmd/dbsurveyor-collect/wire.go` is the only file in the tree that imports an
+adapter package. Two repository tests enforce it, one over the transitive
+dependency graph and one over the import blocks.
 
-1. Offline-only operation (no network calls except to target databases)
-2. Zero telemetry
-3. Credential protection (never in output, zeroized in memory)
-4. AES-GCM encryption for data at rest
-5. Airgap compatibility
+This is not architectural taste. It means the survey is testable with a fake in
+the map rather than six databases, and a binary that orchestrates nothing does
+not link six drivers.
+
+### Some rules are enforced by tests rather than by review
+
+Four properties are checked mechanically, because a reviewer will eventually miss
+one:
+
+- No cgo in the dependency graph.
+- `os.Create` and `os.WriteFile` are refused repository-wide by `forbidigo`, and
+  `os.Rename`, `os.CreateTemp`, and `os.OpenFile` are reserved to
+  `internal/artifact` -- so the atomic-write contract and the credential scan
+  cannot be routed around.
+- No conversion of a revealed credential to a `string`, outside the one file per
+  adapter where a driver has to be handed one.
+- Source and Markdown files are ASCII, byte by byte.
+
+### Security guarantees
+
+Non-negotiable. Every change must maintain offline-only operation, zero
+telemetry, read-only database access, credentials absent from every output, and
+airgap compatibility. See [SECURITY.md](SECURITY.md) for what each of those means
+in practice -- and for what is deliberately *not* claimed.
+
+When a change touches authentication, credential handling, an output path, or a
+dependency, say so in the PR description.
 
 ## AI-Assisted Contributions
 
@@ -141,7 +215,7 @@ We accept AI-assisted contributions. See [AI_POLICY.md](AI_POLICY.md) for the fu
 
 1. Fork the repository and create a branch from `main`
 2. Make your changes, following the standards above
-3. Run `just ci-check` and ensure all checks pass
+3. Run `just format`, then `just check`, and ensure everything passes
 4. Commit with conventional commit messages and DCO sign-off
 5. Open a PR with a clear description of what changed and why
 6. Wait for review -- this is a single-maintainer project, so please be patient
@@ -158,10 +232,12 @@ Include:
 
 - Bundled unrelated changes
 - Missing tests for new functionality
-- `cargo clippy` warnings
+- Any `golangci-lint` issue
+- A `//nolint` without a specific linter and a written reason
 - Hardcoded credentials or secrets
-- Database write operations
-- Non-ASCII characters in source code
+- A database write operation of any kind
+- A new cgo dependency
+- Non-ASCII characters in source or Markdown
 - Work you cannot explain when asked
 
 ## Reporting Vulnerabilities

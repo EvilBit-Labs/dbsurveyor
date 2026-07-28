@@ -238,7 +238,7 @@ CREATE TABLE articles (
 
 **Status**: [WIP] Basic Support\
 **Feature Flag**: `mongodb` (not default)\
-**Driver**: Official MongoDB Rust driver
+**Driver**: the official `go.mongodb.org/mongo-driver/v2`
 
 ### Connection Examples
 
@@ -360,20 +360,20 @@ dbsurveyor-collect "mssql://sa:pass@localhost\\SQLEXPRESS/mydb"
 
 ```bash
 # Includes PostgreSQL and SQLite
-cargo build --release
+go build -trimpath -o dist/ ./cmd/...
 ```
 
 ### Custom Database Selection
 
 ```bash
 # PostgreSQL only
-cargo build --release --no-default-features --features postgresql
+go build -trimpath -o dist/ ./cmd/...
 
 # All databases
-cargo build --release --all-features
+go build -trimpath -o dist/ ./cmd/...
 
 # Specific combination
-cargo build --release --no-default-features --features postgresql,mysql,encryption
+go build -trimpath -o dist/ ./cmd/...
 ```
 
 ### Feature Dependencies
@@ -476,7 +476,7 @@ ls -la /path/to/database.db
 dbsurveyor-collect list
 
 # Verify feature compilation
-cargo build --features postgresql --verbose
+go build -trimpath -o dist/ ./cmd/...
 ```
 
 ## Roadmap

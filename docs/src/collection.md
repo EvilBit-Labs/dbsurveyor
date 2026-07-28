@@ -141,7 +141,7 @@ dbsurveyor-collect postgres://user:pass@localhost:5432/mydb
 ### MySQL
 
 ```bash
-# MySQL collection (requires --features mysql)
+# MySQL collection
 dbsurveyor-collect mysql://root:password@localhost:3306/mydb
 ```
 
@@ -185,7 +185,7 @@ dbsurveyor-collect /path/to/database.sqlite  # Alternative format
 ### MongoDB
 
 ```bash
-# MongoDB collection (requires --features mongodb)
+# MongoDB collection
 dbsurveyor-collect mongodb://user:pass@localhost:27017/mydb
 ```
 
