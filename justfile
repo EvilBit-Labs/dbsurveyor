@@ -84,6 +84,38 @@ release-check:
 release-snapshot:
     goreleaser release --snapshot --clean
 
+# Assert the no-CGO property on the built artifacts rather than only on the
+# dependency graph.
+#
+# tools/nocgo_test.go checks that no package in the graph imports C, which is
+# the property at the source level. This checks the other end: that the binaries
+# GoReleaser actually produced were built with CGO_ENABLED=0 and -trimpath. A
+# build setting can be lost to a stray environment variable on a release runner
+# without a single source file changing, and that is exactly the failure the
+# source-level test cannot see.
+verify-artifacts:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    found=0
+    while IFS= read -r binary; do
+        found=$((found + 1))
+        settings=$(go version -m "$binary")
+        grep -q 'CGO_ENABLED=0' <<<"$settings" || {
+            echo "FAIL: $binary was not built with CGO_ENABLED=0"
+            exit 1
+        }
+        grep -q '\-trimpath=true' <<<"$settings" || {
+            echo "FAIL: $binary was not built with -trimpath"
+            exit 1
+        }
+        echo "ok: $binary"
+    done < <(find dist -type f -regex '.*/dbsurveyor\(-collect\)?\(\.exe\)?$')
+    if [ "$found" -eq 0 ]; then
+        echo "FAIL: no binaries found under dist/; run just release-snapshot first"
+        exit 1
+    fi
+    echo "verify-artifacts: $found binaries OK"
+
 # Install development tooling
 dev-setup:
     mise install

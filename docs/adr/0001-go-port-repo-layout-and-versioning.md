@@ -10,7 +10,11 @@
 > on the `rust-final` branch; see
 > [ADR 0002](0002-go-clean-slate-rewrite.md).
 >
-> Decisions 2 (module path) and 4 (versioning) stand.
+> Decision 4 is superseded too, on a point of fact rather than of judgment: it
+> assumed a released v0.1.x Rust line to freeze, and no release was ever
+> published. The first published version is v0.1.0.
+>
+> Decision 2 (module path) stands.
 
 ## Context
 
@@ -53,11 +57,12 @@ of the subtree is module-path aesthetics during the transition.
    was removed from the default branch and preserved on `rust-final`; the
    repository identity, issue history, and release history remain continuous as
    this decision intended.
-4. Versioning: Rust releases are frozen at the v0.1.x line. The Go cutover
-   release is v0.2.0 (not v1.0.0). Pre-releases along the way use
-   v0.2.0-alpha.N / v0.2.0-rc.N tags. The v1.0.0 signal is reserved for after
-   the Go implementation has survived real operator use. Because both
-   implementations share one repository, there is no tag-collision concern.
+4. ~~Versioning: Rust releases are frozen at the v0.1.x line. The Go cutover
+   release is v0.2.0 (not v1.0.0).~~
+   **Superseded by ADR 0002:** the Rust line never published a release, so there
+   was no v0.1.x to freeze. The first published version is v0.1.0. The v1.0.0
+   signal is still reserved for after real operator use, as this decision
+   intended.
 5. ~~CI isolation: workflows are paths-filtered so Rust CI ignores `go/**` and
    Go CI runs only on `go/**` (plus shared fixture paths), per #220.~~
    **Superseded by ADR 0002:** one tree needs no path filter.

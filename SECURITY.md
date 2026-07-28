@@ -4,13 +4,11 @@
 
 | Version | Implementation | Supported |
 | ------- | -------------- | --------- |
-| 0.2.x   | Go             | yes       |
-| 0.1.x   | Rust (retired) | no        |
-| < 0.1   | -              | no        |
+| 0.1.x   | Go             | yes       |
 
-The 0.1.x line was the Rust implementation, which is preserved on the
-`rust-final` branch and no longer receives fixes. See
-[ADR 0002](docs/adr/0002-go-clean-slate-rewrite.md).
+v0.1.0 is the first published release. The earlier Rust implementation never
+shipped one; it is preserved on the `rust-final` branch and receives no fixes.
+See [ADR 0002](docs/adr/0002-go-clean-slate-rewrite.md).
 
 ## Reporting a Vulnerability
 

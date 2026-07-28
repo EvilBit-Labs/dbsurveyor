@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-26
-- Supersedes in part: ADR 0001 (decisions 1, 3, 5, and 6)
+- Supersedes in part: ADR 0001 (decisions 1, 3, 4, 5, and 6)
 
 ## Context
 
@@ -48,9 +48,12 @@ and costs the entire parity apparatus.
    tree are Go-authored: they record what this implementation produces so that a
    change is a visible diff, not a claim of byte compatibility with anything.
 
-5. **Versioning is unchanged from ADR 0001 decision 4.** The Rust line is frozen
-   at v0.1.x and the first Go release is v0.2.0. The v1.0.0 signal is still
-   reserved for after the implementation has survived real operator use.
+5. **The first published release is v0.1.0.** ADR 0001 decision 4 assumed the
+   Rust line had shipped v0.1.x and reserved v0.2.0 for the Go cutover. It never
+   shipped: the repository has no tags and no releases. There is no v0.1.x line
+   to freeze and nothing for a v0.2.0 to distinguish itself from, so the first
+   thing this project publishes is v0.1.0. The v1.0.0 signal is still reserved
+   for after the implementation has survived real operator use.
 
 ## Superseded decisions from ADR 0001
 
@@ -59,7 +62,7 @@ and costs the entire parity apparatus.
 | 1 | Go lives in a `go/` subtree | Superseded: the Go tree is the repository root |
 | 2 | Module path `github.com/EvilBit-Labs/dbsurveyor` | Stands, and is now literally the repository root |
 | 3 | Promote the subtree at cutover | Superseded: there is nothing to promote |
-| 4 | Rust frozen at v0.1.x, Go cutover at v0.2.0 | Stands |
+| 4 | Rust frozen at v0.1.x, Go cutover at v0.2.0 | Superseded: nothing was ever released, so the first version is v0.1.0 |
 | 5 | Paths-filtered CI isolating the two trees | Superseded: one tree needs no path filter |
 | 6 | `rust-security-fix` label enforcing the freeze | Superseded: the Rust tree is not on this branch |
 

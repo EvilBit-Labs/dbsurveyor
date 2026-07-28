@@ -38,12 +38,18 @@ func runCommand() int {
 	defer stop()
 
 	// fang supplies its own version handling and would otherwise report the
-	// build info of a binary that has none, so the stamped version is passed
+	// build info of a binary that has none, so the stamped values are passed
 	// through explicitly.
+	//
+	// The command is built with the full buildVersion because that string is
+	// also what gets stamped into every document this binary writes, where the
+	// commit and date are the provenance a reader wants. fang gets the bare
+	// version and the commit separately, so the printed line does not carry the
+	// commit twice.
 	return exitCode(fang.Execute(
 		ctx,
 		newRootCommand(buildVersion()),
-		fang.WithVersion(buildVersion()),
+		fang.WithVersion(version),
 		fang.WithCommit(commit),
 	))
 }

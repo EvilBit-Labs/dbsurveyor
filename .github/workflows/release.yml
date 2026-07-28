@@ -83,6 +83,35 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
+            # The no-CGO rule is checked at the source level by
+            # tools/nocgo_test.go, which cannot see a build setting lost to a
+            # stray environment variable on this runner. This checks the other
+            # end: what the binaries were actually built with. It is inlined
+            # rather than calling `just verify-artifacts` so the release job
+            # needs no task runner installed.
+            - name: Verify the artifacts are static and reproducible
+              run: |
+                  set -euo pipefail
+                  found=0
+                  while IFS= read -r binary; do
+                      found=$((found + 1))
+                      settings=$(go version -m "$binary")
+                      grep -q 'CGO_ENABLED=0' <<<"$settings" || {
+                          echo "FAIL: $binary was not built with CGO_ENABLED=0"
+                          exit 1
+                      }
+                      grep -q -- '-trimpath=true' <<<"$settings" || {
+                          echo "FAIL: $binary was not built with -trimpath"
+                          exit 1
+                      }
+                      echo "ok: $binary"
+                  done < <(find dist -type f -regex '.*/dbsurveyor\(-collect\)?\(\.exe\)?$')
+                  if [ "$found" -eq 0 ]; then
+                      echo "FAIL: no binaries found under dist/"
+                      exit 1
+                  fi
+                  echo "verified $found binaries"
+
             - name: Attest build provenance
               uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
               with:
