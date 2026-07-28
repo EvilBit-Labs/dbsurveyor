@@ -131,6 +131,12 @@ linters:
       # precisely the correspondence a reviewer is checking.
       - path: '(internal/[a-z]+/validation(_catalog)?\.go|tools/genschema/example\.go)$'
         linters: [goconst]
+      # A report's table headers are declarative data too: "Columns" is the word
+      # a reader sees at the top of a column, not an alias for one. A constant
+      # would put a name between the header list and the rendered table, which is
+      # the correspondence a reviewer is checking.
+      - path: 'internal/report/markdown\.go$'
+        linters: [goconst]
       # Integration tests stand up containers and fixture databases; the setup
       # helpers are long by nature and splitting them hurts readability more
       # than the length costs.

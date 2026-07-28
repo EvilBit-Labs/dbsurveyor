@@ -1,0 +1,114 @@
+# Database: shop
+  
+| Property | Value |
+|---------|---------|
+| Engine | PostgreSQL |
+| Version | 17.2 |
+| Encoding | UTF8 |
+| Collation | en_US.utf8 |
+| Owner | surveyor |
+| Access level | full |
+| Collected at | 2026-07-27 12:00:00 UTC |
+| Collector | test |
+| Objects | 10 |
+| Size | 15.0 MiB |
+
+  
+## Tables
+  
+| Table | Columns | Rows | Indexes | Foreign keys |
+|---------|---------|---------|---------|---------|
+| public.users | 4 | 1482 | 2 | 0 |
+| public.orders | 3 | - | 0 | 1 |
+
+  
+### public.users
+  
+people who can sign in
+  
+| # | Column | Type | Nullable | Key | Default | Comment |
+|---------|---------|---------|---------|---------|---------|---------|
+| 1 | id | i64 | no | PK, generated | - | - |
+| 2 | email | string | no | - | - | unique, lowercased |
+| 3 | display_name | string(64) | yes | - | - | - |
+| 4 | created_at | datetimetz | no | - | now() | - |
+
+  
+**Primary key:** id
+  
+| Index | Columns | Unique | Primary | Type |
+|---------|---------|---------|---------|---------|
+| users_pkey | id | yes | yes | btree |
+| users_by_created | created_at DESC | no | no | btree |
+
+  
+| Constraint | Kind | Columns | Clause |
+|---------|---------|---------|---------|
+| users_email_lowercase | check | email | email = lower(email) |
+
+  
+### public.orders
+  
+| # | Column | Type | Nullable | Key | Default | Comment |
+|---------|---------|---------|---------|---------|---------|---------|
+| 1 | id | i32 | no | PK | - | - |
+| 2 | user_id | i64 | no | - | - | - |
+| 3 | total | float(10) | no | - | - | - |
+
+  
+**Primary key:** id
+  
+| Foreign key | Columns | References | Parent columns | On delete | On update |
+|---------|---------|---------|---------|---------|---------|
+| orders_user_fk | user_id | users | id | cascade | - |
+
+  
+## Views
+  
+### public.active_users
+  
+| Column | Type | Nullable |
+|---------|---------|---------|
+| id | i64 | no |
+| email | string | no |
+
+  
+```sql
+SELECT id, email FROM users WHERE active
+```
+  
+## Functions
+  
+| Name | Language | Parameters | Returns |
+|---------|---------|---------|---------|
+| public.add | sql | 2 | i32 |
+
+  
+## Triggers
+  
+| Trigger | Table | Timing | Event |
+|---------|---------|---------|---------|
+| users_touched | public.users | before | update |
+
+  
+## User-defined types
+  
+| Type | Category | Definition |
+|---------|---------|---------|
+| public.mood | enum | happy, sad |
+
+  
+## Samples
+  
+### public.users
+  
+| api_key | email | id |
+|---------|---------|---------|
+| a-plain-looking-token | ada@example.test | 1 |
+| another-token | grace@example.test | 2 |
+
+  
+## Collection warnings
+  
+- table audit reported no columns
+  

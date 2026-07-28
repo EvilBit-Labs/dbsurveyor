@@ -289,3 +289,20 @@ func fill(temp *os.File, data []byte) error {
 // identifier so the decision is visible and the linter does not have to be
 // silenced.
 func discardError(error) {}
+
+// WriteText writes a rendered document to path atomically.
+//
+// It exists because a report is written by the same temp-file-and-rename
+// discipline as an artifact, and the primitives that discipline needs are
+// reserved to this package -- so a caller that wants an atomic write asks for one
+// here rather than reaching for os.OpenFile and defeating the reservation.
+//
+// Unlike Write it applies no framing, no extension dispatch, and no credential
+// scan. The scan would be redundant: a rendered report is derived from a
+// document that already passed it on the way in, and its own load path scans
+// again. What it does share is the property that matters most -- a failed write
+// leaves whatever was at path untouched, so an interrupted run does not replace
+// yesterday's report with half of today's.
+func WriteText(path string, contents []byte) error {
+	return writeAtomic(path, contents)
+}

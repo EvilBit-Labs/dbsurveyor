@@ -1,9 +1,10 @@
-// Command dbsurveyor-collect surveys a database and writes a portable schema
-// artifact.
+// Command dbsurveyor reads a schema artifact and renders it as a report.
 //
-// The package parses flags and wires dependencies; every decision about what a
-// survey does lives in internal/survey (R9). wire.go is the only file in the
-// tree that imports an adapter package (R11).
+// The package parses flags and wires dependencies; loading, redaction, analysis,
+// and rendering all live in internal/report (R9).
+//
+// It makes no network call and reads no connection string. The collector talks
+// to databases; this reads files.
 package main
 
 import (
@@ -31,13 +32,8 @@ func main() {
 	os.Exit(runCommand())
 }
 
-// runCommand executes the collector and reports its exit status.
+// runCommand executes the postprocessor and reports its exit status.
 func runCommand() int {
-	// A survey holds a connection to somebody else's database, so an interrupt
-	// has to reach the query rather than only the process. Cancelling the
-	// context closes the pool through the deferred close in internal/survey,
-	// which is the difference between a clean disconnect and a session the
-	// server has to time out.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -52,8 +48,7 @@ func runCommand() int {
 	))
 }
 
-// buildVersion renders the version string the binary reports and stamps into
-// every artifact it writes.
+// buildVersion renders the version string the binary reports.
 func buildVersion() string {
 	if commit == "none" {
 		return version
