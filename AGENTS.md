@@ -125,7 +125,7 @@ internal/
   mongodb/ mssql/ oracle/  document and enterprise adapters (go-ora needs no Instant Client)
   envelope/                AES-256-GCM + Argon2id byte format
   artifact/                atomic write, zstd, extension dispatch, load
-  survey/                  collection orchestration
+  survey/                  collection orchestration; imports no adapter (R11)
   report/                  Markdown report orchestration
   progress/                TERM=dumb-aware progress reporting
 docs/

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -41,6 +42,96 @@ func TestEnvelopeDoesNotImportArtifact(t *testing.T) {
 			t.Errorf("internal/envelope depends on %s; the dependency runs the other way", forbidden)
 		}
 	}
+}
+
+// adapterPackages are the six engine implementations.
+var adapterPackages = []string{
+	"internal/postgres",
+	"internal/mysql",
+	"internal/sqlite",
+	"internal/mongodb",
+	"internal/mssql",
+	"internal/oracle",
+}
+
+// TestSurveyImportsNoAdapter asserts R11 at the point where it can actually be
+// broken.
+//
+// internal/survey orchestrates a collection through a Registry it is handed, so
+// it needs to know nothing about which engines exist. The moment it imports one
+// -- to special-case a scheme, to reach a method the interface does not have --
+// the map stops being the only coupling, the package stops being testable
+// without a database, and every driver links into every binary that orchestrates
+// anything.
+//
+// The check is on the transitive dependency graph rather than on the import
+// block, because an indirect import through a helper package would be just as
+// binding and considerably harder to see.
+func TestSurveyImportsNoAdapter(t *testing.T) {
+	target := modulePath + "/internal/survey"
+
+	out, err := exec.CommandContext(t.Context(), "go", "list", "-deps", target).Output()
+	if err != nil {
+		t.Fatalf("go list -deps %s: %v", target, err)
+	}
+
+	dependencies := map[string]struct{}{}
+	for _, pkg := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		dependencies[strings.TrimSpace(pkg)] = struct{}{}
+	}
+
+	for _, adapter := range adapterPackages {
+		if _, imported := dependencies[modulePath+"/"+adapter]; imported {
+			t.Errorf("internal/survey depends on %s; adapters reach it through the Registry "+
+				"the command layer builds, never through an import", adapter)
+		}
+	}
+}
+
+// TestOnlyTheCommandLayerImportsAnAdapter is the other half of R11: construction
+// is explicit wiring at one visible call site.
+//
+// An adapter imported anywhere under internal/ other than by its own package
+// would mean some library code had picked an engine for its caller, which is the
+// thing a registry built by init side effect does badly and this design avoids.
+func TestOnlyTheCommandLayerImportsAnAdapter(t *testing.T) {
+	root := repoRoot(t)
+
+	walkGoFiles(t, filepath.Join(root, "internal"), func(path string, file *ast.File) {
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			rel = path
+		}
+
+		rel = filepath.ToSlash(rel)
+
+		for _, adapter := range adapterPackages {
+			// A package importing itself is not an import at all.
+			if strings.HasPrefix(rel, adapter+"/") {
+				continue
+			}
+
+			if importsPackage(file, modulePath+"/"+adapter) {
+				t.Errorf("%s imports %s; only cmd/ wires adapters (R11)", rel, adapter)
+			}
+		}
+	})
+}
+
+// importsPackage reports whether file imports the given package path.
+func importsPackage(file *ast.File, path string) bool {
+	for _, spec := range file.Imports {
+		imported, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+
+		if imported == path {
+			return true
+		}
+	}
+
+	return false
 }
 
 // reservedCalls are the primitives that make a write atomic. They belong to

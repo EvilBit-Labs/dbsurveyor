@@ -354,7 +354,36 @@ the adapter issuing only reads. Their integration suites therefore assert it
 against the data -- the table list and row counts before and after a full survey
 -- rather than by expecting the server to reject a write.
 
-## 7. Credentials at the driver boundary
+## 7. Orchestration and the command layer
+
+### 7.1 An adapter is reached through a map, never an import
+
+`internal/survey` orchestrates a collection through a `Registry` the command
+layer hands it, and `cmd/dbsurveyor-collect/wire.go` is the only file in the tree
+that imports an adapter package. Two tests in `tools/` enforce both halves: one
+over the transitive dependency graph, one over the import blocks under
+`internal/`.
+
+The payoff is concrete rather than architectural. The survey is testable with a
+fake in the map instead of six databases, and a binary that orchestrates nothing
+does not link six drivers.
+
+### 7.2 `os.Exit` skips every pending defer in its own function
+
+`main` installs a signal handler with `defer stop()`, so the exit has to happen
+in a caller: `os.Exit(runCommand())`, with the work and the defer inside
+`runCommand`. gocritic's `exitAfterDefer` catches the mistake, which is worth
+knowing about before it looks like a false positive.
+
+### 7.3 A connection string is a credential from the moment it is read
+
+`survey.ParseTarget` moves the password into a `Secret` and the raw string is
+never stored -- not on the options struct, not in a log line, and not in an
+error. The parse errors are deliberately terse and do **not** wrap `net/url`'s:
+that error quotes the URL it failed on, which for a connection string is the
+password.
+
+## 8. Credentials at the driver boundary
 
 Every driver in use takes its password as a `string` field, so the conversion
 `Secret` exists to prevent has to happen exactly once per engine.
