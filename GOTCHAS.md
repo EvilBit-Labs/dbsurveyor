@@ -282,6 +282,78 @@ credential cannot see. A sampler that read that as success would go on to select
 from a table that is not there. Each adapter turns the empty result back into an
 error.
 
+### 6.11 SQL Server escapes the closing bracket, and only that one
+
+SQL Server brackets identifiers. Only `]` can end the quoting, so it is the only
+character that needs doubling -- an embedded `[` is harmless. A helper written by
+analogy with the double-quote engines escapes the wrong character and leaves the
+right one able to close the quoting early.
+
+### 6.12 SQL Server reports a character length in bytes
+
+`sys.columns.max_length` is a byte count, so an `NVARCHAR(50)` reports 100.
+Passing it through verbatim says the column holds twice what it does. A value of
+-1 marks the MAX types, which have no declared limit at all.
+
+### 6.13 Oracle folds unquoted identifiers *up*
+
+Every other engine here either folds down (PostgreSQL) or preserves case
+(MySQL, SQL Server). Oracle folds up, so a table created as `orders` is stored as
+`ORDERS` and a lookup by the name an operator typed finds nothing. Names reaching
+the catalog queries are normalized first, and a name that already carries an
+upper-case letter is left alone -- it is either the stored form already or was
+created quoted, and folding it would break the second case.
+
+### 6.14 Oracle's NUMBER is three types wearing one name
+
+`NUMBER(p,0)` is an integer, `NUMBER(p,s)` with a scale is a fixed-point decimal,
+and a bare `NUMBER` is a floating value of unspecified precision. Precision and
+scale are both NULL for the bare form, so defaulting either collapses the
+distinction. The width an integer maps to comes from the decimal precision:
+`NUMBER(9,0)` fits in 32 bits and `NUMBER(10,0)` does not.
+
+Two further Oracle facts the document has to accommodate: a `DATE` carries a time
+component, unlike every other engine's `DATE`; and there is no `ON UPDATE` for a
+foreign key at all, so a nil update action is accurate rather than incomplete.
+
+### 6.15 Oracle records every NOT NULL as a check constraint
+
+`ALL_CONSTRAINTS` reports a NOT NULL declaration as a check whose condition is
+`"COL" IS NOT NULL`. The column's own nullability already carries that, so
+recording it again fills the document with one constraint per non-nullable column
+and buries the checks an operator actually wrote. They are filtered out.
+
+### 6.16 A MongoDB schema is a claim about the sample, not about the collection
+
+There is no declaration to read, so every field, type, and nullability in a
+MongoDB document comes from a sample. A field that happens to be present in every
+sampled document is reported as non-nullable, which is a statement about the
+sample. The type frequency is the substance of the result -- a field that is a
+string in most documents and a number in the rest is a data-quality finding -- and
+since the schema document has nowhere structured to put it, it goes in the
+column comment rather than being discarded.
+
+`$sample` is used rather than a `find` with a limit: a find returns documents in
+storage order, and the first N documents of a long-lived collection are the
+oldest, which is the sample least likely to show the fields an application added
+recently.
+
+### 6.17 Three engines have no server-side read-only switch
+
+The lever table in 6.8 covers PostgreSQL, MySQL, and SQLite. The other three have
+nothing equivalent:
+
+| Engine     | Nearest lever                    | What it actually does                          |
+| ---------- | -------------------------------- | ---------------------------------------------- |
+| SQL Server | `ApplicationIntent=ReadOnly`     | Routes to a readable secondary in an availability group; no effect standalone |
+| Oracle     | none                             | Read-only transactions are per-transaction, not a session mode |
+| MongoDB    | secondary read preference        | Reaches a member that rejects writes; no effect standalone |
+
+On a standalone server the read-only guarantee for these three rests entirely on
+the adapter issuing only reads. Their integration suites therefore assert it
+against the data -- the table list and row counts before and after a full survey
+-- rather than by expecting the server to reject a write.
+
 ## 7. Credentials at the driver boundary
 
 Every driver in use takes its password as a `string` field, so the conversion
