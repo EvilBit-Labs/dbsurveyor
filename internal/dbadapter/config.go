@@ -48,7 +48,14 @@ var (
 	ErrInvalidPattern    = errors.New("sensitive-value pattern does not compile")
 	ErrEmptyTableName    = errors.New("table name is empty")
 	ErrNotReadOnly       = errors.New("read-only access is required")
+
+	ErrMissingCollectorVersion = errors.New("collector version is empty")
 )
+
+// DefaultCollectorVersion is what NewCollectionConfig stamps documents with. The
+// command layer replaces it with the version linked into the binary; "dev" is
+// what a document produced by a test or a `go run` honestly reports.
+const DefaultCollectorVersion = "dev"
 
 // TableRef names one table for sampling.
 //
@@ -330,6 +337,12 @@ type CollectionConfig struct {
 
 	// MaxConcurrentQueries bounds in-flight queries against one database.
 	MaxConcurrentQueries uint32
+
+	// CollectorVersion is stamped into every document the survey produces. It
+	// lives here rather than being read from build info inside each adapter so
+	// that a caller with no build metadata -- a test, a `go run` -- supplies a
+	// value it can state honestly instead of an adapter inventing one.
+	CollectorVersion string
 }
 
 // NewCollectionConfig returns a configuration for host with every metadata kind
@@ -348,6 +361,7 @@ func NewCollectionConfig(host string) CollectionConfig {
 		IncludeConstraint:    true,
 		IncludeTypes:         true,
 		MaxConcurrentQueries: DefaultMaxConnections,
+		CollectorVersion:     DefaultCollectorVersion,
 	}
 }
 
@@ -362,6 +376,10 @@ func (c CollectionConfig) Validate() error {
 
 	if c.MaxConcurrentQueries == 0 {
 		problems = append(problems, fmt.Errorf("%w: max concurrent queries is 0", ErrInvalidPoolSize))
+	}
+
+	if c.CollectorVersion == "" {
+		problems = append(problems, ErrMissingCollectorVersion)
 	}
 
 	return errors.Join(problems...)

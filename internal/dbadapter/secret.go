@@ -68,6 +68,24 @@ func (s Secret) Reveal() []byte {
 	return s.b
 }
 
+// RevealString returns the underlying bytes as a string.
+//
+// It exists because every database driver this project uses takes its password
+// as a string field, so the conversion has to happen somewhere. Making it a
+// named method puts it in one greppable place rather than scattering
+// string(secret.Reveal()) through the adapters, and gives the repository test
+// in tools/ a single symbol to reserve.
+//
+// It is not a convenience, and it is not the method to reach for. A string
+// cannot be zeroed -- the credential outlives every attempt to erase it -- and
+// it is the form that flows effortlessly into an error message and a structured
+// log field. TestNoSecretIsConvertedToString reserves this method, and the
+// equivalent hand-rolled conversion, to the connect.go of an adapter package:
+// the one file per engine where a driver is handed a credential.
+func (s Secret) RevealString() string {
+	return string(s.b)
+}
+
 // Format implements fmt.Formatter for every verb.
 //
 // The verb is deliberately ignored. There is no formatting of a credential that

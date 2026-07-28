@@ -100,8 +100,16 @@ func TestAtomicWritePrimitivesAreReservedToArtifact(t *testing.T) {
 // error messages and structured log fields.
 //
 // The check is syntactic: a string(...) conversion wrapping anything that calls
-// Reveal. Test files are included -- a test that stringifies a credential is
-// how the pattern gets copied into non-test code.
+// Reveal, or a call to the RevealString method that exists for the one case
+// where the conversion is unavoidable. Test files are included -- a test that
+// stringifies a credential is how the pattern gets copied into non-test code.
+//
+// Every database driver in use takes its password as a string field, so the
+// conversion has to happen once per engine. That handoff is reserved to the
+// connect.go of an adapter package by the path check below, which is the same
+// shape as the reservation of the atomic-write primitives to internal/artifact:
+// a path exception a reviewer can see, rather than a lint suppression a future
+// caller can copy.
 func TestNoSecretIsConvertedToString(t *testing.T) {
 	root := repoRoot(t)
 
@@ -112,23 +120,49 @@ func TestNoSecretIsConvertedToString(t *testing.T) {
 				rel = path
 			}
 
+			rel = filepath.ToSlash(rel)
+			if isDriverHandoff(rel) {
+				return
+			}
+
 			for _, line := range stringConversionsOfReveal(file) {
 				t.Errorf("%s: converts a revealed secret to a string at offset %d; "+
-					"a string cannot be zeroed and flows into logs and errors -- keep it []byte",
-					filepath.ToSlash(rel), line)
+					"a string cannot be zeroed and flows into logs and errors -- keep it []byte, "+
+					"and hand it to a driver only from an adapter's connect.go",
+					rel, line)
 			}
 		})
 	}
 }
 
-// stringConversionsOfReveal reports the position of every string(x) whose
-// argument calls Reveal.
+// isDriverHandoff reports whether a repository-relative path is the one file per
+// adapter package where a driver is handed a credential.
+//
+// The package itself is not enough: internal/dbadapter defines RevealString and
+// must not be exempt, or the reservation would exempt the thing being reserved.
+func isDriverHandoff(rel string) bool {
+	return strings.HasPrefix(rel, "internal/") &&
+		strings.HasSuffix(rel, "/connect.go") &&
+		!strings.HasPrefix(rel, "internal/dbadapter/")
+}
+
+// stringConversionsOfReveal reports the position of every place a secret becomes
+// a string: a string(...) conversion wrapping a Reveal call, or a RevealString
+// call in its own right.
 func stringConversionsOfReveal(file *ast.File) []token.Pos {
 	var found []token.Pos
 
 	ast.Inspect(file, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
+			return true
+		}
+
+		if selector, isSelector := call.Fun.(*ast.SelectorExpr); isSelector {
+			if selector.Sel.Name == revealStringMethod {
+				found = append(found, call.Pos())
+			}
+
 			return true
 		}
 
@@ -147,6 +181,9 @@ func stringConversionsOfReveal(file *ast.File) []token.Pos {
 
 	return found
 }
+
+// revealStringMethod is the named exit whose call sites this check reserves.
+const revealStringMethod = "RevealString"
 
 // callsReveal reports whether expression contains a call to a method named
 // Reveal.

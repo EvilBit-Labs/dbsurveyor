@@ -13,6 +13,12 @@
 version: "2"
 
 run:
+  # The integration suites sit behind this tag so `go test ./...` never needs a
+  # container runtime. Linting them anyway is deliberate: an untagged file is a
+  # file nothing type-checks, and a stale integration test is discovered at the
+  # worst possible moment.
+  build-tags:
+    - integration
   concurrency: 8
   timeout: 30m
   issues-exit-code: 1
@@ -135,6 +141,12 @@ linters:
       # number. Naming each one would make the fixture harder to read against
       # the document it illustrates.
       - path: '(_test\.go|tools/genschema/example\.go)$'
+        linters: [mnd]
+      # An adapter's types.go maps engine type names to bit widths. The 32 in
+      # "int4": 32 is the width of the type, not a threshold hiding behind a
+      # number, and naming it would put a constant between the table and the
+      # engine documentation a reviewer checks it against.
+      - path: 'internal/[a-z]+/types\.go$'
         linters: [mnd]
       # G115 flags int-to-uint conversions that could overflow. In test fixtures
       # the size is a literal slice a few entries long, so the conversion cannot

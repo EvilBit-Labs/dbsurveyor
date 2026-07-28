@@ -68,6 +68,21 @@ jobs:
           cache: true
       - run: go test ./...
 
+  # The adapter suites drive real PostgreSQL and MySQL servers through
+  # Testcontainers. They sit behind the `integration` build tag so the matrix
+  # job above needs no container runtime, and run here on Linux only, where a
+  # Docker daemon is available to the runner.
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -tags integration -timeout 20m ./...
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

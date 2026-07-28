@@ -26,6 +26,12 @@ gen-schema:
 test:
     go test ./...
 
+# Container-backed adapter tests. They sit behind the `integration` build tag so
+# the ordinary `just test` needs no container runtime; this recipe needs Docker
+# or a Testcontainers-compatible runtime on the machine.
+test-integration:
+    go test -tags integration -timeout 15m ./...
+
 # Race-enabled run. -race requires cgo, so this recipe deliberately overrides
 # the repository-wide CGO_ENABLED=0. It is a local/CI test-only exception and
 # never applies to a shipped build.

@@ -161,55 +161,136 @@ Several types carry `float64` quality scores. Compare them with tolerance where
 it matters; do not assume exact equality survives a serialization round trip on
 every platform.
 
-## 6. Database behavior [carried]
+## 6. Database behavior
 
-These describe engine quirks, not language mechanics. They cost real time in the
-Rust tree and the same traps exist in Go.
+Engine quirks, not language mechanics. Every entry below was re-validated
+against the Go adapters in U8; where the carried entry was wrong, the correction
+is stated rather than the original left standing (R3).
 
-### 6.1 MySQL `INFORMATION_SCHEMA` mixes signed and unsigned
+### 6.1 MySQL `INFORMATION_SCHEMA` mixes signed and unsigned [confirmed]
 
 `ORDINAL_POSITION` in `COLUMNS` is `INT UNSIGNED`. `NON_UNIQUE` in `STATISTICS`
-is signed `INT`. A driver that is strict about integer width will fail to decode
-one if you assume the other. Check the actual column type before choosing the Go
-type.
+is signed `INT`. Under the binary protocol a prepared statement uses, the driver
+reports each with its declared signedness, so scanning one into the other's Go
+type is a decode error rather than a silent conversion. Check the actual column
+type before choosing the Go type.
 
-### 6.2 Row-count estimates are nullable
+A second, separate MySQL signedness trap: a column's own signedness appears only
+in `COLUMN_TYPE`. `DATA_TYPE` reports `int` for a signed and an unsigned column
+alike, so a mapping that reads only `DATA_TYPE` silently reports every unsigned
+column as signed.
 
-MySQL `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` and SQLite `MAX(rowid)` both return
-NULL for newly created tables, empty tables, and some storage engines. Scan into
-a nullable type and default to zero. PostgreSQL `pg_class.reltuples` carries the
-same risk.
+### 6.2 Row-count estimates are absent in three different ways [corrected]
 
-### 6.3 SQLite PRAGMA arguments and DML identifiers escape differently
+The carried entry said all three engines return NULL. Two do and one does not:
 
-PRAGMA arguments use single-quote escaping (`'` doubled). DML identifiers use
-double-quote escaping. These are different quoting contexts in the same engine;
-use the per-context helper, not one shared function.
+- MySQL `INFORMATION_SCHEMA.TABLES.TABLE_ROWS` is **NULL** for a table the
+  storage engine has no statistics for.
+- SQLite `MAX(rowid)` is **NULL** for an empty table, and **errors** on a
+  `WITHOUT ROWID` table, which has no rowid to take a maximum of.
+- PostgreSQL `pg_class.reltuples` is **-1**, not NULL, on a table that has never
+  been analyzed. A nullable scan does not catch it; a `> 0` guard does.
 
-### 6.4 SQLite `PRAGMA table_info` is zero-based
+All three are reported as an estimate of zero. Scanning any of them into a plain
+unsigned integer fails or wraps.
 
-`cid` starts at 0. The schema document requires `ordinal_position` to start at 1.
-Convert.
+### 6.3 SQLite: bind the PRAGMA argument instead of escaping it [corrected]
+
+The carried entry said PRAGMA arguments use single-quote escaping while DML
+identifiers use double-quote escaping, and to keep a helper per context. The
+better answer is to remove the second context: every PRAGMA this tool needs has
+a `pragma_*` table-valued function, and those take the table name as a **bound
+parameter**.
+
+`internal/sqlite` therefore has one quoting helper, for DML, and no
+single-quote escaping anywhere. The same name needing two escapings in one file
+is how the wrong one gets used.
+
+### 6.4 Derive the ordinal position by counting, not by converting [corrected]
+
+The carried entry said SQLite `PRAGMA table_info` reports a zero-based `cid` and
+to convert it. True, but converting is the wrong fix, because PostgreSQL has the
+opposite problem: `pg_attribute.attnum` is already one-based and has **gaps**,
+since a dropped column's attribute number is never reused. A converted position
+reproduces the gap, and the document requires consecutive positions.
+
+Both adapters order rows by the engine's own column order and number them by
+counting. That is correct for a zero-based source and for a gapped one.
 
 ### 6.5 Never build a quoted identifier without escaping the quote character
 
-An identifier containing a double quote closes the quoting early. Escape by
-doubling, always, even for identifiers you believe are system-generated.
+An identifier containing the quote character closes the quoting early. Escape by
+doubling, always, even for identifiers you believe the catalog generated.
 
-### 6.6 Multi-database mode exhausts connections easily
+The character differs per engine -- backtick on MySQL, double quote on
+PostgreSQL and SQLite -- which is why each adapter carries its own helper. A
+shared helper would need the engine as an argument, and the argument is what gets
+passed wrong.
+
+### 6.6 Multi-database mode exhausts connections easily [confirmed]
 
 Scanning many databases on one server means many pools. Cap each pool small
 (2 connections, no idle minimum) and close it explicitly when that database is
 done, rather than relying on scope exit.
 
-### 6.7 PostgreSQL batch collection is worth the complexity
+### 6.7 PostgreSQL batch collection is worth the complexity [confirmed]
 
 Per-table metadata queries make schema collection O(5N+1). Running the five
-queries once for *all* tables and grouping in memory makes it O(6). Keep a
-per-table fallback for the case where the batch query fails.
+queries once for *all* tables and grouping in memory makes it O(6).
 
-### 6.8 Every operation is read-only
+Two things make the fallback trustworthy rather than merely present:
+
+- Each query is written **once**, as a template with a placeholder where its
+  table predicate goes, and completed with either `n.nspname = ANY($1)` or
+  `n.nspname = $1 AND c.relname = $2`. The select list, joins, and ordering are
+  literally the same text in both paths, so the fallback cannot drift into
+  reporting something subtly different.
+- Only an **error** triggers the fallback. An empty result is an answer -- a
+  database with no foreign keys anywhere -- and treating it as a failure would
+  send every simple schema down the slow path.
+
+### 6.8 Every operation is read-only, and each engine has a different lever
 
 No temporary tables, no session variables that persist, no `ANALYZE`. An operator
 may be pointed at production with credentials they are not supposed to write
 with, and the tool must not be the reason that becomes a problem.
+
+Beyond issuing only reads, each adapter asks the engine to enforce it:
+
+| Engine     | Lever                                                       |
+| ---------- | ----------------------------------------------------------- |
+| PostgreSQL | `default_transaction_read_only=on` as a startup parameter   |
+| MySQL      | `transaction_read_only=1` as a session system variable      |
+| SQLite     | `PRAGMA query_only(1)` on every connection                  |
+
+PostgreSQL's is a startup parameter rather than a `SET` on purpose: it applies
+to every connection the pool opens later to grow itself, which a one-off `SET`
+would miss.
+
+### 6.9 SQLite read-only mode does not stop the file being created
+
+`PRAGMA query_only` refuses writes to a database's *contents*. It does not stop
+the driver creating a database file that was not there, so a mistyped path
+produces a valid, empty, entirely fictional schema document rather than an
+error. `internal/sqlite` stats the path before opening it.
+
+### 6.10 An empty catalog result is not a missing table
+
+`PRAGMA table_info` on a table that does not exist returns **zero rows**, not an
+error, and `INFORMATION_SCHEMA.COLUMNS` behaves the same way for a table the
+credential cannot see. A sampler that read that as success would go on to select
+from a table that is not there. Each adapter turns the empty result back into an
+error.
+
+## 7. Credentials at the driver boundary
+
+Every driver in use takes its password as a `string` field, so the conversion
+`Secret` exists to prevent has to happen exactly once per engine.
+`dbadapter.Secret.RevealString` is that exit, and
+`TestNoSecretIsConvertedToString` in `tools/` reserves both it and the equivalent
+hand-rolled `string(secret.Reveal())` to the `connect.go` of an adapter package.
+
+This is the same shape as the reservation of the atomic-write primitives to
+`internal/artifact` (2.4): a path exception a reviewer can see, rather than a
+lint suppression a future caller can copy. `internal/dbadapter` itself is not
+exempt, or the reservation would exempt the thing being reserved.

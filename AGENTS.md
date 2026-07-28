@@ -33,7 +33,8 @@ configuration rather than picking a default.
 | CLI              | `spf13/cobra` wrapped by `charmbracelet/fang`                                            |
 | Logging          | `charmbracelet/log`                                                                      |
 | Terminal styling | `charmbracelet/lipgloss`; `charmbracelet/glamour` for rendered Markdown                  |
-| Testing          | `stretchr/testify`; `sebdah/goldie/v2` for golden files                                  |
+| Testing          | `stretchr/testify`; `sebdah/goldie/v2` golden files; `testcontainers-go` for adapters    |
+| Database drivers | `jackc/pgx/v5`, `go-sql-driver/mysql`, `modernc.org/sqlite` -- all pure Go               |
 | Compression      | `klauspost/compress/zstd`                                                                |
 | Cryptography     | `crypto/aes` and `crypto/cipher` from the standard library, `golang.org/x/crypto/argon2` |
 | Task runner      | `just`                                                                                   |
@@ -119,7 +120,7 @@ internal/
   dbschema/                schema types, quality, redaction, validation,
                            credential scanning
   dbadapter/               adapter interface and parameter types (leaf)
-  postgres/ mysql/ sqlite/ relational adapters
+  postgres/ mysql/ sqlite/ relational adapters (pgx/v5, go-sql-driver, modernc)
   mongodb/ mssql/ oracle/  document and enterprise adapters
   envelope/                AES-256-GCM + Argon2id byte format
   artifact/                atomic write, zstd, extension dispatch, load
@@ -140,6 +141,7 @@ declaration, not an inventory.
 ```bash
 just build            # both binaries into ./dist
 just test             # go test ./...
+just test-integration # container-backed adapter tests (needs Docker)
 just test-race        # race detector (the one place CGO_ENABLED=1 is allowed)
 just coverage         # coverage report
 just lint             # golangci-lint run

@@ -205,6 +205,23 @@ type CollectionMetadata struct {
 	Warnings []string `json:"warnings"`
 }
 
+// SetDuration records how long a collection took.
+//
+// It takes a Duration rather than a count of milliseconds so the unit is stated
+// by the type instead of being a convention every adapter has to remember, and
+// it refuses a negative one: a clock that ran backwards is not a negative
+// runtime.
+func (m *CollectionMetadata) SetDuration(elapsed time.Duration) {
+	if elapsed <= 0 {
+		m.DurationMS = 0
+
+		return
+	}
+
+	//nolint:gosec // G115: the guard above rules out the only negative case.
+	m.DurationMS = uint64(elapsed.Milliseconds())
+}
+
 // ServerSchema is the document produced by a multi-database collection: server
 // facts plus one Schema per database reached.
 type ServerSchema struct {
