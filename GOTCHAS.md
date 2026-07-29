@@ -20,7 +20,15 @@ The root is now exempt from the name match explicitly. When adding a skip entry,
 
 Any test that shells out to `go list`, `go build`, or `git` should use absolute or module-qualified arguments. Relative ones resolve against a directory that is rarely the one you pictured.
 
-### 1.3 The general rule
+### 1.3 A working-tree walk is not a repository
+
+`tools/ascii_test.go` originally enumerated files by walking the filesystem from the module root. A walk sees whatever happens to be on disk -- an editor's scratch file, an agent's notes, a downloaded fixture -- none of which any contributor committed, and R18 is a rule about repository source. The result was a gate that failed on every machine with local scratch in the tree and passed in CI, which is the fastest way to teach people to stop running it.
+
+It now asks `git ls-files` and checks what git is tracking. That also removes the skip list, and with it the 1.1 hazard: there is no directory name left to match the repository root by accident.
+
+The same reasoning applies to any repository-level check. Ask git what the repository contains; do not infer it from what is sitting in the directory.
+
+### 1.4 The general rule
 
 Before trusting a new invariant test, break the invariant on purpose and watch it fail. A test that has never failed is not evidence that the property holds.
 
@@ -50,6 +58,10 @@ Never the reverse. Ciphertext is indistinguishable from random and does not comp
 
 Both the Argon2id cost parameters and the zstd decompressed size arrive from a file and are consumed *before* anything is authenticated -- the key must be derived before the GCM tag can be checked, and a plain `.zst` has no tag at all. Each therefore has an upper bound as well as a lower one. The Rust implementation validated only minimums, which left an artifact naming a multi-terabyte memory cost able to crash the process on open.
 
+### 2.6 A file's own size is a ceiling too
+
+2.5 covers the lengths an artifact *declares*. The length it simply *has* needs a bound as well: `os.ReadFile` allocates the whole file before a single magic byte has been looked at, so every declared-length ceiling downstream is reached only after the process has committed to the allocation. `internal/artifact` stats the path and refuses anything past `maxArtifactSize` before reading.
+
 ## 3. Linters
 
 ### 3.1 `nonamedreturns` versus gocritic `unnamedResult`
@@ -78,9 +90,13 @@ Both are enabled. `unnamedResult` wants multiple return values named; `nonamedre
 
 The race detector requires cgo, so `just test-race` overrides the repository-wide `CGO_ENABLED=0`. It is a test-only exception and never applies to a shipped build.
 
-### 4.3 `govulncheck` may not be on `PATH`
+### 4.3 A bare tool name in the justfile runs whatever is on `PATH`
 
-`mise` installs Go tools into the Go toolchain's `bin`, not `$GOPATH/bin`. If `just vuln` reports "command not found", the binary is likely under `$(go env GOBIN)`.
+Every recipe invokes its tool through `mise exec --`, the Go toolchain included. That is not decoration. `mise` puts each pinned tool in its own directory under `~/.local/share/mise/installs`, and `$GOPATH/bin` sits ahead of those on `PATH`, so a bare `govulncheck` in a recipe resolves to whatever a past `go install ...@latest` left in `$GOPATH/bin` -- unpinned, never refreshed, and carrying the Go toolchain of the day it was installed.
+
+This is how it actually failed: `just dev-setup` ran `mise install` and then `go install golang.org/x/vuln/cmd/govulncheck@latest`, so the pinned copy was installed and immediately shadowed. Five months later `just vuln` died with "Loading packages failed, possibly due to a mismatch between the Go version used to build govulncheck and the Go version on PATH" -- a v1.1.4 binary built with go1.25.7 being asked to parse a go1.26 tree, while the mise-pinned v1.6.0 built with go1.26.5 sat unused. CI was unaffected, because a fresh runner has no `$GOPATH/bin` to shadow anything, which is what let it rot for so long.
+
+`dev-setup` is now `mise install` alone. If a tool is needed, pin it in `mise.toml`; do not `go install` it.
 
 ### 4.4 rust-analyzer's descendant: trust the compiler over the IDE
 
@@ -201,7 +217,23 @@ There is no declaration to read, so every field, type, and nullability in a Mong
 
 `$sample` is used rather than a `find` with a limit: a find returns documents in storage order, and the first N documents of a long-lived collection are the oldest, which is the sample least likely to show the fields an application added recently.
 
-### 6.17 Three engines have no server-side read-only switch
+### 6.17 A view's columns are resolved, not declared
+
+SQLite reports a view's columns by planning its SELECT, so `PRAGMA table_info` on a view whose underlying table was dropped returns an error -- `no such table` -- while `sqlite_master` still lists the view. This is not the empty-result case of 6.10; it is a genuine driver error, and the two need different handling.
+
+`collectViews` records it as a warning and keeps the view without columns, the same demotion `collectTable` applies to a missing row estimate. Aborting meant one dangling view denied the operator the entire schema.
+
+### 6.18 Oracle's generated NOT NULL check is the whole condition, not a suffix
+
+6.15 filters out the check constraints Oracle generates for NOT NULL. The filter has to match the *whole* condition. An operator-written check can legitimately end in the same three words -- `status = 'X' AND notes IS NOT NULL` -- and a suffix test silently discards it, which is the opposite of the problem 6.15 was solving.
+
+### 6.19 Which Go type a BSON subdocument arrives as is the driver's choice
+
+A nested document decodes as `bson.M`, `bson.D`, or a plain `map[string]any` depending on the registry in play, and the caller does not get to pick. Every type switch that handles one of them has to handle all three, and there are three such switches in `internal/mongodb`: field inference, the type mapper, and sample value normalization. Fixing only the one that was reported leaves a subdocument typed as `unknown` while inference walks its fields, or a nested ObjectID handed to `encoding/json` raw.
+
+The shared helper is `asDocument`. Route through it rather than adding a fourth type switch.
+
+### 6.20 Three engines have no server-side read-only switch
 
 The lever table in 6.8 covers PostgreSQL, MySQL, and SQLite. The other three have nothing equivalent:
 
@@ -234,3 +266,9 @@ The payoff is concrete rather than architectural. The survey is testable with a 
 Every driver in use takes its password as a `string` field, so the conversion `Secret` exists to prevent has to happen exactly once per engine. `dbadapter.Secret.RevealString` is that exit, and `TestNoSecretIsConvertedToString` in `tools/` reserves both it and the equivalent hand-rolled `string(secret.Reveal())` to the `connect.go` of an adapter package.
 
 This is the same shape as the reservation of the atomic-write primitives to `internal/artifact` (2.4): a path exception a reviewer can see, rather than a lint suppression a future caller can copy. `internal/dbadapter` itself is not exempt, or the reservation would exempt the thing being reserved.
+
+### 8.1 Zeroing has exactly one correct place, and it is not connect.go
+
+R17 asks that a credential be zeroed best effort after connection setup, and the obvious reading -- zero it where the driver takes it -- is wrong here. `NewSecret` deliberately does not copy the caller's bytes, so every copy of a `ConnectionConfig` shares one backing array, and a multi-database run hands that same credential to a fresh pool per database. Zeroing at the handoff erases the credential out from under every database after the first.
+
+`survey.Run` zeroes it once, immediately after `collect` returns, which is the point past which no further connection is opened. Both the success and the failure path go through it.
