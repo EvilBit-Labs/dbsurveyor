@@ -495,12 +495,20 @@ func (a *Adapter) collectViews(ctx context.Context, schema *dbschema.Schema) err
 			view.Definition = &entry.definition.String
 		}
 
+		// A view is resolved, not declared: SQLite reports its columns by
+		// planning the SELECT, so a view over a dropped table fails here even
+		// though sqlite_master still lists it. That is a property of the one
+		// view, not a failure of the survey, so it is recorded and the view is
+		// kept without columns -- the same demotion collectTable applies to a
+		// missing row estimate. Aborting would mean one dangling view denies an
+		// operator the whole schema.
 		shape, err := a.collectColumns(ctx, entry.name)
 		if err != nil {
-			return fmt.Errorf("sqlite: collect columns of view %q: %w", entry.name, err)
+			schema.AddWarning(fmt.Sprintf("no columns for view %q: %v", entry.name, err))
+		} else {
+			view.Columns = shape.columns
 		}
 
-		view.Columns = shape.columns
 		schema.Views = append(schema.Views, view)
 	}
 

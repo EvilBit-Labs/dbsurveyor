@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -570,4 +571,93 @@ func TestOpeningRejectsAnInvalidConfiguration(t *testing.T) {
 func TestCollectionRejectsAnInvalidConfiguration(t *testing.T) {
 	_, err := openFixture(t).CollectSchema(t.Context(), dbadapter.CollectionConfig{})
 	require.ErrorIs(t, err, dbadapter.ErrMissingHost)
+}
+
+// TestADanglingViewDoesNotAbortTheSurvey pins the demotion in collectViews.
+//
+// SQLite resolves a view's columns by planning its SELECT, so a view over a
+// dropped table fails there even though sqlite_master still lists the view.
+// Before this was demoted to a warning, one such view denied the operator the
+// entire schema.
+func TestADanglingViewDoesNotAbortTheSurvey(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "dangling.db")
+
+	db, err := sql.Open(driverName, path)
+	require.NoError(t, err)
+
+	for _, statement := range []string{
+		`CREATE TABLE kept (id INTEGER PRIMARY KEY, label TEXT)`,
+		`CREATE TABLE doomed (id INTEGER)`,
+		`CREATE VIEW dangling AS SELECT id FROM doomed`,
+		`DROP TABLE doomed`,
+	} {
+		_, execErr := db.ExecContext(t.Context(), statement)
+		require.NoError(t, execErr, statement)
+	}
+
+	require.NoError(t, db.Close())
+
+	adapter, err := Open(t.Context(), dbadapter.NewConnectionConfig(path))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, adapter.Close()) })
+
+	schema, err := adapter.CollectSchema(t.Context(), dbadapter.NewCollectionConfig(path))
+	require.NoError(t, err, "one unresolvable view must not fail the whole survey")
+
+	// The table beside it is still reported in full.
+	kept := tableNamed(t, schema, "kept")
+	assert.Len(t, kept.Columns, 2)
+
+	// The view is kept, without columns, and the reason is recorded.
+	require.Len(t, schema.Views, 1)
+	assert.Equal(t, "dangling", schema.Views[0].Name)
+	assert.Empty(t, schema.Views[0].Columns)
+
+	assert.Contains(t, strings.Join(schema.CollectionMetadata.Warnings, "\n"), `no columns for view "dangling"`)
+}
+
+// TestAWithoutRowidTableIsSurveyedWithoutARowEstimate covers GOTCHAS 6.2 at the
+// unit level.
+//
+// A WITHOUT ROWID table has no rowid to take a maximum of, so the row-count
+// query errors rather than returning NULL. Both the collector and the sampler
+// carry code written for that case; before this test neither had ever run
+// against one.
+func TestAWithoutRowidTableIsSurveyedWithoutARowEstimate(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "norowid.db")
+
+	db, err := sql.Open(driverName, path)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`CREATE TABLE keyed (code TEXT PRIMARY KEY, label TEXT) WITHOUT ROWID`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `INSERT INTO keyed VALUES ('a', 'first'), ('b', 'second')`)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	adapter, err := Open(t.Context(), dbadapter.NewConnectionConfig(path))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, adapter.Close()) })
+
+	schema, err := adapter.CollectSchema(t.Context(), dbadapter.NewCollectionConfig(path))
+	require.NoError(t, err, "a WITHOUT ROWID table must not fail the survey")
+
+	keyed := tableNamed(t, schema, "keyed")
+	assert.Len(t, keyed.Columns, 2)
+	assert.Nil(t, keyed.RowCount, "there is no rowid to estimate from")
+	assert.Contains(t, strings.Join(schema.CollectionMetadata.Warnings, "\n"), `no row estimate for table "keyed"`)
+
+	// Sampling still works: it must not depend on the rowid either.
+	sample, err := adapter.SampleTable(t.Context(),
+		dbadapter.TableRef{Table: "keyed"}, dbadapter.NewSamplingConfig(10))
+	require.NoError(t, err)
+	assert.Len(t, sample.Rows, 2)
 }
