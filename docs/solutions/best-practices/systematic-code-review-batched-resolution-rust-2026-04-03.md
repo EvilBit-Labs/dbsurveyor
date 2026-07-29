@@ -1,5 +1,5 @@
 ---
-title: Systematic Code Review to Batched Resolution Pattern for Single-Maintainer Rust Projects
+title: Systematic Code Review to Batched Resolution Pattern for Single-Maintainer Projects
 date: 2026-04-03
 category: best-practices
 module: development-workflow
@@ -8,7 +8,7 @@ component: development_workflow
 severity: medium
 applies_when:
   - Code review produces more than 10 actionable findings
-  - Findings span multiple crates, modules, or concern domains
+  - Findings span multiple packages, modules, or concern domains
   - The codebase has a working CI pipeline that can serve as a gate
   - Multiple independent changes can be made without touching overlapping files
 tags:
@@ -16,13 +16,13 @@ tags:
   - batch-processing
   - parallel-agents
   - ci-gates
-  - rust
   - single-maintainer
   - refactoring
   - security
+last_updated: 2026-07-28
 ---
 
-# Systematic Code Review to Batched Resolution Pattern for Single-Maintainer Rust Projects
+# Systematic Code Review to Batched Resolution Pattern for Single-Maintainer Projects
 
 ## Context
 
@@ -86,10 +86,10 @@ Run up to 4 agents simultaneously on independent items within the same batch. Ea
 Run the full validation suite after each batch:
 
 ```
-just fmt && just ci-check
-# Pre-commit hooks: actionlint, clippy, fmt, cargo-audit
-# Full test suite: 536 tests via nextest
-# Dependency check: cargo deny (advisories, bans, licenses, sources)
+just format && just check
+# check runs: format-check, lint, test, vuln
+# Lint: golangci-lint (strict v2 set, zero issues)
+# Vulnerabilities: govulncheck over the dependency graph
 ```
 
 Fix any failures before starting the next batch.
@@ -105,10 +105,10 @@ Fix any failures before starting the next batch.
 ## When to Apply
 
 - Code review produces more than 10 actionable findings
-- Findings span multiple crates, modules, or concern domains (security, performance, architecture)
+- Findings span multiple packages, modules, or concern domains (security, performance, architecture)
 - The codebase has a working CI pipeline with pre-commit hooks
 - Multiple independent changes can be made without touching overlapping files
-- The project uses a strict linting policy (e.g., `clippy -D warnings`, `deny(unsafe_code)`)
+- The project uses a strict linting policy (e.g., `golangci-lint` at zero issues)
 
 Do not use for fewer than 5 findings or when all findings touch the same file -- sequential resolution is simpler.
 
@@ -136,7 +136,11 @@ Batch 2 (Security, 4 parallel agents):
 
 Each agent owns distinct files. CI gate after batch verifies no conflicts.
 
-### Results From This Session
+### Results From the Session That Produced This Pattern
+
+These numbers are historical, from the retired Rust implementation (preserved on
+the `rust-final` branch). They are kept because they are the evidence the
+pattern rests on, not because they describe the current tree.
 
 | Metric                    | Value                             |
 | ------------------------- | --------------------------------- |
@@ -152,8 +156,6 @@ Each agent owns distinct files. CI gate after batch verifies no conflicts.
 
 ## Related
 
-- `.full-review/05-final-report.md` -- Consolidated review report with all 82 findings
-- `.context/compound-engineering/todos/` -- 74 structured todo files (19 complete, 10 ready, 44 ready after triage, 1 deleted as duplicate)
 - GitHub #22 -- Comprehensive Security Hardening
 - GitHub #23 -- Enhanced Collector Performance Optimization
 - GitHub #39 -- CI job parity with local dev environment

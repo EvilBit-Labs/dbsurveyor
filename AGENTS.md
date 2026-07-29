@@ -111,6 +111,8 @@ number. The ones that constrain day-to-day work:
 ```text
 go.mod                     module github.com/EvilBit-Labs/dbsurveyor
 justfile                   task runner
+CONCEPTS.md                shared domain vocabulary (survey, artifact, sample,
+                           redaction mode) with project-specific meaning
 mise.toml                  toolchain pinning
 .golangci.yml              strict v2 linter set
 .goreleaser.yaml           release configuration
@@ -131,6 +133,9 @@ internal/
 docs/
   formats/                 on-disk format specifications
   adr/                     architecture decision records
+  solutions/               documented solutions to past problems (bugs, best
+                           practices, workflow patterns), by category with YAML
+                           frontmatter (module, tags, problem_type)
 tools/                     repository-level architecture tests
 ```
 
