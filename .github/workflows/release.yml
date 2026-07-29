@@ -29,24 +29,26 @@ jobs:
             contents: read
         steps:
             - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-            - uses: actions/setup-go@v6
+            # mise.toml is where this project pins Go, golangci-lint,
+            # govulncheck, and goreleaser, so the release runs the same
+            # toolchain a contributor does. See the note in ci.yml.
+            - name: Setup mise toolchain
+              uses: jdx/mise-action@f10502fc09dadecfefb962fff68ce77213930204 # v4.2.2
               with:
-                  go-version-file: go.mod
+                  install: true
                   cache: true
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build
               run: go build ./...
             - name: Vet
               run: go vet ./...
             - name: Lint
-              uses: golangci/golangci-lint-action@v9
-              with:
-                  version: latest
-                  args: --timeout=10m
+              run: just lint
             - name: Check formatting
-              run: golangci-lint fmt --diff
+              run: just format-check
             - name: Test
-              run: go test ./...
+              run: just test
               env:
                   TERM: dumb
 
@@ -62,10 +64,19 @@ jobs:
             - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
               with:
                   fetch-depth: 0
-            - uses: actions/setup-go@v6
+            - name: Setup mise toolchain
+              uses: jdx/mise-action@f10502fc09dadecfefb962fff68ce77213930204 # v4.2.2
               with:
-                  go-version-file: go.mod
+                  install: true
                   cache: true
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+
+            # mise.toml sets lockfile = true, so installing tools rewrites
+            # mise.lock and leaves the tree dirty. GoReleaser refuses to build a
+            # dirty tree, so the release would fail on a file the toolchain
+            # installer wrote rather than on anything a human changed.
+            - name: Reset mise.lock to avoid a dirty-tree failure
+              run: git checkout -- mise.lock || true
 
             - name: Install Cosign
               uses: sigstore/cosign-installer@v4
@@ -74,7 +85,7 @@ jobs:
               uses: anchore/sbom-action/download-syft@v0
 
             - name: Run GoReleaser
-              uses: goreleaser/goreleaser-action@v7
+              uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
               with:
                   distribution: goreleaser
                   version: "~> v2"
@@ -86,33 +97,11 @@ jobs:
             # The no-CGO rule is checked at the source level by
             # tools/nocgo_test.go, which cannot see a build setting lost to a
             # stray environment variable on this runner. This checks the other
-            # end: what the binaries were actually built with. It is inlined
-            # rather than calling `just verify-artifacts` so the release job
-            # needs no task runner installed.
+            # end: what the binaries were actually built with.
             - name: Verify the artifacts are static and reproducible
-              run: |
-                  set -euo pipefail
-                  found=0
-                  while IFS= read -r binary; do
-                      found=$((found + 1))
-                      settings=$(go version -m "$binary")
-                      grep -q 'CGO_ENABLED=0' <<<"$settings" || {
-                          echo "FAIL: $binary was not built with CGO_ENABLED=0"
-                          exit 1
-                      }
-                      grep -q -- '-trimpath=true' <<<"$settings" || {
-                          echo "FAIL: $binary was not built with -trimpath"
-                          exit 1
-                      }
-                      echo "ok: $binary"
-                  done < <(find dist -type f -regex '.*/dbsurveyor\(-collect\)?\(\.exe\)?$')
-                  if [ "$found" -eq 0 ]; then
-                      echo "FAIL: no binaries found under dist/"
-                      exit 1
-                  fi
-                  echo "verified $found binaries"
+              run: just verify-artifacts
 
             - name: Attest build provenance
-              uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+              uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
               with:
                   subject-path: "dist/**/*"
