@@ -317,3 +317,63 @@ func TestAClosedAdapterRefusesToWork(t *testing.T) {
 	)
 	require.ErrorIs(t, err, ErrClosed)
 }
+
+// TestASubdocumentDecodedAsBsonDIsStillDescended guards the defect the first
+// container run found.
+//
+// Which Go type a subdocument arrives as is the driver's choice, not the
+// caller's: the same document can decode to bson.D rather than bson.M. When
+// inference recognized only bson.M it stopped at the parent and reported no
+// nested fields at all, and every unit test passed because each built its
+// fixtures as bson.M by hand.
+func TestASubdocumentDecodedAsBsonDIsStillDescended(t *testing.T) {
+	t.Parallel()
+
+	for name, document := range map[string]bson.M{
+		"ordered document": {"address": bson.D{
+			{Key: "city", Value: "London"},
+			{Key: "postcode", Value: "SW1A 1AA"},
+		}},
+		"plain map": {"address": map[string]any{
+			"city":     "London",
+			"postcode": "SW1A 1AA",
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			columns := infer(document).columns()
+
+			assert.Equal(t, dbschema.JSONType(), columnNamed(t, columns, "address").DataType)
+			assert.Equal(t, dbschema.StringType(nil), columnNamed(t, columns, "address.city").DataType)
+			assert.Equal(t, dbschema.StringType(nil), columnNamed(t, columns, "address.postcode").DataType)
+		})
+	}
+}
+
+// TestANestedValueIsRenderedWhateverDocumentTypeItArrivesAs is the sampling half
+// of the same driver-type problem.
+//
+// Normalization used to name only bson.M, so a subdocument that decoded as
+// bson.D reached encoding/json holding a raw ObjectID rather than its hex.
+func TestANestedValueIsRenderedWhateverDocumentTypeItArrivesAs(t *testing.T) {
+	t.Parallel()
+
+	id := bson.NewObjectID()
+
+	for name, nested := range map[string]any{
+		"bson.M":         bson.M{"ref": id},
+		"bson.D":         bson.D{{Key: "ref", Value: id}},
+		"map[string]any": map[string]any{"ref": id},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			rendered := normalizeValue(nested)
+
+			document, ok := rendered.(map[string]any)
+			require.True(t, ok, "a subdocument renders as a map, got %T", rendered)
+			assert.Equal(t, id.Hex(), document["ref"], "the nested ObjectID is rendered, not passed through raw")
+		})
+	}
+}

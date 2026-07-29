@@ -151,8 +151,6 @@ func normalizeValue(value any) any {
 		// The subtype is dropped: the bytes are what a reader wants, and
 		// encoding/json renders them as base64.
 		return typed.Data
-	case bson.M:
-		return normalizeDocument(typed)
 	case bson.A:
 		items := make([]any, 0, len(typed))
 		for _, item := range typed {
@@ -161,6 +159,14 @@ func normalizeValue(value any) any {
 
 		return items
 	default:
+		// A subdocument reaches this switch as bson.M, bson.D, or a plain map,
+		// at the driver's discretion. Routing all three through asDocument means
+		// a nested ObjectID or DateTime is rendered rather than handed to
+		// encoding/json raw, whichever spelling arrived.
+		if document, ok := asDocument(value); ok {
+			return normalizeDocument(document)
+		}
+
 		return value
 	}
 }

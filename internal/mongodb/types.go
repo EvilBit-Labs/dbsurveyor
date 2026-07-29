@@ -55,7 +55,10 @@ func bsonTypeOf(value any) string {
 		return typeDecimal
 	case bson.Binary:
 		return typeBinary
-	case bson.M, bson.D:
+	// The same three spellings asDocument descends into. A subdocument's Go type
+	// is the driver's choice, so a switch that names fewer of them reports a
+	// document as an unknown type while inference is busy walking its fields.
+	case bson.M, bson.D, map[string]any:
 		return typeObject
 	case bson.A, []any:
 		return typeArray
