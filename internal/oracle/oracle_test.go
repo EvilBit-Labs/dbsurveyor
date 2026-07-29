@@ -293,3 +293,37 @@ func TestFeaturesAreReported(t *testing.T) {
 	assert.False(t, adapter.Supports(dbadapter.FeatureMultiDatabase))
 	assert.False(t, adapter.Supports(dbadapter.FeatureSchemaInference))
 }
+
+// TestIsNotNullCheckMatchesOnlyTheGeneratedForm pins GOTCHAS 6.15 against the
+// over-match a suffix test allows.
+//
+// Oracle records a NOT NULL declaration as a check constraint, and those are
+// filtered out because the column's own nullability already says it. An
+// operator-written check can end in the same three words without being one, and
+// dropping it loses a real constraint.
+func TestIsNotNullCheckMatchesOnlyTheGeneratedForm(t *testing.T) {
+	t.Parallel()
+
+	for name, testCase := range map[string]struct {
+		condition string
+		generated bool
+	}{
+		"quoted generated form":   {`"EMAIL" IS NOT NULL`, true},
+		"unquoted generated form": {`EMAIL IS NOT NULL`, true},
+		"lower case generated":    {`"email" is not null`, true},
+		"extra internal spacing":  {`"EMAIL"  IS  NOT  NULL`, true},
+		"compound operator check": {`STATUS = 'X' AND NOTES IS NOT NULL`, false},
+		"or clause":               {`"A" IS NULL OR "B" IS NOT NULL`, false},
+		"parenthesised check":     {`("NOTES" IS NOT NULL)`, false},
+		"unrelated check":         {`AMOUNT > 0`, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := isNotNullCheck(sql.NullString{String: testCase.condition, Valid: true})
+			assert.Equal(t, testCase.generated, got, "condition %q", testCase.condition)
+		})
+	}
+
+	assert.False(t, isNotNullCheck(sql.NullString{}), "a NULL condition is not a generated NOT NULL")
+}

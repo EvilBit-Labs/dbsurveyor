@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/EvilBit-Labs/dbsurveyor/internal/dbschema"
@@ -209,6 +210,15 @@ func foreignKey(row gathered, referenced map[string]referencedKey) dbschema.Fore
 	return key
 }
 
+// generatedNotNull matches the whole condition Oracle generates for a NOT NULL
+// declaration, which names exactly one column and nothing else.
+//
+// The match is anchored rather than a suffix test. An operator-written check
+// such as `status = 'X' AND notes IS NOT NULL` also ends in those three words,
+// and a suffix test drops it -- discarding a real constraint on the grounds that
+// it resembles a generated one.
+var generatedNotNull = regexp.MustCompile(`^(?:"[^"]+"|[A-Z_$#][A-Z0-9_$#]*)\s+IS\s+NOT\s+NULL$`)
+
 // isNotNullCheck reports whether a check condition is the one Oracle generates
 // for a NOT NULL declaration.
 func isNotNullCheck(condition sql.NullString) bool {
@@ -216,7 +226,7 @@ func isNotNullCheck(condition sql.NullString) bool {
 		return false
 	}
 
-	return strings.HasSuffix(strings.ToUpper(strings.TrimSpace(condition.String)), "IS NOT NULL")
+	return generatedNotNull.MatchString(strings.ToUpper(strings.TrimSpace(condition.String)))
 }
 
 // referentialAction maps the delete rule the catalog reports.
