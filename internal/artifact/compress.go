@@ -25,6 +25,11 @@ var zstdMagic = []byte{0x28, 0xB5, 0x2F, 0xFD}
 // approach a gigabyte of JSON is well past what this tool is built for.
 const maxDecompressedSize = 1 << 30 // 1 GiB
 
+// maxArtifactSize bounds what is read off disk before anything about the file
+// has been inspected. A well-formed artifact is smaller than its decompressed
+// form, so the decompression limit is already generous as an on-disk ceiling.
+const maxArtifactSize = maxDecompressedSize
+
 // ErrTooLarge reports a compressed artifact that expands past
 // maxDecompressedSize.
 var ErrTooLarge = errors.New("compressed artifact exceeds the decompression limit")

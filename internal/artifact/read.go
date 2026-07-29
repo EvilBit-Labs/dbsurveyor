@@ -68,6 +68,22 @@ func read(path string, password PasswordFunc, document Document) error {
 // silently reading it as JSON would teach an operator that the extension does
 // not mean anything.
 func unframe(path string, password PasswordFunc) ([]byte, error) {
+	// The size is checked before the read rather than after it. Every other
+	// ceiling in this package guards a length the file declares; this one guards
+	// the length the file simply has, which os.ReadFile would otherwise allocate
+	// in full before a single magic byte has been looked at. An artifact is
+	// bounded by maxDecompressedSize once expanded, so on disk -- compressed,
+	// encrypted, or neither -- it has no business exceeding that.
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("read artifact: %w", err)
+	}
+
+	if info.Size() > maxArtifactSize {
+		return nil, fmt.Errorf("%w: %d bytes on disk exceeds the %d byte limit",
+			ErrTooLarge, info.Size(), maxArtifactSize)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read artifact: %w", err)

@@ -276,3 +276,26 @@ func TestDecompressRejectsBytesThatAreNotAFrame(t *testing.T) {
 	_, err := decompress([]byte("plain text"))
 	require.Error(t, err)
 }
+
+// TestAnOversizedArtifactIsRefusedBeforeItIsRead pins the ceiling on the raw
+// read.
+//
+// Every other bound in this package guards a length the file declares. This one
+// guards the length the file simply has: os.ReadFile would allocate the whole
+// thing before a single magic byte had been looked at.
+func TestAnOversizedArtifactIsRefusedBeforeItIsRead(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "huge.json")
+
+	file, err := os.Create(path) //nolint:forbidigo // G-none: staging an oversized fixture, not writing an artifact.
+	require.NoError(t, err)
+
+	// Truncate rather than write: a sparse file reports the size without
+	// costing the disk a gigabyte.
+	require.NoError(t, file.Truncate(maxArtifactSize+1))
+	require.NoError(t, file.Close())
+
+	_, err = unframe(path, nil)
+	require.ErrorIs(t, err, ErrTooLarge)
+}
