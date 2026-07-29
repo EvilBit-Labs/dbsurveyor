@@ -9,47 +9,57 @@ set shell := ["bash", "-uc"]
 # airgapped installs work without vendor client libraries.
 export CGO_ENABLED := "0"
 
+# Use mise to manage all dev tools (go, golangci-lint, govulncheck, goreleaser)
+# See mise.toml for tool versions
+#
+# Every tool below is invoked through mise rather than by bare name, the Go
+# toolchain included. $GOPATH/bin sits ahead of mise's tool directories on PATH,
+# so a bare name runs whatever a past `go install ...@latest` left there --
+# unpinned, never refreshed, and carrying the Go toolchain of the day it was
+# installed. See GOTCHAS 4.3.
+mise_exec := "mise exec --"
+
 default:
     @just --list
 
 # Build both binaries into ./dist
 build:
-    go build -trimpath -o dist/ ./cmd/...
+    {{ mise_exec }} go build -trimpath -o dist/ ./cmd/...
 
 # Regenerate the published format schemas and examples under docs/formats.
 # These are derived from the Go types; TestPublishedArtifactsAreCurrent fails
 # when a committed file is stale.
 gen-schema:
-    go run ./tools/genschema
+    {{ mise_exec }} go run ./tools/genschema
 
 # Run the full test suite
 test:
-    go test ./...
+    {{ mise_exec }} go test ./...
 
 # Container-backed adapter tests. They sit behind the `integration` build tag so
 # the ordinary `just test` needs no container runtime; this recipe needs Docker
 # or a Testcontainers-compatible runtime on the machine.
 test-integration:
-    go test -tags integration -timeout 15m ./...
+    {{ mise_exec }} go test -tags integration -timeout 15m ./...
 
 # Race-enabled run. -race requires cgo, so this recipe deliberately overrides
 # the repository-wide CGO_ENABLED=0. It is a local/CI test-only exception and
 # never applies to a shipped build.
 test-race:
-    CGO_ENABLED=1 go test -race ./...
+    CGO_ENABLED=1 {{ mise_exec }} go test -race ./...
 
 # Coverage report
 coverage:
-    go test -coverprofile=coverage.out -covermode=atomic ./...
-    go tool cover -func=coverage.out | tail -1
+    {{ mise_exec }} go test -coverprofile=coverage.out -covermode=atomic ./...
+    {{ mise_exec }} go tool cover -func=coverage.out | tail -1
 
 # Coverage gate. The threshold starts low and rises as phases land -- the Rust
 # tree's 55% floor is not imported, since the Go tree starts from zero.
 coverage-ci threshold="50":
     #!/usr/bin/env bash
     set -euo pipefail
-    go test -coverprofile=coverage.out -covermode=atomic ./...
-    pct=$(go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1)
+    {{ mise_exec }} go test -coverprofile=coverage.out -covermode=atomic ./...
+    pct=$({{ mise_exec }} go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1)
     echo "coverage: ${pct}% (threshold {{ threshold }}%)"
     awk -v p="$pct" -v t="{{ threshold }}" 'BEGIN { exit !(p < t) }' && {
         echo "FAIL: coverage ${pct}% is below the {{ threshold }}% threshold"
@@ -58,19 +68,19 @@ coverage-ci threshold="50":
 
 # Lint with the strict golangci-lint v2 set
 lint:
-    golangci-lint run
+    {{ mise_exec }} golangci-lint run
 
 # Format (golangci-lint v2 owns the formatters: gofumpt, goimports, gci, golines)
 format:
-    golangci-lint fmt
+    {{ mise_exec }} golangci-lint fmt
 
 # Verify formatting without writing
 format-check:
-    golangci-lint fmt --diff
+    {{ mise_exec }} golangci-lint fmt --diff
 
 # Vulnerability scan
 vuln:
-    govulncheck ./...
+    {{ mise_exec }} govulncheck ./...
 
 # Full local gate -- run `just format` BEFORE this to avoid format-check failures
 check: format-check lint test vuln
@@ -78,11 +88,11 @@ check: format-check lint test vuln
 
 # Validate the release config
 release-check:
-    goreleaser check
+    {{ mise_exec }} goreleaser check
 
 # Local release dry run: builds all targets, publishes nothing
 release-snapshot:
-    goreleaser release --snapshot --clean
+    {{ mise_exec }} goreleaser release --snapshot --clean
 
 # Assert the no-CGO property on the built artifacts rather than only on the
 # dependency graph.
@@ -99,7 +109,7 @@ verify-artifacts:
     found=0
     while IFS= read -r binary; do
         found=$((found + 1))
-        settings=$(go version -m "$binary")
+        settings=$({{ mise_exec }} go version -m "$binary")
         grep -q 'CGO_ENABLED=0' <<<"$settings" || {
             echo "FAIL: $binary was not built with CGO_ENABLED=0"
             exit 1
@@ -117,7 +127,9 @@ verify-artifacts:
     echo "verify-artifacts: $found binaries OK"
 
 # Install development tooling
+#
+# mise.toml pins every tool, so this is the whole job. Do not add a
+# `go install ...@latest` here: it lands in $GOPATH/bin, which shadows the pinned
+# copy, and it is never refreshed afterwards. See GOTCHAS 4.3.
 dev-setup:
     mise install
-    go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-    go install golang.org/x/vuln/cmd/govulncheck@latest
