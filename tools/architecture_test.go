@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // modulePath is the import prefix of every package in this tree.
@@ -97,25 +99,43 @@ func TestSurveyImportsNoAdapter(t *testing.T) {
 func TestOnlyTheCommandLayerImportsAnAdapter(t *testing.T) {
 	root := repoRoot(t)
 
-	walkGoFiles(t, filepath.Join(root, "internal"), func(path string, file *ast.File) {
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			rel = path
-		}
+	// adapterPackages is hand-maintained, and a check driven by a hand-written
+	// list quietly stops covering anything the list forgets. R12 fixes the count
+	// at six, so the count is asserted rather than trusted.
+	require.Len(t, adapterPackages, 6,
+		"R12 puts six adapters in scope; add the new one to adapterPackages or this check stops seeing it")
 
-		rel = filepath.ToSlash(rel)
+	// GOTCHAS 7.1 names wire.go as the only file in the tree that imports an
+	// adapter. cmd/ is walked as well as internal/ so the "only" is enforced
+	// rather than assumed -- checking internal/ alone would let a main.go start
+	// constructing an engine directly.
+	wireFile := "cmd/dbsurveyor-collect/wire.go"
 
-		for _, adapter := range adapterPackages {
-			// A package importing itself is not an import at all.
-			if strings.HasPrefix(rel, adapter+"/") {
-				continue
+	for _, tree := range []string{"internal", "cmd"} {
+		walkGoFiles(t, filepath.Join(root, tree), func(path string, file *ast.File) {
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				rel = path
 			}
 
-			if importsPackage(file, modulePath+"/"+adapter) {
-				t.Errorf("%s imports %s; only cmd/ wires adapters (R11)", rel, adapter)
+			rel = filepath.ToSlash(rel)
+			if rel == wireFile {
+				return
 			}
-		}
-	})
+
+			for _, adapter := range adapterPackages {
+				// A package importing itself is not an import at all.
+				if strings.HasPrefix(rel, adapter+"/") {
+					continue
+				}
+
+				if importsPackage(file, modulePath+"/"+adapter) {
+					t.Errorf("%s imports %s; %s is the only file that wires adapters (R11)",
+						rel, adapter, wireFile)
+				}
+			}
+		})
+	}
 }
 
 // importsPackage reports whether file imports the given package path.

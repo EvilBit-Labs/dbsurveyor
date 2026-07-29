@@ -1,9 +1,10 @@
 package tools
 
 import (
-	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"unicode/utf8"
 )
@@ -18,45 +19,46 @@ import (
 func TestSourcesAreASCII(t *testing.T) {
 	root := repoRoot(t)
 
-	skipDirs := map[string]struct{}{
-		".git":         {},
-		"dist":         {},
-		"node_modules": {},
+	for _, rel := range trackedSources(t, root) {
+		checkFileIsASCII(t, root, filepath.Join(root, rel))
 	}
+}
 
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+// trackedSources lists the .go and .md files git is tracking, as paths relative
+// to root.
+//
+// R18 is a rule about repository source, and asking git what that is rather than
+// walking the filesystem is what makes the two agree. A walk sees whatever
+// happens to be in the working tree -- an editor's scratch file, a vendored
+// dependency, an agent's notes -- and fails the build over a file no contributor
+// ever committed, which is how a gate stops being trusted. It also silently
+// depends on a skip list; see the repository-root hazard in GOTCHAS section 1.1.
+//
+// The count is asserted because this check has already reported success over an
+// empty set once. A git invocation that returns nothing must fail loudly rather
+// than pass quietly.
+func trackedSources(t *testing.T, root string) []string {
+	t.Helper()
 
-		if entry.IsDir() {
-			// The root is never skipped. It is matched against the same names
-			// as any other directory, and the repository checkout is normally
-			// named after the project, so a name in this list would silently
-			// skip the entire walk and leave the check reporting success over
-			// nothing.
-			if path == root {
-				return nil
-			}
-
-			if _, skip := skipDirs[entry.Name()]; skip {
-				return filepath.SkipDir
-			}
-
-			return nil
-		}
-
-		if ext := filepath.Ext(entry.Name()); ext != ".go" && ext != ".md" {
-			return nil
-		}
-
-		checkFileIsASCII(t, root, path)
-
-		return nil
-	})
+	out, err := exec.CommandContext(t.Context(),
+		"git", "-C", root, "ls-files", "-z", "--", "*.go", "*.md").Output()
 	if err != nil {
-		t.Fatalf("walk repository: %v", err)
+		t.Fatalf("git ls-files: %v", err)
 	}
+
+	var files []string
+
+	for _, name := range strings.Split(string(out), "\x00") {
+		if name != "" {
+			files = append(files, name)
+		}
+	}
+
+	if len(files) == 0 {
+		t.Fatal("git ls-files matched no .go or .md files; the check would pass over nothing")
+	}
+
+	return files
 }
 
 // checkFileIsASCII reports the first non-ASCII rune in path, with its line
