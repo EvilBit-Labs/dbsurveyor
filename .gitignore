@@ -95,7 +95,6 @@ public/
 # not project source. Contributors should not commit agent-specific
 # configs; use CONTRIBUTING.md and ARCHITECTURE.md for project standards.
 CLAUDE.md
-.claude/
 .cursorrules
 .cursor/
 .aider*
@@ -122,3 +121,7 @@ todos/
 
 # Go coverage profiles
 coverage.out
+
+.intentionally-empty-file.o
+
+.claude/PRPs/
