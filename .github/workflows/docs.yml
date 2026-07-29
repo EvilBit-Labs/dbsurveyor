@@ -39,8 +39,10 @@ jobs:
                   use-mermaid: true
                   use-toc: true
                   use-admonish: true
-            - name: Install mdbook plugins
-              run: cargo binstall mdbook-tabs mdbook-i18n-helpers mdbook-alerts mdbook-yml-header mdbook-image-size --no-confirm
+            # The mdbook preprocessors this book uses come from mise.toml, which
+            # the mise-action step above has already installed. The cargo
+            # binstall step that used to sit here went with the Rust workspace:
+            # nothing installs cargo-binstall any more, so it failed outright.
 
             - name: Build mdBook
               run: |

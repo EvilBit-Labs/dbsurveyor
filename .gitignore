@@ -122,6 +122,6 @@ todos/
 # Go coverage profiles
 coverage.out
 
-.intentionally-empty-file.o
-
+# Agent scratch. The .claude/ directory itself is committable -- it carries
+# skills and settings the project shares -- but PRPs are working notes.
 .claude/PRPs/
