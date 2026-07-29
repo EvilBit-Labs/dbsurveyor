@@ -36,6 +36,18 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	report := options.reporter()
 
 	document, err := collect(ctx, construct, options, report)
+
+	// Every connection this run opens is opened inside collect, so the database
+	// credential has served its purpose by the time it returns. R17 asks for a
+	// best-effort zeroization at that point, and this is the point.
+	//
+	// It is here rather than in an adapter's connect.go on purpose. NewSecret
+	// does not copy the caller's bytes, so every copy of a ConnectionConfig
+	// shares one backing array, and a multi-database run hands that same
+	// credential to a fresh pool per database. Zeroing at the handoff would
+	// erase the credential out from under every database after the first.
+	options.Target.Connection.Password.Zero()
+
 	if err != nil {
 		return Result{}, err
 	}

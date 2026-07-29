@@ -156,6 +156,15 @@ func sqliteTarget(parsed *url.URL) (Target, error) {
 	}
 
 	if parsed.Opaque != "" {
+		// An opaque form carries whatever followed the scheme, unparsed. With no
+		// "//" there is no authority for net/url to split, so the userinfo of a
+		// mistyped sqlite:user:pass@file.db lands here whole and would go on to
+		// be quoted verbatim by the stat error the adapter returns. Refuse it
+		// terse rather than let a credential-shaped string reach stderr.
+		if hasUserinfo(parsed.Opaque) {
+			return Target{}, ErrMalformedTarget
+		}
+
 		path = parsed.Opaque
 	}
 
@@ -166,6 +175,27 @@ func sqliteTarget(parsed *url.URL) (Target, error) {
 	connection := dbadapter.NewConnectionConfig(path)
 
 	return Target{Scheme: SchemeSQLite, Connection: connection}, nil
+}
+
+// hasUserinfo reports whether an opaque target begins with a "user:password@"
+// prefix.
+//
+// Both halves matter. A bare "@" is legal in a filename, so it is the colon
+// before it that makes the prefix credential-shaped, and the check stops at the
+// first separator so that a path segment after the userinfo cannot supply the
+// colon on its behalf.
+func hasUserinfo(opaque string) bool {
+	at := strings.IndexByte(opaque, '@')
+	if at < 0 {
+		return false
+	}
+
+	prefix := opaque[:at]
+	if strings.ContainsAny(prefix, "/\\") {
+		return false
+	}
+
+	return strings.ContainsRune(prefix, ':')
 }
 
 // parsePort reads a port, treating an absent one as "the engine's default

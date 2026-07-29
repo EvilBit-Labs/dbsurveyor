@@ -468,3 +468,45 @@ func TestANilReporterIsNotAPanic(t *testing.T) {
 	_, err := Run(t.Context(), options)
 	require.NoError(t, err)
 }
+
+// TestTheDatabaseCredentialIsZeroedOnceCollectionIsDone pins the half of R17
+// that no type can enforce on its own.
+//
+// Secret redacts itself everywhere it could be printed, but "zeroed best effort
+// after connection setup" is something the orchestration has to actually do, and
+// for a while nothing called Zero at all. NewSecret does not copy the caller's
+// bytes, so the array handed in here is the array the credential lives in and
+// the assertion can be made against it directly.
+func TestTheDatabaseCredentialIsZeroedOnceCollectionIsDone(t *testing.T) {
+	backing := []byte(plaintext)
+
+	options := newOptions(t, &fakeAdapter{schema: newFakeSchema("users")})
+	options.Target.Connection.Password = dbadapter.NewSecret(backing)
+	options.Collection.Connection = options.Target.Connection
+
+	_, err := Run(t.Context(), options)
+	require.NoError(t, err)
+
+	assert.Equal(t, make([]byte, len(backing)), backing,
+		"the credential's backing array still holds it after the survey")
+}
+
+// TestTheDatabaseCredentialIsZeroedEvenWhenTheSurveyFails covers the path an
+// operator hits more often than the happy one: a refused connection, a dropped
+// session, an unreachable host.
+func TestTheDatabaseCredentialIsZeroedEvenWhenTheSurveyFails(t *testing.T) {
+	backing := []byte(plaintext)
+
+	options := newOptions(t, &fakeAdapter{
+		schema:  newFakeSchema("users"),
+		pingErr: errors.New("server closed the connection"),
+	})
+	options.Target.Connection.Password = dbadapter.NewSecret(backing)
+	options.Collection.Connection = options.Target.Connection
+
+	_, err := Run(t.Context(), options)
+	require.Error(t, err)
+
+	assert.Equal(t, make([]byte, len(backing)), backing,
+		"a failed survey must not leave the credential in memory")
+}

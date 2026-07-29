@@ -155,3 +155,40 @@ func TestSupportedSchemesIsSortedAndComplete(t *testing.T) {
 	assert.Contains(t, schemes, "postgresql")
 	assert.Contains(t, schemes, "sqlite")
 }
+
+// TestSQLiteTargetRefusesUserinfoInTheOpaqueForm pins GOTCHAS section 7.3 at the
+// one branch that reads unparsed text from the URL.
+//
+// Without the "//" there is no authority for net/url to split, so the userinfo
+// of a mistyped sqlite:user:pass@file.db stays whole in Opaque. It used to
+// become the file path, which the adapter then quoted verbatim in the stat error
+// it returned -- putting a credential-shaped string on stderr.
+func TestSQLiteTargetRefusesUserinfoInTheOpaqueForm(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseTarget("sqlite:operator:hunter2@notes.db")
+	require.ErrorIs(t, err, ErrMalformedTarget)
+	assert.NotContains(t, err.Error(), "hunter2", "the error must not quote what it refused")
+}
+
+// TestSQLiteTargetKeepsOrdinaryOpaquePaths guards the refusal above from
+// swallowing the relative-path spelling it shares a branch with.
+func TestSQLiteTargetKeepsOrdinaryOpaquePaths(t *testing.T) {
+	t.Parallel()
+
+	for name, raw := range map[string]string{
+		"relative path":       "sqlite:notes.db",
+		"nested relative":     "sqlite:data/notes.db",
+		"at sign in filename": "sqlite:notes@2026.db",
+		"colon after a slash": "sqlite:data/a:b@c.db",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			target, err := ParseTarget(raw)
+			require.NoError(t, err)
+			assert.Equal(t, SchemeSQLite, target.Scheme)
+			assert.NotEmpty(t, target.Connection.Host)
+		})
+	}
+}
