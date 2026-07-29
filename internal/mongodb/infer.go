@@ -70,10 +70,36 @@ func (i *inference) walk(document bson.M, prefix string, depth int) {
 
 		i.record(path, value)
 
-		nested, isDocument := value.(bson.M)
-		if isDocument && depth < maxInferenceDepth {
+		if nested, isDocument := asDocument(value); isDocument && depth < maxInferenceDepth {
 			i.walk(nested, path, depth+1)
 		}
+	}
+}
+
+// asDocument reports whether a decoded value is a nested document, and returns
+// it in a single shape.
+//
+// The driver does not guarantee which of its document types a subdocument
+// decodes into: an ordinary decode into bson.M can still yield a bson.D for a
+// nested value depending on the registry in play. A type switch on bson.M alone
+// silently stopped inference at the first level, which is the bug this exists
+// to close -- and it looked like working code, because the parent field was
+// still reported.
+func asDocument(value any) (bson.M, bool) {
+	switch typed := value.(type) {
+	case bson.M:
+		return typed, true
+	case map[string]any:
+		return typed, true
+	case bson.D:
+		flattened := make(bson.M, len(typed))
+		for _, element := range typed {
+			flattened[element.Key] = element.Value
+		}
+
+		return flattened, true
+	default:
+		return nil, false
 	}
 }
 

@@ -243,7 +243,10 @@ func TestColumnTypesAndFlagsComeFromTheCatalog(t *testing.T) {
 	assert.Equal(t, dbschema.DateTimeType(true), columnNamed(t, users, "created_at").DataType,
 		"TIMESTAMP carries a zone even though the column does not name one")
 	assert.Equal(t, dbschema.JSONType(), columnNamed(t, users, "payload").DataType)
-	assert.Equal(t, dbschema.BinaryType(nil), columnNamed(t, users, "avatar").DataType)
+	// A MySQL BLOB has a real 65,535-byte ceiling and INFORMATION_SCHEMA
+	// reports it, unlike the MAX types of other engines which report no limit.
+	blobLimit := uint32(65535)
+	assert.Equal(t, dbschema.BinaryType(&blobLimit), columnNamed(t, users, "avatar").DataType)
 
 	assert.False(t, columnNamed(t, users, "email").Nullable)
 	assert.True(t, columnNamed(t, users, "display_name").Nullable)

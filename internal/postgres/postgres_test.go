@@ -53,26 +53,52 @@ func TestTypesMapToTheirEngineIndependentForm(t *testing.T) {
 
 // TestIndexColumnsAreUnwrappedFromTheirRenderedForm covers what pg_get_indexdef
 // actually returns, which is a rendered key element rather than a column name.
+//
+// The direction is a parameter rather than something parsed out of the
+// rendering, because pg_index.indoption is where PostgreSQL records it. The
+// pretty form of pg_get_indexdef omits the ordering options entirely -- which is
+// how a DESC index came back reported as ascending, in a way no unit test over
+// strings could have caught.
 func TestIndexColumnsAreUnwrappedFromTheirRenderedForm(t *testing.T) {
 	ascending := dbschema.Ascending
 	descending := dbschema.Descending
 
 	for name, want := range map[string]struct {
-		rendered string
-		column   dbschema.IndexColumn
+		rendered   string
+		descending bool
+		column     dbschema.IndexColumn
 	}{
-		"bare column":        {"user_id", dbschema.IndexColumn{Name: "user_id", SortOrder: &ascending}},
-		"quoted column":      {`"user id"`, dbschema.IndexColumn{Name: "user id", SortOrder: &ascending}},
-		"embedded quote":     {`"we""ird"`, dbschema.IndexColumn{Name: `we"ird`, SortOrder: &ascending}},
-		"descending":         {"created_at DESC", dbschema.IndexColumn{Name: "created_at", SortOrder: &descending}},
-		"explicit ascending": {"created_at ASC", dbschema.IndexColumn{Name: "created_at", SortOrder: &ascending}},
+		"bare column": {
+			"user_id", false,
+			dbschema.IndexColumn{Name: "user_id", SortOrder: &ascending},
+		},
+		"quoted column": {
+			`"user id"`, false,
+			dbschema.IndexColumn{Name: "user id", SortOrder: &ascending},
+		},
+		"embedded quote": {
+			`"we""ird"`, false,
+			dbschema.IndexColumn{Name: `we"ird`, SortOrder: &ascending},
+		},
+		"descending by indoption": {
+			"created_at", true,
+			dbschema.IndexColumn{Name: "created_at", SortOrder: &descending},
+		},
+		"descending with the modifier rendered too": {
+			"created_at DESC", true,
+			dbschema.IndexColumn{Name: "created_at", SortOrder: &descending},
+		},
+		"nulls modifier trimmed": {
+			"created_at NULLS LAST", false,
+			dbschema.IndexColumn{Name: "created_at", SortOrder: &ascending},
+		},
 		"expression": {
-			"lower(email)",
+			"lower(email)", false,
 			dbschema.IndexColumn{Name: "lower(email)", SortOrder: &ascending},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, want.column, indexColumn(want.rendered))
+			assert.Equal(t, want.column, indexColumn(want.rendered, want.descending))
 		})
 	}
 }

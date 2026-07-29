@@ -304,24 +304,28 @@ func hasSequenceDefault(expression string) bool {
 //
 // pg_get_indexdef renders an ordinary column as a quoted or bare identifier and
 // a functional index as the expression, in both cases followed by any
-// non-default operator class and sort options. The trailing DESC is the part the
-// document models; everything else is kept in the name as written, because an
-// index on lower(email) is a fact a reader needs and inventing a column name for
-// it would be worse than reporting the expression.
-func indexColumn(rendered string) dbschema.IndexColumn {
+// non-default operator class and sort options. The expression is kept as
+// written, because an index on lower(email) is a fact a reader needs and
+// inventing a column name for it would be worse than reporting the expression.
+//
+// The direction is passed in rather than parsed out of the rendering. It comes
+// from pg_index.indoption, which is where PostgreSQL actually records it: the
+// pretty form of pg_get_indexdef omits the ordering options, and the plain form
+// includes an operator class as well, so reading the direction out of either is
+// guesswork against a string the catalog did not promise the shape of.
+func indexColumn(rendered string, descending bool) dbschema.IndexColumn {
 	name := strings.TrimSpace(rendered)
-	direction := dbschema.Ascending
 
-	if trimmed, descending := strings.CutSuffix(name, " DESC"); descending {
-		name = strings.TrimSpace(trimmed)
+	direction := dbschema.Ascending
+	if descending {
 		direction = dbschema.Descending
-	} else {
-		name = strings.TrimSpace(strings.TrimSuffix(name, " ASC"))
 	}
 
-	name = strings.TrimSuffix(name, " NULLS FIRST")
-	name = strings.TrimSuffix(name, " NULLS LAST")
-	name = strings.TrimSpace(name)
+	// Trim the modifiers the plain rendering appends, so an ordinary column
+	// keeps its own name.
+	for _, suffix := range []string{" DESC", " ASC", " NULLS FIRST", " NULLS LAST"} {
+		name = strings.TrimSpace(strings.TrimSuffix(name, suffix))
+	}
 
 	if unquoted, quoted := strings.CutPrefix(name, `"`); quoted {
 		if closed, ok := strings.CutSuffix(unquoted, `"`); ok {

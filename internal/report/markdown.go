@@ -44,7 +44,23 @@ func Markdown(document *dbschema.Schema, options Options) (string, error) {
 		return "", fmt.Errorf("render the report: %w", err)
 	}
 
-	return out.String(), nil
+	return normalizeLineEndings(out.String()), nil
+}
+
+// normalizeLineEndings forces LF, whatever the host uses.
+//
+// The Markdown builder emits CRLF on Windows and LF everywhere else, which
+// would make a report depend on the operating system that produced it. That is
+// wrong for this tool in a way it would not be for a text editor: an artifact
+// collected on one host and reported on another has to produce the same bytes,
+// or two reports of the same database cannot be diffed and a checksum over a
+// report means nothing.
+//
+// LF is the choice rather than the host's convention because every consumer of
+// a report -- git, a Markdown renderer, a terminal -- reads LF, and only some of
+// them read CRLF.
+func normalizeLineEndings(rendered string) string {
+	return strings.ReplaceAll(rendered, "\r\n", "\n")
 }
 
 // renderOverview states what the database is and how it was surveyed.

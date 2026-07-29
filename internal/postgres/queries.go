@@ -127,7 +127,9 @@ SELECT n.nspname,
        ix.indisunique,
        ix.indisprimary,
        am.amname,
-       ARRAY(SELECT pg_get_indexdef(ix.indexrelid, k, true)
+       ARRAY(SELECT pg_get_indexdef(ix.indexrelid, k, false)
+             FROM generate_series(1, ix.indnkeyatts) AS k),
+       ARRAY(SELECT (ix.indoption[k - 1] & 1) = 1
              FROM generate_series(1, ix.indnkeyatts) AS k)
 FROM pg_index ix
 JOIN pg_class c ON c.oid = ix.indrelid
@@ -227,7 +229,11 @@ WHERE d.datallowconn
 ORDER BY d.datname`
 
 	samplingColumnsQuery = `
-SELECT a.attname, a.attidentity <> '' OR pg_get_expr(d.adbin, d.adrelid) LIKE 'nextval(%',
+SELECT a.attname,
+       -- A column with no default makes pg_get_expr NULL, and NULL LIKE '...'
+       -- is NULL rather than false -- so the whole disjunction is NULL and the
+       -- scan into a bool fails. Every column without a default hits this.
+       COALESCE(a.attidentity <> '' OR pg_get_expr(d.adbin, d.adrelid) LIKE 'nextval(%', false),
        COALESCE(ix.indisprimary, false)
 FROM pg_attribute AS a
 JOIN pg_class AS c ON c.oid = a.attrelid

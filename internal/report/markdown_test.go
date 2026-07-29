@@ -1,6 +1,8 @@
 package report
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -216,4 +218,41 @@ func section(t *testing.T, rendered, heading, until string) string {
 	}
 
 	return rest
+}
+
+// TestAReportUsesLineFeedsOnEveryPlatform is a portability property rather than
+// a style preference.
+//
+// The Markdown builder underneath emits CRLF on Windows and LF everywhere else.
+// Left alone, that would make a report depend on the operating system that
+// produced it: two reports of the same artifact would differ byte for byte, a
+// checksum over a report would mean nothing, and the golden files below would
+// only ever pass on the platform that generated them -- which is exactly how
+// this was found.
+func TestAReportUsesLineFeedsOnEveryPlatform(t *testing.T) {
+	document := newFixture(t)
+	document.Samples = newSamples()
+
+	rendered, err := Markdown(document, Options{IncludeSamples: true})
+	require.NoError(t, err)
+
+	assert.NotContains(t, rendered, "\r\n", "a report carries no carriage returns")
+	assert.NotContains(t, rendered, "\r")
+	assert.Contains(t, rendered, "\n", "and it does have line breaks")
+}
+
+// TestTheGoldenFilesThemselvesUseLineFeeds keeps the checked-in fixtures from
+// being rewritten by git's line-ending conversion on a Windows checkout, which
+// would reintroduce the same failure from the other direction. See
+// .gitattributes.
+func TestTheGoldenFilesThemselvesUseLineFeeds(t *testing.T) {
+	for _, name := range []string{"schema.golden", "schema_with_samples.golden"} {
+		t.Run(name, func(t *testing.T) {
+			contents, err := os.ReadFile(filepath.Join("testdata", name))
+			require.NoError(t, err)
+
+			assert.NotContains(t, string(contents), "\r",
+				"the checked-out golden file was converted to CRLF; see .gitattributes")
+		})
+	}
 }

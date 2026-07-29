@@ -352,22 +352,30 @@ func scanChecks(rows pgx.Rows, collected *metadata) error {
 func scanIndexes(rows pgx.Rows, collected *metadata) error {
 	for rows.Next() {
 		var (
-			key        tableKey
-			name       string
-			unique     bool
-			primary    bool
-			method     string
-			keyColumns []string
+			key         tableKey
+			name        string
+			unique      bool
+			primary     bool
+			method      string
+			keyColumns  []string
+			descendings []bool
 		)
 
-		err := rows.Scan(&key.schema, &key.table, &name, &unique, &primary, &method, &keyColumns)
+		err := rows.Scan(&key.schema, &key.table, &name, &unique, &primary, &method,
+			&keyColumns, &descendings)
 		if err != nil {
 			return err
 		}
 
 		columns := make([]dbschema.IndexColumn, 0, len(keyColumns))
-		for _, column := range keyColumns {
-			columns = append(columns, indexColumn(column))
+
+		for position, column := range keyColumns {
+			// The direction comes from indoption rather than from the rendered
+			// definition. pg_get_indexdef's pretty form omits the ordering
+			// options entirely, so a DESC index read that way is
+			// indistinguishable from an ascending one.
+			descending := position < len(descendings) && descendings[position]
+			columns = append(columns, indexColumn(column, descending))
 		}
 
 		accessMethod := method
