@@ -11,6 +11,10 @@
 
 set shell := ["bash", "-uc"]
 
+# Comments in a recipe body are notes for whoever reads this file. Without this,
+# just echoes each one as though it were a command.
+set ignore-comments := true
+
 # CGO is forbidden repository-wide (R13): pure-Go drivers are what make
 # airgapped installs work without vendor client libraries.
 export CGO_ENABLED := "0"
@@ -206,9 +210,12 @@ check: format-check lint test vuln
 # CI
 # -----------------------------------------------------------------------------
 
-# Everything CI runs on a pull request, in CI's order
+# Pre-push gate: every CI check that needs no container runtime, plus -race
 [group('ci')]
 ci-check: format-check lint test test-race vuln
+    # `just check` is the everyday gate. This is the one to run before pushing:
+    # it adds the race detector, which CI does not run at all, so a data race
+    # otherwise reaches main unchallenged.
     @echo "ci-check: OK"
 
 # Fast feedback: build and run the short tests only
@@ -218,9 +225,11 @@ ci-smoke:
     {{ mise_exec }} go test -count=1 -failfast -short -timeout 5m ./...
     @echo "ci-smoke: OK"
 
-# ci-check plus the container suites, the docs build, and release validation
+# Everything CI gates, container suites and coverage threshold included
 [group('ci')]
-ci-full: ci-check test-integration docs-build release-check
+ci-full: ci-check test-integration coverage-ci docs-build release-check
+    # Needs Docker for the container suites, and takes tens of minutes. The
+    # Oracle fixture is the slow one.
     @echo "ci-full: OK"
 
 # Lint the GitHub Actions workflows
