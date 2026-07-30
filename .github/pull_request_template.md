@@ -41,6 +41,7 @@ Brief description of changes made and why they are needed.
 - [ ] Unit tests added/updated
 - [ ] Integration tests added/updated and verified to run offline in read-only mode
 - [ ] Security tests added/updated
+- [ ] Commit gate passes locally (`just ci-check`)
 - [ ] All tests pass locally (`just test`)
 - [ ] Container-backed adapter tests pass (`just test-integration`, needs Docker)
 - [ ] `govulncheck` reports nothing reachable (`just vuln`)

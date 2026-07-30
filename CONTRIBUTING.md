@@ -27,24 +27,33 @@ This guide covers what you need to know as a human contributor. For AI coding as
 ```bash
 git clone https://github.com/EvilBit-Labs/dbsurveyor.git
 cd dbsurveyor
-just dev-setup       # Install tools and dependencies
-pre-commit install   # Set up git hooks
+just install         # Install the pinned toolchain and the git hooks
 ```
 
 ### Common Commands
 
+`just --list` shows every recipe, grouped; `just group <name>` shows one group.
+
 ```bash
-just format           # Format. Run this BEFORE just check
+just format           # Format. Run this BEFORE any gate
 just lint             # golangci-lint run
 just test             # go test ./...
 just test-integration # container-backed adapter tests (needs Docker)
 just test-race        # race detector; the one place CGO_ENABLED=1 is allowed
 just vuln             # govulncheck over the dependency graph
-just check            # format-check, lint, test, vuln -- the gate
+just check            # format-check, lint, test, vuln -- the everyday loop
+just ci-check         # MANDATORY COMMIT GATE: check plus test-race
+just ci-smoke         # fast build and short tests
+just ci-full          # everything CI gates, container suites included
 just build            # both binaries into ./dist
+just docs-serve       # serve the mdBook site with live reload
 ```
 
-**Run `just format` before `just check`.** The gate starts with a format check, so skipping the format step turns a whitespace difference into a failed gate that reads like a lint error.
+**`just ci-check` is required before every commit.** It is `just check` plus `test-race`. CI does not run the race detector, so `ci-check` is the only gate in this project that looks for a data race -- skipping it is how one reaches `main` unchallenged.
+
+**Run `just format` first.** Every gate starts with a format check, so skipping the format step turns a whitespace difference into a failed gate that reads like a lint error.
+
+Neither gate runs the container suites. Run `just test-integration` when a change touches an adapter.
 
 ## Before You Start
 
@@ -164,7 +173,7 @@ We accept AI-assisted contributions. See [AI_POLICY.md](AI_POLICY.md) for the fu
 
 1. Fork the repository and create a branch from `main`
 2. Make your changes, following the standards above
-3. Run `just format`, then `just check`, and ensure everything passes
+3. Run `just format`, then `just ci-check`, and ensure everything passes
 4. Commit with conventional commit messages and DCO sign-off
 5. Open a PR with a clear description of what changed and why
 6. Wait for review -- this is a single-maintainer project, so please be patient

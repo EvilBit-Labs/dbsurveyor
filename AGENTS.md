@@ -110,21 +110,41 @@ Directories not listed as present have not landed yet; the tree is a scope decla
 
 ## Commands
 
+`just` recipes are grouped; `just --list` shows all of them and `just group <name>` shows one group. Every recipe runs its tool through `mise exec`, so the pinned version is the one that executes -- see GOTCHAS 4.3 for what happened when they did not.
+
 ```bash
 just build            # both binaries into ./dist
+just collect ARGS     # go run the collector
+just postprocess ARGS # go run the postprocessor
 just test             # go test ./...
 just test-integration # container-backed adapter tests (needs Docker)
 just test-race        # race detector (the one place CGO_ENABLED=1 is allowed)
 just coverage         # coverage report
+just coverage-ci      # fail below the coverage threshold
 just lint             # golangci-lint run
 just format           # golangci-lint fmt -- run this BEFORE just check
 just check            # format-check, lint, test, vuln
+just ci-check         # MANDATORY COMMIT GATE: check plus test-race
+just ci-smoke         # fast build and short tests
+just ci-full          # everything CI gates, container suites included
+just pre-commit       # every pre-commit hook over the whole tree
 just gen-schema       # regenerate docs/formats artifacts from the Go types
+just docs-build       # build the mdBook site into docs/book
+just docs-serve       # serve the mdBook site with live reload
+just changelog        # regenerate CHANGELOG.md with git-cliff
 just release-check    # validate .goreleaser.yaml
 just release-snapshot # local release dry run, publishes nothing
+just install          # install the pinned toolchain and pre-commit hooks
+just update-deps      # update toolchain, Go modules, and hooks
 ```
 
-`just check` is the gate. Run `just format` first; a formatting-only failure is otherwise indistinguishable from a lint failure in the log.
+### The commit gate
+
+**`just ci-check` is mandatory before every commit.** It is `format-check lint test test-race vuln`. Run `just format` first; a formatting-only failure is otherwise indistinguishable from a lint failure in the log.
+
+`just check` is the everyday loop and is not sufficient on its own: it omits `test-race`, and CI does not run the race detector either. `ci-check` is the only gate in this project that looks for a data race, so skipping it is the one way a race reaches `main` with nothing having tried to catch it.
+
+Neither gate runs the container suites. Run `just test-integration` when a change touches an adapter, or `just ci-full` for everything CI gates.
 
 ## Working Agreements
 
@@ -144,9 +164,9 @@ Read `README.md` and `CONTRIBUTING.md`. Read `GOTCHAS.md`, included above; it re
 
 ### Before returning
 
-Run the tests. Check the build. Confirm the change does what it claims. When tests fail, say so and show the output; do not report partial work as done.
+Run `just format`, then `just ci-check`. It is the mandatory commit gate and it is not optional because the change looks small. Confirm the change does what it claims. When a check fails, say so and show the output; do not report partial work as done.
 
-A test that passes is not evidence until you have checked it can fail. Two repository-level tests in this tree reported success over an empty set for months -- see `GOTCHAS.md` section 4.
+A test that passes is not evidence until you have checked it can fail. Two repository-level tests in this tree reported success over an empty set for months -- see `GOTCHAS.md` section 1.
 
 ### Commits
 
