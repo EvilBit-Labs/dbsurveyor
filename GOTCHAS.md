@@ -108,9 +108,11 @@ Editor diagnostics go stale after multi-file edits and do not always enable the 
 
 That gap is invisible until something reads the standard library's *patch* version. `govulncheck` does. `audit.yml` was the last workflow still using `setup-go`, and it reported nine stdlib advisories -- fixed across 1.26.2 through 1.26.5 -- against a tree that had none, while the identical `govulncheck ./...` in `security.yml` passed throughout because that workflow installs its toolchain through mise.
 
-Two things made it survive: the failure looked like real vulnerability findings rather than a configuration error, and a second, passing check named `audit` sat next to it in the PR check list.
+Two things made it survive. The failure looked like real vulnerability findings rather than a configuration error. And the check names hid it: the failing job is called `govulncheck`, while the check that reads `audit` in the flat PR list comes from `security.yml`, an unrelated workflow, and was green. Anyone scanning for "did the dependency audit pass" found a passing `audit` and stopped.
 
-Install the toolchain with `jdx/mise-action` in every workflow. This is 4.3 wearing different clothes -- a pinned version losing to an unpinned one that happened to resolve first.
+Install the toolchain with `jdx/mise-action` in every workflow. `tools/workflow_test.go` now enforces that, because documentation did not: `ci.yml` already carried this warning in a comment while `audit.yml` sat next to it doing the thing the comment warned against.
+
+This is a different failure from 4.3, despite both ending in "the pinned version is not the one that ran". 4.3 is a PATH race between two binaries on one machine. This is one tool reading a different file than the other -- no race, nothing unpinned, and `setup-go` behaving exactly as configured. A fix for either does nothing for the other.
 
 ## 5. Schema documents
 

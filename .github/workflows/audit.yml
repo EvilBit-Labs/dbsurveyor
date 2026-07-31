@@ -2,8 +2,17 @@ name: Audit Dependencies
 
 on:
     push:
+        # What this workflow does is no longer defined by this file alone. The
+        # toolchain comes from mise, and the scan itself is a just recipe, so a
+        # change to any of them changes the audit without touching audit.yml.
+        # Before the mise switch the toolchain came from go.mod, which was
+        # already listed here; dropping mise.toml and the justfile would leave
+        # that gap open.
         paths:
             - ".github/workflows/audit.yml"
+            - "justfile"
+            - "mise.toml"
+            - "mise.lock"
             - "go.mod"
             - "go.sum"
     # Rerun periodically to pick up new advisories.
@@ -40,9 +49,16 @@ jobs:
                   cache: true
                   github_token: ${{ secrets.GITHUB_TOKEN }}
 
-            # mise.toml pins govulncheck, so there is no `go install ...@latest`
-            # here: an unpinned install resolves against whatever is on PATH and
-            # silently shadows the pinned copy (GOTCHAS 4.3).
+            # mise.toml declares govulncheck and mise.lock records the version
+            # it resolved to, so mise install produces the same binary CI ran
+            # last time. The `go install ...@latest` step that used to sit here
+            # re-resolved on every run and built against the ambient toolchain,
+            # which is the drift this workflow was just fixed for -- a scanner
+            # chosen at job time cannot be reasoned about after the fact.
+            #
+            # This is not GOTCHAS 4.3: that entry is about a stale $GOPATH/bin
+            # copy shadowing a pinned one, and says outright that CI was
+            # unaffected because a fresh runner has nothing to shadow with.
             - name: Vulnerability scan
               run: just vuln
 
