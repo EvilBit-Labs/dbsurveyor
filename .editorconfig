@@ -25,8 +25,20 @@ indent_size = 4
 trim_trailing_whitespace = false
 
 # JSON, YAML, and JSONC files
-[*.json,*.jsonc,*.yml,*.yaml]
+[*.json,*.jsonc]
 indent_size = 2
+trim_trailing_whitespace = true
+indent_style = space
+insert_final_newline = true
+
+# YAML is four here, which is what the tree actually contains: every workflow,
+# plus .goreleaser.yaml, .mergify.yml, codecov.yml, .coderabbit.yaml,
+# dependabot.yml, and .pre-commit-config.yaml. The setting said two and had
+# said it long enough that no file agreed with it. A handful of small configs
+# (.golangci.yml, .yamllint.yml, ISSUE_TEMPLATE/config.yml) are still two;
+# nothing enforces this, so they are left alone rather than churned.
+[*.yml,*.yaml]
+indent_size = 4
 trim_trailing_whitespace = true
 indent_style = space
 insert_final_newline = true

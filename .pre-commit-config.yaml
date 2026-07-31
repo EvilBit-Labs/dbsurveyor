@@ -96,7 +96,8 @@ repos:
                 - mdformat-front-matters
             types: [markdown]
 
-    # 🔒 Vulnerability scan for Go dependencies (also runs in CI: audit.yml)
+    # 🔒 Vulnerability scan for Go dependencies. Also runs in CI, in ci.yml
+    # (per change) and security.yml (per change and on a daily schedule).
     - repo: local
       hooks:
           - id: govulncheck
