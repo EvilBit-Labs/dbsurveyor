@@ -1,47 +1,63 @@
 name: Audit Dependencies
 
 on:
-  push:
-    paths:
-      - ".github/workflows/audit.yml"
-      - "go.mod"
-      - "go.sum"
-  # Rerun periodically to pick up new advisories.
-  schedule:
-    - cron: "0 0 * * *"
-  workflow_dispatch:
+    push:
+        paths:
+            - ".github/workflows/audit.yml"
+            - "go.mod"
+            - "go.sum"
+    # Rerun periodically to pick up new advisories.
+    schedule:
+        - cron: "0 0 * * *"
+    workflow_dispatch:
 
 permissions:
-  contents: read
+    contents: read
 
 env:
-  CGO_ENABLED: "0"
+    # R13: no CGO anywhere in the dependency graph.
+    CGO_ENABLED: "0"
 
+# Every job installs its toolchain through mise, matching the rest of this
+# repository's workflows and the reference repository (EvilBit-Labs/opnDossier).
+#
+# This workflow used actions/setup-go with `go-version-file: go.mod`, which is
+# what CI's own comment warns against: go.mod states a *language level*, not a
+# toolchain. go.mod says 1.26.1 while mise.toml pins 1.26.5, and setup-go also
+# sets GOTOOLCHAIN=local, so the scan ran against a Go 1.26.1 standard library
+# and reported nine stdlib advisories already fixed in 1.26.2 through 1.26.5.
+# The identical `govulncheck ./...` in security.yml passed the whole time,
+# because that workflow installs its toolchain through mise.
 jobs:
-  govulncheck:
-    name: govulncheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
-      - name: Scan
-        run: govulncheck ./...
+    govulncheck:
+        name: govulncheck
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v5
+            - uses: jdx/mise-action@f10502fc09dadecfefb962fff68ce77213930204 # v4.2.2
+              with:
+                  install: true
+                  cache: true
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
 
-  nocgo:
-    name: No CGO in dependency graph
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      # R13 is a supply-chain property, not just a build flag: a new dependency
-      # can introduce CGO without any local build failing under CGO_ENABLED=0.
-      # Running the architecture test here means a dependency bump PR trips it.
-      - run: go test ./tools/...
+            # mise.toml pins govulncheck, so there is no `go install ...@latest`
+            # here: an unpinned install resolves against whatever is on PATH and
+            # silently shadows the pinned copy (GOTCHAS 4.3).
+            - name: Vulnerability scan
+              run: just vuln
+
+    nocgo:
+        name: No CGO in dependency graph
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v5
+            - uses: jdx/mise-action@f10502fc09dadecfefb962fff68ce77213930204 # v4.2.2
+              with:
+                  install: true
+                  cache: true
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+
+            # R13 is a supply-chain property, not just a build flag: a new dependency
+            # can introduce CGO without any local build failing under CGO_ENABLED=0.
+            # Running the architecture test here means a dependency bump PR trips it.
+            - run: go test ./tools/...

@@ -102,6 +102,16 @@ This is how it actually failed: `just dev-setup` ran `mise install` and then `go
 
 Editor diagnostics go stale after multi-file edits and do not always enable the same build tags. `go build ./...` and `golangci-lint run` are authoritative.
 
+### 4.5 `go.mod` states a language level, not a toolchain
+
+`actions/setup-go` with `go-version-file: go.mod` reads the `go` directive and installs *that* version, then sets `GOTOOLCHAIN=local` so nothing upgrades it later. The `go` directive is a minimum language level, though, and this repository pins its actual toolchain in `mise.toml` -- `go.mod` says 1.26.1 while `mise.toml` says 1.26.5.
+
+That gap is invisible until something reads the standard library's *patch* version. `govulncheck` does. `audit.yml` was the last workflow still using `setup-go`, and it reported nine stdlib advisories -- fixed across 1.26.2 through 1.26.5 -- against a tree that had none, while the identical `govulncheck ./...` in `security.yml` passed throughout because that workflow installs its toolchain through mise.
+
+Two things made it survive: the failure looked like real vulnerability findings rather than a configuration error, and a second, passing check named `audit` sat next to it in the PR check list.
+
+Install the toolchain with `jdx/mise-action` in every workflow. This is 4.3 wearing different clothes -- a pinned version losing to an unpinned one that happened to resolve first.
+
 ## 5. Schema documents
 
 ### 5.1 Published artifacts are generated
