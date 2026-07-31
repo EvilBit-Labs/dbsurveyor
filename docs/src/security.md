@@ -194,21 +194,21 @@ fn test_airgap_compatibility() {
 1. **Never Log Credentials**
 
    ```rust
-   // ✅ Correct
+   // [OK] Correct
    log::info!("Connecting to database");
 
-   // ❌ Never do this
+   // [X] Never do this
    log::info!("Connecting to {}", database_url);
    ```
 
 2. **Sanitize Error Messages**
 
    ```rust
-   // ✅ Correct
+   // [OK] Correct
    #[error("Connection failed to database")]
    ConnectionFailed,
 
-   // ❌ Never do this
+   // [X] Never do this
    #[error("Failed to connect to {url}")]
    ConnectionError { url: String },
    ```

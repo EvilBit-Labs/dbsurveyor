@@ -1,0 +1,84 @@
+{
+  "format": "dbsurveyor/server-schema",
+  "format_version": "1.0",
+  "server_info": {
+    "server_type": "postgresql",
+    "version": "16.2",
+    "host": "db.internal",
+    "port": 5432,
+    "total_databases": 5,
+    "collected_databases": 1,
+    "system_databases_excluded": 3,
+    "connection_user": "surveyor",
+    "superuser": false,
+    "collection_mode": {
+      "kind": "multi_database",
+      "discovered": 5,
+      "collected": 1,
+      "failed": 1
+    }
+  },
+  "databases": [
+    {
+      "format": "dbsurveyor/schema",
+      "format_version": "1.0",
+      "database_info": {
+        "name": "inventory",
+        "type": "postgresql",
+        "system_database": false,
+        "access_level": "full",
+        "collection_status": {
+          "state": "success"
+        }
+      },
+      "tables": [],
+      "views": [],
+      "indexes": [],
+      "constraints": [],
+      "procedures": [],
+      "functions": [],
+      "triggers": [],
+      "user_types": [],
+      "collection_metadata": {
+        "collected_at": "2026-07-26T12:00:00Z",
+        "duration_ms": 0,
+        "collector_version": "0.1.0",
+        "warnings": []
+      }
+    },
+    {
+      "format": "dbsurveyor/schema",
+      "format_version": "1.0",
+      "database_info": {
+        "name": "reporting",
+        "type": "postgresql",
+        "system_database": false,
+        "access_level": "none",
+        "collection_status": {
+          "state": "failed",
+          "error": "connect: permission denied"
+        }
+      },
+      "tables": [],
+      "views": [],
+      "indexes": [],
+      "constraints": [],
+      "procedures": [],
+      "functions": [],
+      "triggers": [],
+      "user_types": [],
+      "collection_metadata": {
+        "collected_at": "2026-07-26T12:00:00Z",
+        "duration_ms": 0,
+        "collector_version": "0.1.0",
+        "warnings": []
+      }
+    }
+  ],
+  "collection_metadata": {
+    "collected_at": "2026-07-26T12:00:00Z",
+    "duration_ms": 0,
+    "collector_version": "0.1.0",
+    "warnings": []
+  }
+}

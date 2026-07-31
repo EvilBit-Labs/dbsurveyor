@@ -1,0 +1,441 @@
+{
+  "format": "dbsurveyor/schema",
+  "format_version": "1.0",
+  "database_info": {
+    "name": "inventory",
+    "type": "postgresql",
+    "version": "16.2",
+    "size_bytes": 52428800,
+    "encoding": "UTF8",
+    "collation": "en_US.UTF-8",
+    "owner": "app_owner",
+    "system_database": false,
+    "access_level": "full",
+    "collection_status": {
+      "state": "success"
+    }
+  },
+  "tables": [
+    {
+      "name": "orders",
+      "schema": "public",
+      "columns": [
+        {
+          "name": "id",
+          "data_type": {
+            "kind": "integer",
+            "bits": 64,
+            "signed": true
+          },
+          "nullable": false,
+          "primary_key": true,
+          "auto_generate": true,
+          "default": "nextval('orders_id_seq'::regclass)",
+          "comment": "Surrogate key.",
+          "ordinal_position": 1
+        },
+        {
+          "name": "customer_id",
+          "data_type": {
+            "kind": "integer",
+            "bits": 64,
+            "signed": true
+          },
+          "nullable": false,
+          "primary_key": false,
+          "auto_generate": false,
+          "ordinal_position": 2
+        },
+        {
+          "name": "reference",
+          "data_type": {
+            "kind": "string",
+            "max_length": 64
+          },
+          "nullable": true,
+          "primary_key": false,
+          "auto_generate": false,
+          "ordinal_position": 3
+        },
+        {
+          "name": "tags",
+          "data_type": {
+            "kind": "array",
+            "element_type": {
+              "kind": "string"
+            }
+          },
+          "nullable": true,
+          "primary_key": false,
+          "auto_generate": false,
+          "ordinal_position": 4
+        },
+        {
+          "name": "placed_at",
+          "data_type": {
+            "kind": "datetime",
+            "with_timezone": true
+          },
+          "nullable": false,
+          "primary_key": false,
+          "auto_generate": false,
+          "ordinal_position": 5
+        }
+      ],
+      "primary_key": {
+        "name": "orders_pkey",
+        "columns": [
+          "id"
+        ]
+      },
+      "foreign_keys": [
+        {
+          "name": "orders_customer_fk",
+          "columns": [
+            "customer_id"
+          ],
+          "referenced_table": "customers",
+          "referenced_schema": "public",
+          "referenced_columns": [
+            "id"
+          ],
+          "on_delete": "cascade",
+          "on_update": "no_action"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "orders_placed_at_idx",
+          "table_name": "orders",
+          "schema": "public",
+          "columns": [
+            {
+              "name": "placed_at",
+              "sort_order": "desc"
+            }
+          ],
+          "unique": false,
+          "primary": false,
+          "index_type": "btree"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "orders_reference_check",
+          "table_name": "orders",
+          "schema": "public",
+          "constraint_type": "check",
+          "columns": [
+            "reference"
+          ],
+          "check_clause": "length(reference) \u003e 0"
+        }
+      ],
+      "comment": "Customer orders.",
+      "row_count": 148231
+    }
+  ],
+  "views": [
+    {
+      "name": "recent_orders",
+      "schema": "public",
+      "definition": "SELECT * FROM orders WHERE placed_at \u003e now() - interval '7 days'",
+      "columns": [
+        {
+          "name": "id",
+          "data_type": {
+            "kind": "integer",
+            "bits": 64,
+            "signed": true
+          },
+          "nullable": false,
+          "primary_key": true,
+          "auto_generate": true,
+          "default": "nextval('orders_id_seq'::regclass)",
+          "comment": "Surrogate key.",
+          "ordinal_position": 1
+        },
+        {
+          "name": "customer_id",
+          "data_type": {
+            "kind": "integer",
+            "bits": 64,
+            "signed": true
+          },
+          "nullable": false,
+          "primary_key": false,
+          "auto_generate": false,
+          "ordinal_position": 2
+        },
+        {
+          "name": "reference",
+          "data_type": {
+            "kind": "string",
+            "max_length": 64
+          },
+          "nullable": true,
+          "primary_key": false,
+          "auto_generate": false,
+          "ordinal_position": 3
+        },
+        {
+          "name": "tags",
+          "data_type": {
+            "kind": "array",
+            "element_type": {
+              "kind": "string"
+            }
+          },
+          "nullable": true,
+          "primary_key": false,
+          "auto_generate": false,
+          "ordinal_position": 4
+        },
+        {
+          "name": "placed_at",
+          "data_type": {
+            "kind": "datetime",
+            "with_timezone": true
+          },
+          "nullable": false,
+          "primary_key": false,
+          "auto_generate": false,
+          "ordinal_position": 5
+        }
+      ],
+      "comment": "Rolling seven-day order window."
+    }
+  ],
+  "indexes": [
+    {
+      "name": "orders_placed_at_idx",
+      "table_name": "orders",
+      "schema": "public",
+      "columns": [
+        {
+          "name": "placed_at",
+          "sort_order": "desc"
+        }
+      ],
+      "unique": false,
+      "primary": false,
+      "index_type": "btree"
+    }
+  ],
+  "constraints": [
+    {
+      "name": "orders_reference_check",
+      "table_name": "orders",
+      "schema": "public",
+      "constraint_type": "check",
+      "columns": [
+        "reference"
+      ],
+      "check_clause": "length(reference) \u003e 0"
+    }
+  ],
+  "procedures": [
+    {
+      "name": "archive_orders",
+      "schema": "public",
+      "definition": "BEGIN DELETE FROM orders WHERE placed_at \u003c cutoff; END",
+      "parameters": [
+        {
+          "name": "cutoff",
+          "data_type": {
+            "kind": "datetime",
+            "with_timezone": true
+          },
+          "direction": "in"
+        }
+      ],
+      "language": "plpgsql"
+    }
+  ],
+  "functions": [
+    {
+      "name": "order_total",
+      "schema": "public",
+      "parameters": [
+        {
+          "name": "order_id",
+          "data_type": {
+            "kind": "integer",
+            "bits": 64,
+            "signed": true
+          },
+          "direction": "in",
+          "default": "0"
+        }
+      ],
+      "return_type": {
+        "kind": "float",
+        "precision": 53
+      },
+      "language": "sql"
+    }
+  ],
+  "triggers": [
+    {
+      "name": "orders_audit",
+      "table_name": "orders",
+      "schema": "public",
+      "event": "update",
+      "timing": "after",
+      "definition": "EXECUTE FUNCTION write_audit()"
+    }
+  ],
+  "user_types": [
+    {
+      "name": "order_state",
+      "schema": "public",
+      "definition": "ENUM ('pending', 'shipped', 'cancelled')",
+      "category": "enum"
+    }
+  ],
+  "samples": [
+    {
+      "table_name": "orders",
+      "schema_name": "public",
+      "rows": [
+        {
+          "customer_id": 907,
+          "id": 148231,
+          "placed_at": "2026-07-26T09:14:02Z",
+          "reference": "AB-1201"
+        }
+      ],
+      "sample_size": 1,
+      "total_rows": 148231,
+      "sampling_strategy": {
+        "kind": "most_recent",
+        "limit": 1
+      },
+      "ordering": {
+        "kind": "timestamp",
+        "column": "placed_at",
+        "direction": "desc"
+      },
+      "collected_at": "2026-07-26T12:00:00Z",
+      "warnings": [],
+      "status": {
+        "state": "complete"
+      }
+    },
+    {
+      "table_name": "audit_events",
+      "schema_name": "audit",
+      "rows": [],
+      "sample_size": 0,
+      "sampling_strategy": {
+        "kind": "none"
+      },
+      "ordering": {
+        "kind": "unordered"
+      },
+      "collected_at": "2026-07-26T12:00:00Z",
+      "warnings": [
+        "permission denied"
+      ],
+      "status": {
+        "state": "skipped",
+        "reason": "permission denied"
+      }
+    }
+  ],
+  "quality_metrics": [
+    {
+      "table_name": "orders",
+      "schema_name": "public",
+      "analyzed_rows": 1,
+      "completeness": {
+        "score": 1,
+        "column_metrics": [
+          {
+            "column_name": "customer_id",
+            "null_count": 0,
+            "empty_count": 0,
+            "completeness": 1
+          },
+          {
+            "column_name": "id",
+            "null_count": 0,
+            "empty_count": 0,
+            "completeness": 1
+          },
+          {
+            "column_name": "placed_at",
+            "null_count": 0,
+            "empty_count": 0,
+            "completeness": 1
+          },
+          {
+            "column_name": "reference",
+            "null_count": 0,
+            "empty_count": 0,
+            "completeness": 1
+          }
+        ],
+        "total_nulls": 0,
+        "total_empty": 0,
+        "analyzed_rows": 1,
+        "analyzed_fields": 4
+      },
+      "consistency": {
+        "score": 1,
+        "type_inconsistencies": [],
+        "format_violations": []
+      },
+      "uniqueness": {
+        "score": 1,
+        "duplicate_columns": [],
+        "duplicate_row_count": 0
+      },
+      "anomalies": {
+        "outlier_count": 0,
+        "outliers": []
+      },
+      "quality_score": 1,
+      "threshold_violations": [],
+      "analyzed_at": "2026-07-26T12:00:00Z"
+    },
+    {
+      "table_name": "audit_events",
+      "schema_name": "audit",
+      "analyzed_rows": 0,
+      "completeness": {
+        "score": 1,
+        "column_metrics": [],
+        "total_nulls": 0,
+        "total_empty": 0,
+        "analyzed_rows": 0,
+        "analyzed_fields": 0
+      },
+      "consistency": {
+        "score": 1,
+        "type_inconsistencies": [],
+        "format_violations": []
+      },
+      "uniqueness": {
+        "score": 1,
+        "duplicate_columns": [],
+        "duplicate_row_count": 0
+      },
+      "anomalies": {
+        "outlier_count": 0,
+        "outliers": []
+      },
+      "quality_score": 1,
+      "threshold_violations": [],
+      "analyzed_at": "2026-07-26T12:00:00Z"
+    }
+  ],
+  "collection_metadata": {
+    "collected_at": "2026-07-26T12:00:00Z",
+    "duration_ms": 1843,
+    "collector_version": "0.1.0",
+    "warnings": [
+      "skipped table audit.events: permission denied"
+    ]
+  }
+}

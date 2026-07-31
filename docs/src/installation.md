@@ -1,173 +1,115 @@
 # Installation
 
-## Pre-Built Binaries
+DBSurveyor ships as two static binaries with no runtime dependencies. There is
+nothing to install alongside them: no database client libraries, no Oracle
+Instant Client, no runtime.
 
-Pre-built binaries are available on the [Releases](https://github.com/EvilBit-Labs/dbsurveyor/releases) page for Linux, macOS, and Windows.
+## Pre-built binaries
 
-Download the appropriate binary for your platform and add it to your PATH.
+Download the archive for your platform from the
+[Releases](https://github.com/EvilBit-Labs/dbsurveyor/releases) page and extract
+it. Each archive contains both binaries.
+
+| Platform | Architectures |
+| -------- | ------------- |
+| Linux    | amd64, arm64  |
+| macOS    | amd64, arm64  |
+| Windows  | amd64         |
+
+Every archive supports all six database engines. There are no per-driver
+variants: the drivers are pure Go, so there is nothing to gate behind a build
+flag.
 
 ## Homebrew
-
-For macOS and Linux users with Homebrew:
 
 ```bash
 brew install EvilBit-Labs/tap/dbsurveyor
 ```
 
-## From Source
+## From source
 
-### Prerequisites
-
-- Rust 1.85+ (MSRV)
-- Git
-
-### Clone and Build
+Requires Go 1.26 or later. See `mise.toml` for the exact pinned version.
 
 ```bash
 git clone https://github.com/EvilBit-Labs/dbsurveyor.git
 cd dbsurveyor
-cargo build --release
+go build -trimpath -o dist/ ./cmd/...
 ```
 
-The compiled binaries will be available in `target/release/`.
-
-### Feature Selection
-
-Control which database engines are compiled in using feature flags:
+Or with the task runner:
 
 ```bash
-# Build with all database support
-cargo build --release --all-features
-
-# Build with specific databases only
-cargo build --release --features postgresql,mysql,encryption
-
-# Build minimal version for airgap environments
-cargo build --release --no-default-features --features sqlite
+just build
 ```
 
-## Feature Flags
+Both binaries land in `./dist`.
 
-| Feature       | Description           | Dependencies              |
-| ------------- | --------------------- | ------------------------- |
-| `postgresql`  | PostgreSQL support    | sqlx with postgres driver |
-| `mysql`       | MySQL support         | sqlx with mysql driver    |
-| `sqlite`      | SQLite support        | sqlx with sqlite driver   |
-| `mongodb`     | MongoDB support       | mongodb crate             |
-| `mssql`       | SQL Server support    | tiberius crate            |
-| `compression` | Zstandard compression | zstd crate                |
-| `encryption`  | AES-GCM encryption    | aes-gcm, argon2 crates    |
+### Why there are no build variants
 
-### Default Features
+The retired Rust implementation gated each database driver behind a Cargo
+feature, because several drivers needed native client libraries and an operator
+who only wanted PostgreSQL should not have had to install the rest.
 
-```toml
-default = ["postgresql", "sqlite"]
-```
+That problem does not exist here. Every driver is pure Go, `CGO_ENABLED=0`
+throughout, and a repository test fails on any cgo dependency entering the
+graph -- so one binary speaks all six engines and links nothing at runtime. The
+build-time choice went away because the cost it was avoiding went away.
 
-The default build includes PostgreSQL and SQLite support, which covers the most common use cases while maintaining a reasonable binary size.
+## Verifying a release
 
-## Binary Variants
-
-DBSurveyor provides two main binaries:
-
-### `dbsurveyor-collect`
-
-The database collection tool that connects to databases and extracts schema information.
-
-**Default Features**: `postgresql`, `sqlite`
-**Optional Features**: `mysql`, `mongodb`, `mssql`, `compression`, `encryption`
-
-### `dbsurveyor`
-
-The documentation generator that processes collected schema files.
-
-**Default Features**: None (minimal dependencies)
-**Optional Features**: `compression`, `encryption`
-
-## Development Setup
-
-For development work, install the complete toolchain:
+Release artifacts are signed with Cosign using keyless OIDC, and each release
+publishes an SBOM and checksums.
 
 ```bash
-# Install development dependencies
-just install
+# Checksums
+sha256sum --check dbsurveyor_checksums.txt
 
-# This installs:
-# - Rust toolchain components (clippy, rustfmt)
-# - Cargo tools (audit, deny, llvm-cov, nextest)
-# - Security tools (syft for SBOM generation)
-# - Documentation tools (mdbook and plugins)
+# Signature
+cosign verify-blob \
+  --certificate dbsurveyor_checksums.txt.pem \
+  --signature dbsurveyor_checksums.txt.sig \
+  --certificate-identity-regexp 'https://github.com/EvilBit-Labs/dbsurveyor/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  dbsurveyor_checksums.txt
 ```
 
-## Verification
+## Airgapped installation
 
-Verify your installation:
+This is the case the tool is built for, and it needs no special procedure: copy
+the archive across and extract it. The binaries make no network call except to
+the database they are pointed at, check for no updates, and send no telemetry.
+
+Building from source on an airgapped host needs the module cache carried across:
 
 ```bash
-# Check binary versions
-./target/release/dbsurveyor-collect --version
-./target/release/dbsurveyor --version
+# On a connected host
+go mod download
+go mod vendor
 
-# Test with SQLite (no external database required)
-echo "CREATE TABLE test (id INTEGER);" | sqlite3 test.db
-./target/release/dbsurveyor-collect sqlite://test.db
-./target/release/dbsurveyor schema.dbsurveyor.json
-
-# Clean up
-rm test.db schema.dbsurveyor.json schema.md
+# Carry the tree across, then on the airgapped host
+go build -mod=vendor -trimpath -o dist/ ./cmd/...
 ```
 
-## Airgap Installation
+## Development setup
 
-For air-gapped environments:
+```bash
+just dev-setup     # install the toolchain and Go tools
+pre-commit install # git hooks
+```
 
-1. **Prepare on connected system**:
-
-   ```bash
-   # Download dependencies
-   cargo fetch
-
-   # Create vendor directory
-   cargo vendor vendor
-
-   # Build minimal version
-   cargo build --release --no-default-features --features sqlite
-   ```
-
-2. **Transfer to airgap system**:
-
-   - Copy entire project directory including `vendor/`
-   - Copy built binaries from `target/release/`
-
-3. **Use offline**:
-
-   ```bash
-   # Use vendored dependencies
-   cargo build --release --offline --no-default-features --features sqlite
-   ```
+`dev-setup` installs `golangci-lint` and `govulncheck`. Note that `mise` puts Go
+tools in the Go toolchain's own `bin` rather than in `$GOPATH/bin`; if
+`just vuln` reports "command not found", look under `$(go env GOBIN)`.
 
 ## Troubleshooting
 
-### Common Issues
+**"command not found" after extracting.** The binary is not on your `PATH`.
+Either move it somewhere that is, or invoke it by path.
 
-**Compilation fails with missing dependencies**:
+**macOS refuses to run the binary.** Gatekeeper quarantines downloaded files.
+`xattr -d com.apple.quarantine dbsurveyor` clears it, or use the Homebrew
+installation, which is not quarantined.
 
-- Ensure you have the latest Rust toolchain: `rustup update`
-- Check feature flags match your requirements
-
-**Database driver compilation errors**:
-
-- Install system dependencies for your target databases
-- For PostgreSQL: `libpq-dev` (Ubuntu) or `postgresql-devel` (RHEL)
-- For MySQL: `libmysqlclient-dev` (Ubuntu) or `mysql-devel` (RHEL)
-
-**Permission errors**:
-
-- Ensure you have write permissions to the target directory
-- Use `cargo install --root ~/.local` for user-local installation
-
-### Getting Help
-
-- Check the [Troubleshooting](./troubleshooting.md) section
-- Review [GitHub Issues](https://github.com/EvilBit-Labs/dbsurveyor/issues)
-- Consult the [CLI Reference](./cli-reference.md) for command-specific help
+**A build fails with a Go version error.** The module requires Go 1.26. Check
+`go version`, and prefer `mise install` to get the pinned toolchain rather than
+whatever the system package manager has.

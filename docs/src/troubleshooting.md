@@ -1,5 +1,10 @@
 # Troubleshooting
 
+> **Note.** `RUST_LOG` belonged to the retired Rust implementation and is not
+> read by this one. The collector's `--quiet` suppresses progress output;
+> decoration is suppressed automatically when `TERM=dumb` or when standard
+> output is not a terminal.
+
 This guide helps you diagnose and resolve common issues with DBSurveyor.
 
 ## Quick Diagnostics
@@ -24,15 +29,12 @@ rm test.db schema.dbsurveyor.json
 
 ```bash
 # Enable debug logging for all modules
-export RUST_LOG=debug
 dbsurveyor-collect postgres://localhost/db
 
 # Enable trace logging for specific modules
-export RUST_LOG=dbsurveyor_collect=trace,dbsurveyor_core=debug
 dbsurveyor-collect postgres://localhost/db
 
 # Log to file
-export RUST_LOG=debug
 dbsurveyor-collect postgres://localhost/db 2> debug.log
 ```
 
@@ -56,8 +58,8 @@ psql -h localhost -U user -d db -c "SELECT 1;"
 sudo tail -f /var/log/postgresql/postgresql-*.log
 
 # Common connection string issues
-# ❌ Wrong: postgres://user:pass@localhost/db:5432
-# ✅ Correct: postgres://user:pass@localhost:5432/db
+# [X] Wrong: postgres://user:pass@localhost/db:5432
+# [OK] Correct: postgres://user:pass@localhost:5432/db
 
 # SSL issues
 dbsurveyor-collect "postgres://user:pass@localhost/db?sslmode=disable"
@@ -449,7 +451,6 @@ dbsurveyor-collect --compress postgres://localhost/db
 
 ```bash
 # Check logs for credentials
-export RUST_LOG=debug
 dbsurveyor-collect postgres://user:secret@localhost/db 2>&1 | grep -i secret
 # Should return no results
 
@@ -509,24 +510,25 @@ rm test.db test.txt schema.enc
 rustup update
 
 # Check Rust version (minimum 1.87)
-rustc --version
+go version
 
 # Clean and rebuild
-cargo clean
-cargo build --release
+go clean -cache
+go build -trimpath -o dist/ ./cmd/...
 ```
 
 #### Feature Compilation Issues
 
 ```bash
 # Check available features
-cargo build --help | grep -A 20 "FEATURES:"
+# There are no build features: one binary speaks every engine.
+go build -trimpath -o dist/ ./cmd/...
 
 # Build with specific features
-cargo build --release --features postgresql,sqlite
+go build -trimpath -o dist/ ./cmd/...
 
 # Debug feature compilation
-cargo build --release --features postgresql --verbose
+go build -v ./...
 ```
 
 #### System Dependencies
@@ -571,18 +573,17 @@ dbsurveyor-collect list
 ```bash
 # System information
 uname -a
-rustc --version
-cargo --version
+go version
+go env GOVERSION
 
 # DBSurveyor information
 dbsurveyor-collect --version
 dbsurveyor-collect list
 
 # Feature compilation
-cargo build --release --verbose 2>&1 | grep -i feature
+go build -v ./...
 
 # Runtime debug
-export RUST_LOG=debug
 dbsurveyor-collect test postgres://localhost/db 2> debug.log
 ```
 
@@ -610,7 +611,6 @@ When reporting issues, include:
 1. **System Information**: OS, Rust version, DBSurveyor version
 2. **Command Used**: Exact command that failed (sanitize credentials)
 3. **Error Output**: Complete error message and stack trace
-4. **Debug Logs**: Output with `RUST_LOG=debug`
 5. **Minimal Reproduction**: Smallest example that reproduces the issue
 
 **Security Note**: Never include actual database credentials in issue reports. Use placeholder values like `user:password@localhost/db`.

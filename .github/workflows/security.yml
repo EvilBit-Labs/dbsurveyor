@@ -33,8 +33,17 @@ jobs:
                   cache: true
                   github_token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Run cargo deny check
-              run: cargo deny check
+            # govulncheck reports only vulnerabilities in code paths the binary
+            # actually reaches, so an advisory against a function no code here
+            # calls does not stop a release. The Rust tooling it replaces had no
+            # equivalent, which is why that tree carried a hand-maintained list
+            # of advisory suppressions in two files that had to be kept in sync.
+            - name: Vulnerability scan
+              run: govulncheck ./...
 
-            - name: Run cargo outdated
-              run: cargo outdated --depth=1 --exit-code=1
+            # go mod tidy leaving the manifest dirty means a dependency was
+            # added or dropped without the lock being updated to match.
+            - name: Verify go.mod is tidy
+              run: |
+                  go mod tidy
+                  git diff --exit-code -- go.mod go.sum

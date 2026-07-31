@@ -2,15 +2,21 @@
 
 ## Overview
 
-DBSurveyor releases are automated through [GoReleaser](https://goreleaser.com/) with cross-compilation via [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild). Pushing a semver tag triggers the full pipeline.
+DBSurveyor releases are automated through [GoReleaser](https://goreleaser.com/)
+using its native Go builder. Pushing a semver tag triggers the full pipeline.
 
-Each release produces **multiple variants** of the `dbsurveyor-collect` binary, one per database driver, plus an all-features build. This lets operators download only the driver they need.
+There is **one build per platform**, not one per database driver. Every driver is
+pure Go, so there are no optional native dependencies to gate behind a build
+variant -- a single binary speaks all six engines. That is also why there is no
+separate musl target: with `CGO_ENABLED=0` the binary is already statically
+linked.
 
 ## How to Release
 
 1. Ensure all tests pass and the main branch is clean.
 
-2. Bump the version in the workspace `Cargo.toml`.
+2. Update `CHANGELOG.md`. The version itself is not stored in a file: it is
+   derived from the tag and stamped into the binaries through ldflags.
 
 3. Tag the release and push:
 
@@ -21,18 +27,19 @@ Each release produces **multiple variants** of the `dbsurveyor-collect` binary, 
 
 4. The `Release` workflow builds, signs, and publishes automatically.
 
-## Release Variants
+## Release Artifacts
 
-Each variant archive contains both `dbsurveyor` (postprocessor) and `dbsurveyor-collect` (collector). The collector is built with the specified database driver(s). All variants include compression and encryption support.
+One archive per platform, each containing both binaries: `dbsurveyor-collect`
+(the collector) and `dbsurveyor` (the postprocessor). Every archive supports all
+six engines, plus compression and encryption.
 
-| Variant      | Database Drivers                          | Archive Name Pattern                |
-| ------------ | ----------------------------------------- | ----------------------------------- |
-| `all`        | PostgreSQL, MySQL, SQLite, MongoDB, MSSQL | `dbsurveyor_all_<Os>_<Arch>`        |
-| `postgresql` | PostgreSQL only                           | `dbsurveyor_postgresql_<Os>_<Arch>` |
-| `mysql`      | MySQL only                                | `dbsurveyor_mysql_<Os>_<Arch>`      |
-| `sqlite`     | SQLite only                               | `dbsurveyor_sqlite_<Os>_<Arch>`     |
-| `mongodb`    | MongoDB only                              | `dbsurveyor_mongodb_<Os>_<Arch>`    |
-| `mssql`      | MSSQL only                                | `dbsurveyor_mssql_<Os>_<Arch>`      |
+| Platform | Architectures  | Archive Name Pattern              |
+| -------- | -------------- | --------------------------------- |
+| Linux    | amd64, arm64   | `dbsurveyor_Linux_<Arch>.tar.gz`  |
+| macOS    | amd64, arm64   | `dbsurveyor_Darwin_<Arch>.tar.gz` |
+| Windows  | amd64          | `dbsurveyor_Windows_<Arch>.zip`   |
+
+Windows on arm64 is not built. It can be added when somebody needs it.
 
 ## What Gets Published
 
@@ -140,13 +147,13 @@ goreleaser release --snapshot --clean --skip=publish
 
 | Issue               | Resolution                                                         |
 | ------------------- | ------------------------------------------------------------------ |
-| Build failures      | Check Rust target support and cargo-zigbuild version               |
+| Build failures      | Check the Go version in `go.mod` matches the workflow's setup-go   |
 | Signing failures    | Verify `id-token: write` permission and Cosign version             |
 | Homebrew push fails | Verify `HOMEBREW_TAP_TOKEN` secret is set                          |
 | Missing SBOM        | Ensure Syft is installed in the workflow                           |
 | Tag format rejected | Tags must match `v*.*.*` (e.g., `v0.1.0`)                          |
 | Disk space on CI    | The `free-disk-space` step runs before builds                      |
-| Slow builds         | 42 binaries; estimate ~35-50 min (not yet validated in production) |
+| Slow builds         | Ten binaries across five platform pairs; minutes, not tens of them |
 
 ## Required Secrets
 

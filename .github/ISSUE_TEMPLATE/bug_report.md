@@ -21,7 +21,7 @@ A clear and concise description of what the bug is.
    - **SQL Server**: `mssql://<USERNAME>:<PASSWORD>@<HOST>:<PORT>`
    - **MongoDB**: `mongodb://<USERNAME>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>`
 
-   ⚠️ **NEVER include real credentials** - Use placeholders like `<USERNAME>`, `<PASSWORD>`, `<HOST>`, `<PORT>`, `<DB_NAME>`
+   [!] **NEVER include real credentials** - Use placeholders like `<USERNAME>`, `<PASSWORD>`, `<HOST>`, `<PORT>`, `<DB_NAME>`
 
    **Note**: Percent-encode special characters in passwords (e.g., `@` becomes `%40`, `#` becomes `%23`)
 

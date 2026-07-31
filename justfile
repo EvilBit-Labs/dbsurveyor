@@ -1,403 +1,318 @@
-# justfile - DBSurveyor Security-First Developer Tasks
-# Cross-platform justfile using OS annotations
-# Windows uses PowerShell, Unix uses bash
+# dbsurveyor task runner
+#
+# Go recipes. The Rust workspace was removed from this branch in U12; it and its
+# recipes remain recoverable from the rust-final branch.
+#
+# `just` uses the LAST comment line above a recipe as its description, so each
+# recipe below carries a one-line description immediately above it and keeps any
+# longer rationale in the body. A rationale paragraph placed directly above a
+# recipe becomes its `--list` text, which is how six of these ended up described
+# by a sentence fragment.
 
-set shell := ["bash", "-cu"]
-set windows-shell := ["powershell", "-NoProfile", "-Command"]
-set dotenv-load
-set ignore-comments
+set shell := ["bash", "-uc"]
 
-# Use mise to manage all dev tools
+# Comments in a recipe body are notes for whoever reads this file. Without this,
+# just echoes each one as though it were a command.
+set ignore-comments := true
+
+# CGO is forbidden repository-wide (R13): pure-Go drivers are what make
+# airgapped installs work without vendor client libraries.
+export CGO_ENABLED := "0"
+
+# Use mise to manage all dev tools (go, golangci-lint, govulncheck, goreleaser)
 # See mise.toml for tool versions
-
+#
+# Every tool below is invoked through mise rather than by bare name, the Go
+# toolchain included. $GOPATH/bin sits ahead of mise's tool directories on PATH,
+# so a bare name runs whatever a past `go install ...@latest` left there --
+# unpinned, never refreshed, and carrying the Go toolchain of the day it was
+# installed. See GOTCHAS 4.3.
 mise_exec := "mise exec --"
-root := justfile_dir()
-
-# =============================================================================
-# GENERAL COMMANDS
-# =============================================================================
 
 default:
     @just --list
 
-# =============================================================================
-# CROSS-PLATFORM HELPERS (private)
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Help
+# -----------------------------------------------------------------------------
 
-[private]
-[windows]
-ensure-dir dir:
-    New-Item -ItemType Directory -Force -Path "{{ dir }}" | Out-Null
+alias h := help
 
-[private]
-[unix]
-ensure-dir dir:
-    /bin/mkdir -p "{{ dir }}"
+# Show available recipes
+[group('help')]
+help:
+    @just --list
 
-[private]
-[windows]
-rmrf path:
-    if (Test-Path "{{ path }}") { Remove-Item "{{ path }}" -Recurse -Force }
+# Show recipes in one group, e.g. `just group test`
+[group('help')]
+group name:
+    @just --list --list-heading='' | grep -A99 '\[{{ name }}\]' | sed -n '2,$p' | sed '/^\[/q'
 
-[private]
-[unix]
-rmrf path:
-    /bin/rm -rf "{{ path }}"
+# -----------------------------------------------------------------------------
+# Setup
+# -----------------------------------------------------------------------------
 
-# =============================================================================
-# SETUP AND INITIALIZATION
-# =============================================================================
+alias setup := install
 
-# Development setup - mise handles all tool installation via mise.toml
-setup:
+# Install the pinned toolchain and the pre-commit hooks
+[group('setup')]
+install:
+    # mise.toml pins every tool, so this is the whole job. Do not add a
+    # `go install ...@latest` here: it lands in $GOPATH/bin, which shadows the
+    # pinned copy, and is never refreshed afterwards. See GOTCHAS 4.3.
     mise install
+    {{ mise_exec }} pre-commit install --hook-type pre-commit --hook-type commit-msg
+    {{ mise_exec }} go mod tidy
 
-# =============================================================================
-# FORMATTING AND LINTING
-# =============================================================================
+# Install the pinned toolchain (alias kept for existing muscle memory)
+[group('setup')]
+dev-setup: install
 
-alias format-rust := fmt
-alias lint-rust := clippy
+# Update the toolchain, Go modules, and pre-commit hooks
+[group('setup')]
+update-deps: _update-mise _update-go _update-precommit
 
-# Main format recipe - calls all formatters
-format: fmt fmt-justfile
+[private]
+_update-mise:
+    mise upgrade --bump --local --before 7d
 
-# Format Rust code
-fmt:
-    @{{ mise_exec }} cargo fmt --all
+[private]
+_update-go:
+    {{ mise_exec }} go get -u ./...
+    {{ mise_exec }} go mod tidy
+    {{ mise_exec }} go mod verify
 
-# Check Rust code formatting
-fmt-check: pre-commit
-    @{{ mise_exec }} cargo fmt --all --check
+[private]
+_update-precommit:
+    {{ mise_exec }} pre-commit autoupdate
 
-# Format justfile
-fmt-justfile:
-    @{{ mise_exec }} just --fmt --unstable
+# -----------------------------------------------------------------------------
+# Build
+# -----------------------------------------------------------------------------
 
-# Lint justfile formatting
-lint-justfile:
-    @{{ mise_exec }} just --fmt --check --unstable
-
-# Lint Rust code with clippy (strict zero-warning policy)
-clippy:
-    @{{ mise_exec }} cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-# Lint with minimal features
-clippy-min:
-    @{{ mise_exec }} cargo clippy --workspace --all-targets --no-default-features -- -D warnings
-
-# Main lint recipe
-lint: clippy lint-justfile
-
-# Run clippy with fixes
-fix:
-    @{{ mise_exec }} cargo clippy --fix --allow-dirty --allow-staged
-
-# Quick development check
-check: fmt-check lint test-check
-
-pre-commit:
-    @{{ mise_exec }} pre-commit run --all-files
-
-# =============================================================================
-# BUILDING
-# =============================================================================
-
-# Build in debug mode
+# Build both binaries into ./dist
+[group('build')]
 build:
-    @{{ mise_exec }} cargo build --workspace --all-features
+    {{ mise_exec }} go build -trimpath -o dist/ ./cmd/...
 
-# Build in release mode
-build-release:
-    @{{ mise_exec }} cargo build --workspace --release --all-features
+# Run the collector, e.g. `just collect --help`
+[group('build')]
+collect *args:
+    {{ mise_exec }} go run ./cmd/dbsurveyor-collect {{ args }}
 
-# Build minimal feature set (for airgap environments)
-build-minimal:
-    @{{ mise_exec }} cargo build --release --no-default-features --features sqlite
+# Run the postprocessor, e.g. `just postprocess --help`
+[group('build')]
+postprocess *args:
+    {{ mise_exec }} go run ./cmd/dbsurveyor {{ args }}
 
-# =============================================================================
-# TESTING
-# =============================================================================
+# Regenerate the published format schemas and examples under docs/formats
+[group('build')]
+gen-schema:
+    # Derived from the Go types; TestPublishedArtifactsAreCurrent fails when a
+    # committed file is stale.
+    {{ mise_exec }} go run ./tools/genschema
 
-test-check:
-    @{{ mise_exec }} cargo test --workspace --no-run
+# -----------------------------------------------------------------------------
+# Testing
+# -----------------------------------------------------------------------------
 
-# Run all tests with nextest
+alias t := test
+
+# Run the full test suite
+[group('test')]
 test:
-    @{{ mise_exec }} cargo nextest run --workspace --features postgresql,sqlite,encryption,compression
+    {{ mise_exec }} go test ./...
 
-# Run tests excluding benchmarks
-test-no-bench:
-    @{{ mise_exec }} cargo nextest run --features postgresql,sqlite,encryption,compression --lib --bins --tests
+# Run the full test suite with verbose output
+[group('test')]
+test-v:
+    {{ mise_exec }} go test -v ./...
 
-# Run integration tests only
+# Run the container-backed adapter tests (needs Docker)
+[group('test')]
 test-integration:
-    @{{ mise_exec }} cargo nextest run --test '*' --features postgresql,sqlite,encryption,compression
+    # These sit behind the `integration` build tag so the ordinary `just test`
+    # needs no container runtime. This recipe needs Docker or another
+    # Testcontainers-compatible runtime on the machine.
+    {{ mise_exec }} go test -tags integration -timeout 15m ./...
 
-# Run unit tests only
-test-unit:
-    @{{ mise_exec }} cargo nextest run --lib --features postgresql,sqlite,encryption,compression
+# Run the suite under the race detector (the one place CGO is allowed)
+[group('test')]
+test-race:
+    # -race requires cgo, so this recipe deliberately overrides the
+    # repository-wide CGO_ENABLED=0. It is a test-only exception and never
+    # applies to a shipped build. See GOTCHAS 4.2.
+    CGO_ENABLED=1 {{ mise_exec }} go test -race ./...
 
-# Run doctests (nextest doesn't support doctests)
-test-doc:
-    @{{ mise_exec }} cargo test --doc --features postgresql,sqlite,encryption,compression
-
-# Run tests with CI profile
-test-ci:
-    @{{ mise_exec }} cargo nextest run --profile ci --features postgresql,sqlite,encryption,compression --workspace
-
-# Run tests with verbose output
-test-verbose:
-    @{{ mise_exec }} cargo nextest run --features postgresql,sqlite,encryption,compression --workspace --no-capture
-
-# Test PostgreSQL adapter
-test-postgres:
-    @{{ mise_exec }} cargo nextest run postgres --features postgresql
-
-# Test comprehensive PostgreSQL adapter functionality
-test-postgres-comprehensive:
-    cd dbsurveyor-core && {{ mise_exec }} cargo nextest run --test postgres_comprehensive --features postgresql --no-capture
-
-# Test PostgreSQL connection pooling
-test-postgres-pooling:
-    cd dbsurveyor-core && {{ mise_exec }} cargo nextest run --test postgres_connection_pooling --features postgresql --no-capture
-
-# Test PostgreSQL versions and configurations
-test-postgres-versions:
-    cd dbsurveyor-core && {{ mise_exec }} cargo nextest run --test postgres_versions_and_configs --features postgresql --no-capture
-
-# Test all PostgreSQL comprehensive tests
-test-postgres-all:
-    cd dbsurveyor-core && {{ mise_exec }} cargo nextest run --test postgres_comprehensive --test postgres_connection_pooling --test postgres_versions_and_configs --features postgresql --no-capture
-
-# Test MySQL adapter
-test-mysql:
-    @{{ mise_exec }} cargo nextest run mysql --features mysql
-
-# Test SQLite adapter
-test-sqlite:
-    @{{ mise_exec }} cargo nextest run sqlite --features sqlite
-
-# =============================================================================
-# COVERAGE
-# =============================================================================
-
-# Private helper: run cargo llvm-cov with proper setup
-[private]
-[unix]
-_coverage +args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    rm -rf target/llvm-cov-target
-    RUSTFLAGS="--cfg coverage" {{ mise_exec }} cargo llvm-cov -p dbsurveyor-core --lcov --output-path lcov.info {{ args }}
-
-[private]
-[windows]
-_coverage +args:
-    Remove-Item -Recurse -Force target/llvm-cov-target -ErrorAction SilentlyContinue
-    $env:RUSTFLAGS = "--cfg coverage"; {{ mise_exec }} cargo llvm-cov -p dbsurveyor-core --lcov --output-path lcov.info {{ args }}
-
-# Run coverage with threshold check
+# Report total coverage
+[group('test')]
 coverage:
-    @just _coverage --fail-under-lines 55
+    {{ mise_exec }} go test -coverprofile=coverage.out -covermode=atomic ./...
+    {{ mise_exec }} go tool cover -func=coverage.out | tail -1
 
-# Run coverage for CI
-coverage-ci:
-    @just _coverage --fail-under-lines 55
+# Open the coverage report in a browser
+[group('test')]
+coverage-html: coverage
+    {{ mise_exec }} go tool cover -html=coverage.out
 
-# Run coverage with HTML report
-coverage-html:
-    @{{ mise_exec }} cargo llvm-cov --workspace --html --output-dir target/llvm-cov/html
-
-# Run coverage report to terminal
-coverage-report:
-    @{{ mise_exec }} cargo llvm-cov --workspace
-
-# Clean coverage artifacts
-coverage-clean:
-    @{{ mise_exec }} cargo llvm-cov clean --workspace
-
-# =============================================================================
-# SECURITY TESTING
-# =============================================================================
-
-# Test encryption capabilities (AES-GCM)
-test-encryption:
-    @{{ mise_exec }} cargo nextest run encryption --features encryption --no-capture
-
-# Test offline operation (no network calls)
-test-offline:
-    @{{ mise_exec }} cargo nextest run offline
-
-# Verify no credentials leak into outputs
-test-credential-security:
-    @{{ mise_exec }} cargo nextest run credential_security --no-capture
-
-# Full security validation suite
-security-full: lint test-encryption test-offline test-credential-security audit deny
-
-# =============================================================================
-# SECURITY AND AUDITING
-# =============================================================================
-
-# Run dependency audit
-audit:
-    @{{ mise_exec }} cargo audit
-
-# Run cargo-deny checks
-deny:
-    @{{ mise_exec }} cargo deny check
-
-# Run strict CI audit
-audit-ci:
-    @{{ mise_exec }} cargo audit --ignore RUSTSEC-2023-0071
-
-# =============================================================================
-# DOCUMENTATION
-# =============================================================================
-
-# Build rustdoc
-doc:
-    @{{ mise_exec }} cargo doc --features postgresql,sqlite,encryption,compression --no-deps
-
-# Build and open documentation
-doc-open:
-    @{{ mise_exec }} cargo doc --features postgresql,sqlite,encryption,compression --no-deps --document-private-items --open
-
-# Build complete documentation (mdBook + rustdoc)
-[unix]
-docs-build:
+# Fail when total coverage is below the threshold
+[group('test')]
+coverage-ci threshold="50":
     #!/usr/bin/env bash
+    # The threshold starts low and rises as phases land -- the Rust tree's 55%
+    # floor is not imported, since the Go tree starts from zero.
     set -euo pipefail
-    {{ mise_exec }} cargo doc --no-deps --document-private-items --target-dir docs/book/api-temp
-    mkdir -p docs/book/api
-    cp -r docs/book/api-temp/doc/* docs/book/api/
-    rm -rf docs/book/api-temp
+    {{ mise_exec }} go test -coverprofile=coverage.out -covermode=atomic ./...
+    pct=$({{ mise_exec }} go tool cover -func=coverage.out | tail -1 | grep -oE '[0-9]+\.[0-9]+' | tail -1)
+    echo "coverage: ${pct}% (threshold {{ threshold }}%)"
+    awk -v p="$pct" -v t="{{ threshold }}" 'BEGIN { exit !(p < t) }' && {
+        echo "FAIL: coverage ${pct}% is below the {{ threshold }}% threshold"
+        exit 1
+    } || true
+
+# -----------------------------------------------------------------------------
+# Quality
+# -----------------------------------------------------------------------------
+
+alias fmt := format
+
+# Format (golangci-lint v2 owns gofumpt, goimports, gci, golines)
+[group('quality')]
+format:
+    {{ mise_exec }} golangci-lint fmt
+
+# Verify formatting without writing
+[group('quality')]
+format-check:
+    {{ mise_exec }} golangci-lint fmt --diff
+
+# Lint with the strict golangci-lint v2 set
+[group('quality')]
+lint:
+    {{ mise_exec }} golangci-lint run
+
+# Scan for known vulnerabilities
+[group('quality')]
+vuln:
+    {{ mise_exec }} govulncheck ./...
+
+# Run every pre-commit hook over the whole tree
+[group('quality')]
+pre-commit:
+    {{ mise_exec }} pre-commit run --all-files
+
+# Full local gate -- run `just format` first so a whitespace diff is not a lint failure
+[group('quality')]
+check: format-check lint test vuln
+    @echo "check: OK"
+
+# -----------------------------------------------------------------------------
+# CI
+# -----------------------------------------------------------------------------
+
+# Pre-push gate: every CI check that needs no container runtime, plus -race
+[group('ci')]
+ci-check: format-check lint test test-race vuln
+    # `just check` is the everyday gate. This is the one to run before pushing:
+    # it adds the race detector, which CI does not run at all, so a data race
+    # otherwise reaches main unchallenged.
+    @echo "ci-check: OK"
+
+# Fast feedback: build and run the short tests only
+[group('ci')]
+ci-smoke:
+    {{ mise_exec }} go build -trimpath -o dist/ ./cmd/...
+    {{ mise_exec }} go test -count=1 -failfast -short -timeout 5m ./...
+    @echo "ci-smoke: OK"
+
+# Everything CI gates, container suites and coverage threshold included
+[group('ci')]
+ci-full: ci-check test-integration coverage-ci docs-build release-check
+    # Needs Docker for the container suites, and takes tens of minutes. The
+    # Oracle fixture is the slow one.
+    @echo "ci-full: OK"
+
+# Lint the GitHub Actions workflows
+[group('ci')]
+lint-actions:
+    {{ mise_exec }} actionlint
+
+# -----------------------------------------------------------------------------
+# Docs
+# -----------------------------------------------------------------------------
+
+# Build the mdBook site into docs/book
+[group('docs')]
+docs-build:
     cd docs && {{ mise_exec }} mdbook build
 
-# Serve documentation locally with live reload
-[unix]
+# Serve the mdBook site with live reload
+[group('docs')]
 docs-serve:
     cd docs && {{ mise_exec }} mdbook serve --open
 
-# Clean documentation artifacts
-[unix]
-docs-clean:
-    rm -rf docs/book target/doc
+# There is deliberately no docs-check here. `mdbook test` compiles code blocks
+# as Rust doctests, which fails on this book's Go and shell samples. The link
+# checker mise pins, mdbook-linkcheck, only runs as an mdbook backend and
+# docs/book.toml does not configure one, so wiring it up is a book.toml change
+# rather than a recipe.
 
-# Check documentation build
-[unix]
-docs-check:
-    cd docs && {{ mise_exec }} mdbook build
+# -----------------------------------------------------------------------------
+# Release
+# -----------------------------------------------------------------------------
 
-# Generate and serve documentation
-[unix]
-docs: docs-build docs-serve
-
-[windows]
-docs:
-    @echo "mdbook requires a Unix-like environment to serve"
-
-# =============================================================================
-# CI AND QUALITY ASSURANCE
-# =============================================================================
-
-# Full local CI parity check
-ci-check: check test-ci coverage-ci audit-ci deny
-
-# Fast CI check without coverage
-ci-check-fast: check test-no-bench
-
-# Full comprehensive checks
-full-checks: fmt-check lint test-ci coverage audit-ci build-release
-
-# Run benchmarks
-bench:
-    @{{ mise_exec }} cargo bench --features postgresql,sqlite,encryption,compression
-
-# =============================================================================
-# RELEASE
-# =============================================================================
-
-# Validate GoReleaser config and lint release workflow
+# Validate .goreleaser.yaml
+[group('release')]
 release-check:
-    @{{ mise_exec }} goreleaser check
-    @{{ mise_exec }} actionlint .github/workflows/release.yml
+    {{ mise_exec }} goreleaser check
 
-# Local release dry-run (builds all targets, creates archives, skips publishing)
+# Local release dry run: builds all targets, publishes nothing
+[group('release')]
 release-snapshot:
-    @{{ mise_exec }} goreleaser release --snapshot --clean
+    {{ mise_exec }} goreleaser release --snapshot --clean
 
-# =============================================================================
-# PACKAGING AND DEPLOYMENT
-# =============================================================================
+# Build for the current platform only
+[group('release')]
+release-local:
+    {{ mise_exec }} goreleaser build --snapshot --clean --single-target
 
-# Create airgap deployment package
-[unix]
-package-airgap: build-minimal
+# Generate the changelog
+[group('release')]
+changelog:
+    {{ mise_exec }} git-cliff --output CHANGELOG.md
+
+# Generate the changelog for unreleased commits only
+[group('release')]
+changelog-unreleased:
+    {{ mise_exec }} git-cliff --unreleased
+
+# Assert the built artifacts are CGO-free and trimpath-built
+[group('release')]
+verify-artifacts:
     #!/usr/bin/env bash
+    # tools/nocgo_test.go checks that no package in the graph imports C, which
+    # is the property at the source level. This checks the other end: that the
+    # binaries GoReleaser actually produced were built with CGO_ENABLED=0 and
+    # -trimpath. A build setting can be lost to a stray environment variable on
+    # a release runner without a single source file changing, and that is
+    # exactly the failure the source-level test cannot see.
     set -euo pipefail
-    mkdir -p airgap-package
-    cp target/release/dbsurveyor* airgap-package/ 2>/dev/null || true
-    cp README.md airgap-package/
-
-[windows]
-package-airgap: build-minimal
-    New-Item -ItemType Directory -Force -Path "airgap-package" | Out-Null
-    Copy-Item "target/release/dbsurveyor*" "airgap-package/" -ErrorAction SilentlyContinue
-    Copy-Item "README.md" "airgap-package/"
-
-# =============================================================================
-# MAINTENANCE
-# =============================================================================
-
-# Update dependencies
-update:
-    @{{ mise_exec }} cargo update
-
-# Check for outdated dependencies
-outdated:
-    @{{ mise_exec }} cargo outdated
-
-# Clean build artifacts
-[unix]
-clean:
-    @{{ mise_exec }} cargo clean
-    rm -f sbom.spdx.json sbom.json lcov.info
-
-[windows]
-clean:
-    @{{ mise_exec }} cargo clean
-    Remove-Item -Force sbom.spdx.json, sbom.json, lcov.info -ErrorAction SilentlyContinue
-
-# =============================================================================
-# DEVELOPMENT WORKFLOW
-# =============================================================================
-
-# Development workflow: format, lint, test
-dev: format lint test
-
-# Run the CLI tool
-run *args:
-    @{{ mise_exec }} cargo run --features postgresql,sqlite,encryption,compression -- {{ args }}
-
-# Show project information
-info:
-    @echo "DBSurveyor - Security-First Database Documentation"
-    @echo "==================================================="
-    @{{ mise_exec }} rustc --version
-    @{{ mise_exec }} cargo --version
-    @echo ""
-    @echo "Security Guarantees:"
-    @echo "  - Offline-only operation (no network calls except to databases)"
-    @echo "  - No telemetry or external reporting"
-    @echo "  - No credentials in outputs"
-    @echo "  - AES-GCM encryption with random nonce"
-    @echo "  - Airgap compatibility"
-
-# SECURITY NOTICE: This justfile enforces the following security guarantees:
-# - NO NETWORK CALLS: All operations work offline after dependency download
-# - NO TELEMETRY: Zero data collection or external reporting mechanisms
-# - NO CREDENTIALS IN OUTPUTS: Database credentials never appear in any output
-# - AES-GCM ENCRYPTION: Industry-standard with random nonce, embedded KDF params
-# - AIRGAP COMPATIBLE: Full functionality in air-gapped environments
+    found=0
+    while IFS= read -r binary; do
+        found=$((found + 1))
+        settings=$({{ mise_exec }} go version -m "$binary")
+        grep -q 'CGO_ENABLED=0' <<<"$settings" || {
+            echo "FAIL: $binary was not built with CGO_ENABLED=0"
+            exit 1
+        }
+        grep -q '\-trimpath=true' <<<"$settings" || {
+            echo "FAIL: $binary was not built with -trimpath"
+            exit 1
+        }
+        echo "ok: $binary"
+    done < <(find dist -type f -regex '.*/dbsurveyor\(-collect\)?\(\.exe\)?$')
+    if [ "$found" -eq 0 ]; then
+        echo "FAIL: no binaries found under dist/; run just release-snapshot first"
+        exit 1
+    fi
+    echo "verify-artifacts: $found binaries OK"
