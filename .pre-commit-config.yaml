@@ -31,27 +31,25 @@ repos:
             types: [text]
           - id: check-vcs-permalinks
 
-    # 🦀 Rust clippy linting
+    # Go linting (strict golangci-lint v2 set; includes asciicheck for R18)
     - repo: local
       hooks:
-          - id: rust-clippy
-            name: rust-clippy
-            entry: cargo clippy --workspace --all-targets --all-features -- -D warnings
+          - id: golangci-lint
+            name: golangci-lint
+            entry: golangci-lint run
             language: system
             pass_filenames: false
-            always_run: true
-            types: [rust]
+            types: [go]
 
-    # 🦀 Rust formatting
+    # Go formatting (golangci-lint v2 owns gofumpt, goimports, gci, golines)
     - repo: local
       hooks:
-          - id: rust-fmt
-            name: rust-fmt
-            entry: cargo fmt -- --check
+          - id: golangci-fmt
+            name: golangci-lint fmt
+            entry: golangci-lint fmt --diff
             language: system
             pass_filenames: false
-            always_run: true
-            types: [rust]
+            types: [go]
 
     # 🧪 GitHub Actions validation
     - repo: https://github.com/rhysd/actionlint
@@ -70,11 +68,15 @@ repos:
             types: [shell]
             exclude: ^.github/workflows/release.yml$
 
-    - repo: https://github.com/bnjbvr/cargo-machete
-      rev: v0.9.1
+    # Go module hygiene: go.mod/go.sum must stay tidy
+    - repo: local
       hooks:
-          - id: cargo-machete
-            types: [cargo, cargo-lock]
+          - id: go-mod-tidy
+            name: go mod tidy
+            entry: go mod tidy
+            language: system
+            pass_filenames: false
+            files: '(^go\.mod$|^go\.sum$|\.go$)'
 
     # 📝 Markdown formatting and linting (temporarily disabled in CI due to path issues)
     - repo: https://github.com/executablebooks/mdformat
@@ -94,13 +96,12 @@ repos:
                 - mdformat-front-matters
             types: [markdown]
 
-    # 🔒 Security audit for Rust dependencies (moved to CI)
+    # 🔒 Vulnerability scan for Go dependencies (also runs in CI: audit.yml)
     - repo: local
       hooks:
-          - id: cargo-audit
-            name: cargo-audit
-            entry: cargo audit
+          - id: govulncheck
+            name: govulncheck
+            entry: govulncheck ./...
             language: system
             pass_filenames: false
-            always_run: true
-            types: [cargo, cargo-lock]
+            files: '(^go\.mod$|^go\.sum$)'

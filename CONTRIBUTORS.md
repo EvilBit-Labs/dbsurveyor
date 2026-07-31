@@ -32,21 +32,27 @@ This project operates under a **single-maintainer model** with the following cha
 
 ### Quality Standards
 
-#### Rust Quality Gate
+#### Quality Gate
 
-All Rust code must pass strict linting requirements:
+All code must pass the strict linter set:
 
 ```bash
-cargo clippy -- -D warnings
+just format   # run this first
+just check    # format-check, lint, test, vuln
 ```
 
-**Enforcement**: This command is explicitly listed in CI/CD pipelines and must pass without any warnings.
+**Enforcement**: `just check` runs in CI and must pass with zero issues. Run
+`just format` before it -- the gate starts with a format check, so skipping the
+format step turns a whitespace difference into a failure that reads like a lint
+error.
 
 #### Additional Quality Checks
 
-- **Formatting**: `cargo fmt --check` must pass
-- **Tests**: Full test suite must pass with coverage requirements
-- **Security**: All security scans (CodeQL, Syft, Grype) must pass
+- **Formatting**: `golangci-lint fmt --diff` must be clean
+- **Tests**: the full suite must pass, and the container-backed integration
+  suites must pass in CI
+- **Vulnerabilities**: `govulncheck` must report nothing reachable
+- **Security**: all security scans (CodeQL, Syft, Grype) must pass
 - **License Compliance**: FOSSA license validation must pass
 
 ### Milestone Strategy

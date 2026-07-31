@@ -1,7 +1,7 @@
 ---
 name: Security Report
 about: Report a security vulnerability in DBSurveyor
-title: '[SECURITY] Private report — do not open publicly'
+title: '[SECURITY] Private report -- do not open publicly'
 labels: [security, confidential]
 assignees: [unclesp1d3r]
 ---

@@ -1,0 +1,6 @@
+{
+    "enabledPlugins": {
+        "ecc@ecc": true,
+        "compound-engineering@compound-engineering-plugin": true
+    }
+}

@@ -2,19 +2,33 @@
 
 [![License][license-badge]][license] [![Sponsors][sponsors-badge]][sponsors]
 
-[![CI][ci-badge]][ci] [![dependency status][deps-badge]][deps]
+[![CI][ci-badge]][ci]
 
 [![codecov][codecov-badge]][codecov] [![Issues][issues-badge]][issues] [![Last Commit][commits-badge]][commits] [![OpenSSF Scorecard][scorecard-badge]][scorecard] [![OpenSSF Best Practices][bestpractices-badge]][bestpractices]
 
 ## Overview
 
-DBSurveyor is a secure, offline-first database analysis and documentation toolchain. It connects to database servers, extracts schema metadata and sample data, and generates portable structured output -- all without network calls, telemetry, or storing credentials in output files. Built for operators who need auditable database documentation in airgapped or contested environments.
+DBSurveyor surveys a database server, extracts its schema and optionally a sample
+of its rows, and writes a portable structured artifact. It makes no network call
+except to the database it was pointed at, sends no telemetry, and never writes a
+credential into its output.
 
-## Quick Start
+It is built for operators who need auditable database documentation in airgapped
+or contested environments -- which is why it ships as one static binary per
+platform with no client libraries to install.
+
+> **This tree is a Go implementation.** It replaces the retired Rust
+> implementation, which is preserved in full on the
+> [`rust-final`](https://github.com/EvilBit-Labs/dbsurveyor/tree/rust-final)
+> branch. The formats are specified fresh with the Go implementation as the
+> reference, and nothing here reads a Rust-era artifact. See
+> [ADR 0002](docs/adr/0002-go-clean-slate-rewrite.md) for why.
+
+## Quick start
 
 ### Installation
 
-**Pre-built binaries** are available on the [Releases] page for Linux, macOS, and Windows.
+**Pre-built binaries** are on the [Releases] page for Linux, macOS, and Windows.
 
 **Homebrew** (macOS/Linux):
 
@@ -22,138 +36,176 @@ DBSurveyor is a secure, offline-first database analysis and documentation toolch
 brew install EvilBit-Labs/tap/dbsurveyor
 ```
 
-**From source:**
+**From source** (Go 1.26 or later):
 
 ```bash
 git clone https://github.com/EvilBit-Labs/dbsurveyor.git
 cd dbsurveyor
-cargo build --release
+go build -o dist/ ./cmd/...
 ```
 
-### Basic Usage
+### Basic usage
 
 ```bash
-# Collect schema from a PostgreSQL database
+# Survey a PostgreSQL database
 dbsurveyor-collect postgres://user:pass@localhost:5432/mydb
 
-# Generate Markdown documentation from collected schema
-dbsurveyor generate schema.dbsurveyor.json --format markdown
+# Render the artifact as Markdown
+dbsurveyor schema.json
 ```
 
-## Features
+## The two binaries
 
-- Read-only database schema collection (tables, columns, indexes, constraints, foreign keys)
-- Data sampling with intelligent ordering strategies
-- AES-GCM encryption with Argon2id key derivation for sensitive outputs
-- Zstandard compression for large schema files
-- Credential sanitization in all logs, errors, and output files
-- JSON Schema validation for all outputs (v1.0 format)
-- Completely offline operation with zero telemetry
-- Airgap-compatible deployment
+- **`dbsurveyor-collect`** connects to a database and writes an artifact. It is
+  the only half that touches a database.
+- **`dbsurveyor`** reads an artifact and renders a report. It makes no network
+  call and reads no connection string.
 
-## Architecture
+The split is deliberate. Collection needs credentials and network access to a
+production database; reporting needs neither, so an artifact can be carried out
+of a restricted environment and read anywhere.
 
-DBSurveyor uses a dual-binary architecture:
+## Database support
 
-- **`dbsurveyor-collect`** -- Connects to databases and extracts schema information, sample data, and metadata. Supports encryption and compression of output files.
-- **`dbsurveyor`** -- Processes collected schema files and generates documentation in Markdown, HTML, or SQL DDL formats. Handles encrypted and compressed inputs.
+All six engines are implemented and use pure-Go drivers, so no vendor client
+library is needed on the host.
 
-Both binaries are thin wrappers over the shared `dbsurveyor-core` library.
+| Engine     | Connection string                     | Driver                     |
+| ---------- | ------------------------------------- | -------------------------- |
+| PostgreSQL | `postgres://user:pass@host:5432/db`   | `jackc/pgx/v5`             |
+| MySQL      | `mysql://user:pass@host:3306/db`      | `go-sql-driver/mysql`      |
+| SQLite     | `sqlite:///path/to/database.db`       | `modernc.org/sqlite`       |
+| MongoDB    | `mongodb://user:pass@host:27017/db`   | `mongo-driver/v2`          |
+| SQL Server | `sqlserver://user:pass@host:1433?database=db` | `microsoft/go-mssqldb` |
+| Oracle     | `oracle://user:pass@host:1521/SERVICE` | `sijms/go-ora`            |
 
-## Usage Examples
+MariaDB works through the MySQL adapter. Oracle needs **no Instant Client**:
+`go-ora` speaks the wire protocol directly, which is the property that makes the
+engine reachable from an airgapped host at all.
 
-### Schema Collection
+CockroachDB speaks the PostgreSQL wire protocol, so the PostgreSQL adapter may
+work against it. That is untested and unclaimed.
+
+MongoDB stores no schema, so its output is **inferred from a sample of
+documents**. Every field, type, and nullability in a MongoDB report is a claim
+about the sample rather than about the collection, and the report says so.
+
+## Usage
+
+### Collecting
 
 ```bash
-# Collect with encryption (prompts for password, or reads
-# DBSURVEYOR_ENCRYPTION_PASSWORD; output gets a .enc extension)
-dbsurveyor-collect --encrypt postgres://localhost/db
-
-# Collect with compression (output gets a .zst extension)
+# Compress the artifact (.json.zst)
 dbsurveyor-collect --compress postgres://localhost/db
 
-# Combined: compress the schema, then encrypt it (.enc output)
-dbsurveyor-collect --compress --encrypt postgres://localhost/db
+# Encrypt it (.enc). The password comes from DBSURVEYOR_ENCRYPTION_PASSWORD
+# when set, and from a prompt otherwise.
+dbsurveyor-collect --encrypt postgres://localhost/db
 
-# SQLite collection
-dbsurveyor-collect sqlite:///path/to/database.db
+# Read rows as well as structure. Off by default: sampling is the only part of
+# a survey that touches user data.
+dbsurveyor-collect --sample --sample-size 50 postgres://localhost/db
 
-# Test connection without collecting
-dbsurveyor-collect test postgres://user:pass@localhost/db
+# Keep the survey from monopolizing a production database
+dbsurveyor-collect --sample --throttle 250ms postgres://localhost/db
 
-# Use DATABASE_URL environment variable
+# The connection string may come from the environment instead
 export DATABASE_URL="postgres://user:pass@localhost/db"
 dbsurveyor-collect
 ```
 
-### Documentation Generation
+### Reporting
 
 ```bash
-# Markdown documentation
-dbsurveyor generate schema.dbsurveyor.json
+# Render a report to standard output
+dbsurveyor schema.json
 
-# Process encrypted schema (prompts for password, or reads
-# DBSURVEYOR_ENCRYPTION_PASSWORD; compressed payloads are detected)
-dbsurveyor generate schema.enc
+# An encrypted artifact reads its password the same way the collector wrote it
+dbsurveyor schema.enc
 
-# Schema analysis with statistics
-dbsurveyor analyze schema.json --detailed
+# Include the sampled rows, and score them
+dbsurveyor --samples --analyze schema.json
 
-# Validate schema file format
-dbsurveyor validate schema.dbsurveyor.json
+# Write the report to a file, as raw Markdown
+dbsurveyor --output report.md schema.json
 ```
 
-## Database Support
+### Redaction
 
-| Engine     | Status      | Connection Format                   |
-| ---------- | ----------- | ----------------------------------- |
-| PostgreSQL | Supported   | `postgres://user:pass@host:5432/db` |
-| SQLite     | Supported   | `sqlite:///path/to/database.db`     |
-| MySQL      | In Progress | `mysql://user:pass@host:3306/db`    |
-| MongoDB    | In Progress | `mongodb://user:pass@host:27017/db` |
-| SQL Server | Planned     | `mssql://user:pass@host:1433/db`    |
+Sampled values are masked before they reach an artifact and again before they
+reach a report. Four modes, each masking a superset of the one before it:
 
-PostgreSQL and SQLite are enabled by default. Other engines are feature-gated and can be enabled at build time (e.g., `cargo build --features mysql`).
+| Mode           | Masks                                                          |
+| -------------- | -------------------------------------------------------------- |
+| `none`         | nothing                                                         |
+| `minimal`      | columns whose names denote a secret                             |
+| `balanced`     | and columns whose names denote personal data (**the default**)  |
+| `conservative` | every string except identifiers, timestamps, and date-like values |
 
-## Security
+Redaction is idempotent, so applying it at collection time and again at report
+time cannot un-redact anything.
 
-- Offline-only operation -- no network calls except to target databases
-- Zero telemetry or external reporting
-- AES-GCM-256 encryption with Argon2id KDF for data at rest
-- Credentials never appear in output files, logs, or error messages
-- Secure memory handling with automatic zeroing (zeroize)
-- All database operations are strictly read-only
+## What this tool guarantees
 
-For details, see [docs/src/security.md](docs/src/security.md) and [SECURITY.md](SECURITY.md).
+- **Offline only.** No network call except to the target database. No telemetry,
+  no external reporting, no update checks.
+- **Read only.** Every database operation is a read. No schema modification, no
+  DML, no temporary objects. Where an engine has a read-only session mode, it is
+  requested as well; where one does not, [`GOTCHAS.md`](GOTCHAS.md) says so
+  plainly rather than implying a guarantee the engine cannot make.
+- **Credentials never reach output.** Not an artifact, not a log line, not an
+  error message. Every load path terminates in a recursive credential scan that
+  runs on the bytes before decoding, so a credential in a field the types do not
+  declare is caught too.
+- **Airgap compatible.** Full functionality with no internet access. No cgo
+  anywhere in the dependency graph, so the binary is genuinely self-contained.
+
+Deterministic zeroization of credentials in memory is **not** claimed. See
+[SECURITY.md](SECURITY.md) for what is and is not guaranteed and why.
+
+## Formats
+
+The on-disk formats are specified independently of the code, and each
+specification is held to the implementation by a test rather than by review:
+
+- [`docs/formats/schema-document.md`](docs/formats/schema-document.md) -- the JSON
+  schema document
+- [`docs/formats/encrypted-envelope.md`](docs/formats/encrypted-envelope.md) --
+  the AES-256-GCM byte layout, with a worked example a test reproduces
+- [`docs/formats/compression.md`](docs/formats/compression.md) -- zstd framing,
+  extension dispatch, and the atomic-write contract
 
 ## Documentation
 
-Full documentation is available at **[evilbitlabs.io/dbsurveyor](https://evilbitlabs.io/dbsurveyor)**.
+Full documentation is at **[evilbitlabs.io/dbsurveyor](https://evilbitlabs.io/dbsurveyor)**.
 
 Quick links: [Installation](docs/src/installation.md) | [Quick Start](docs/src/quick-start.md) | [CLI Reference](docs/src/cli-reference.md) | [Database Support](docs/src/database-support.md) | [Security](docs/src/security.md) | [Troubleshooting](docs/src/troubleshooting.md)
 
 ## Development
 
 ```bash
-just dev-setup    # Install tools and dependencies
-just fmt          # Format code
-just lint         # Run clippy with strict warnings
-just test         # Run test suite
-just ci-check     # Full CI validation (fmt, clippy, test, doc, deny)
-just pre-commit   # Run all pre-commit checks
+just build            # both binaries into ./dist
+just test             # go test ./...
+just test-integration # container-backed adapter tests (needs Docker)
+just format           # run BEFORE just check
+just check            # format-check, lint, test, vuln -- the gate
 ```
 
-See [AGENTS.md](AGENTS.md) for full development workflow and coding standards.
+`just check` is the gate. Run `just format` first: a formatting-only failure is
+otherwise indistinguishable from a lint failure in the log.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, [AGENTS.md](AGENTS.md)
+for the conventions, and [GOTCHAS.md](GOTCHAS.md) for the behaviors that have
+already cost somebody time.
 
 ## Contributing
 
-Contributions are welcome. Please open an issue to discuss proposed changes before submitting a pull request.
+Contributions are welcome. Please open an issue to discuss proposed changes
+before submitting a pull request.
 
 ## License
 
 Licensed under the [Apache License, Version 2.0](LICENSE).
-
-<!-- Badge images -->
 
 <!-- Badge links -->
 
@@ -165,8 +217,6 @@ Licensed under the [Apache License, Version 2.0](LICENSE).
 [codecov-badge]: https://img.shields.io/codecov/c/github/EvilBit-Labs/dbsurveyor?style=flat-square
 [commits]: https://github.com/EvilBit-Labs/dbsurveyor/commits/main
 [commits-badge]: https://img.shields.io/github/last-commit/EvilBit-Labs/dbsurveyor?style=flat-square
-[deps]: https://deps.rs/repo/github/EvilBit-Labs/dbsurveyor
-[deps-badge]: https://deps.rs/repo/github/EvilBit-Labs/dbsurveyor/status.svg?style=flat-square
 [issues]: https://github.com/EvilBit-Labs/dbsurveyor/issues
 [issues-badge]: https://img.shields.io/github/issues/EvilBit-Labs/dbsurveyor?style=flat-square
 [license]: https://github.com/EvilBit-Labs/dbsurveyor/blob/main/LICENSE

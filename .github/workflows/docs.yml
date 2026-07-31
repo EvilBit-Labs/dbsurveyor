@@ -39,19 +39,22 @@ jobs:
                   use-mermaid: true
                   use-toc: true
                   use-admonish: true
-            - name: Install mdbook plugins
-              run: cargo binstall mdbook-tabs mdbook-i18n-helpers mdbook-alerts mdbook-yml-header mdbook-image-size --no-confirm
+            # The mdbook preprocessors this book uses come from mise.toml, which
+            # the mise-action step above has already installed. The cargo
+            # binstall step that used to sit here went with the Rust workspace:
+            # nothing installs cargo-binstall any more, so it failed outright.
 
             - name: Build mdBook
               run: |
                   cd docs
                   mdbook build
 
-            - name: Build rustdoc
-              run: |
-                  cargo doc --no-deps --document-private-items --target-dir target
-                  mkdir -p docs/book/api
-                  cp -r target/doc/* docs/book/api/
+            # The rustdoc step that used to run here is gone with the Rust
+            # workspace. Go's package documentation is served by pkg.go.dev from
+            # the published module rather than built and hosted here, and the
+            # packages are internal/, which pkg.go.dev does not index. The
+            # format specifications under docs/formats are the reference an
+            # implementer needs, and mdBook already publishes those.
 
             - name: Setup Pages
               if: github.ref == 'refs/heads/main'

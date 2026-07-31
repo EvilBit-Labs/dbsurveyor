@@ -192,7 +192,7 @@ dbsurveyor-collect --compress --encrypt --output schema.json postgres://localhos
 DBSURVEYOR_ENCRYPTION_PASSWORD='mysecret123' dbsurveyor schema.json.enc
 ```
 
-The postprocessor detects compressed payloads inside decrypted files via the zstd magic bytes (`0x28, 0xB5, 0x2F, 0xFD`) and decompresses automatically. No special flags are required for decryption—the file extension and content magic determine the processing pipeline.
+The postprocessor detects compressed payloads inside decrypted files via the zstd magic bytes (`0x28, 0xB5, 0x2F, 0xFD`) and decompresses automatically. No special flags are required for decryption--the file extension and content magic determine the processing pipeline.
 
 **Benefits:**
 
@@ -204,7 +204,7 @@ The postprocessor detects compressed payloads inside decrypted files via the zst
 
 ### Markdown Documentation (.md)
 
-**Status**: ✅ Implemented
+**Status**: [OK] Implemented
 
 Basic Markdown documentation with schema overview:
 
@@ -236,7 +236,7 @@ Collection Date: 2024-01-15 10:30:00 UTC
 
 ### JSON Analysis Report (.json)
 
-**Status**: ✅ Implemented
+**Status**: [OK] Implemented
 
 Structured analysis data for programmatic consumption:
 
@@ -264,7 +264,7 @@ dbsurveyor analyze schema.json --detailed
 
 ### HTML Report (.html)
 
-**Status**: 🚧 Placeholder Implementation
+**Status**: [WIP] Placeholder Implementation
 
 Interactive HTML reports with search and navigation:
 
@@ -282,7 +282,7 @@ dbsurveyor generate schema.json --format html
 
 ### Mermaid ERD (.mmd)
 
-**Status**: 🚧 Placeholder Implementation
+**Status**: [WIP] Placeholder Implementation
 
 Entity Relationship Diagrams using Mermaid syntax:
 
@@ -313,7 +313,7 @@ erDiagram
 
 ### SQL DDL (.sql)
 
-**Status**: 🚧 Placeholder Implementation
+**Status**: [WIP] Placeholder Implementation
 
 Reconstructed SQL DDL for schema recreation:
 

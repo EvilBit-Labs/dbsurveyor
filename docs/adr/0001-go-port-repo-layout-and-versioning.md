@@ -1,8 +1,20 @@
 # ADR 0001: Go Port Repository Layout and Versioning
 
-- Status: Proposed (acceptance by maintainer closes issue #218)
+- Status: Accepted, superseded in part by ADR 0002
 - Date: 2026-07-09
 - Related: #215 (spec), #218 (decision task), #216 (Phase 0 epic)
+
+> **Superseded in part.** Decisions 1, 3, 5, and 6 below assume two live trees
+> in one repository and no longer describe this project. The Go implementation
+> is a clean-slate rewrite at the repository root and the Rust tree is preserved
+> on the `rust-final` branch; see
+> [ADR 0002](0002-go-clean-slate-rewrite.md).
+>
+> Decision 4 is superseded too, on a point of fact rather than of judgment: it
+> assumed a released v0.1.x Rust line to freeze, and no release was ever
+> published. The first published version is v0.1.0.
+>
+> Decision 2 (module path) stands.
 
 ## Context
 
@@ -30,30 +42,36 @@ of the subtree is module-path aesthetics during the transition.
 
 ## Decision
 
-1. Repository layout: the Go implementation is developed in a `go/` subtree
-   of this repository. No new repository is created.
+1. ~~Repository layout: the Go implementation is developed in a `go/` subtree
+   of this repository. No new repository is created.~~
+   **Superseded by ADR 0002:** the Go tree is the repository root.
 2. Module path: `github.com/EvilBit-Labs/dbsurveyor`, declared from the first
    commit even while the code lives under `go/`. Go permits the module root
    to differ from the repository root; all packages are under `internal/` and
    `cmd/`, so no external consumer depends on the interim path. This avoids a
    module rename at cutover.
-3. Endgame: at cutover (Phase 6, #251) the Go tree is promoted to the
+3. ~~Endgame: at cutover (Phase 6, #251) the Go tree is promoted to the
    repository root and the Rust tree is archived to a preserved branch
-   (`rust-final`) with a README pointer. The repository identity, issue
-   history, release history, and Homebrew Cask source remain continuous. No
-   repository extraction is performed; `git subtree split` remains available
-   later if a standalone repository is ever wanted.
-4. Versioning: Rust releases are frozen at the v0.1.x line. The Go cutover
-   release is v0.2.0 (not v1.0.0). Pre-releases along the way use
-   v0.2.0-alpha.N / v0.2.0-rc.N tags. The v1.0.0 signal is reserved for after
-   the Go implementation has survived real operator use. Because both
-   implementations share one repository, there is no tag-collision concern.
-5. CI isolation: workflows are paths-filtered so Rust CI ignores `go/**` and
-   Go CI runs only on `go/**` (plus shared fixture paths), per #220.
-6. Rust freeze enforcement: from the moment the Go scaffold lands (Phase 0),
+   (`rust-final`) with a README pointer.~~
+   **Superseded by ADR 0002:** there was no subtree to promote. The Rust tree
+   was removed from the default branch and preserved on `rust-final`; the
+   repository identity, issue history, and release history remain continuous as
+   this decision intended.
+4. ~~Versioning: Rust releases are frozen at the v0.1.x line. The Go cutover
+   release is v0.2.0 (not v1.0.0).~~
+   **Superseded by ADR 0002:** the Rust line never published a release, so there
+   was no v0.1.x to freeze. The first published version is v0.1.0. The v1.0.0
+   signal is still reserved for after real operator use, as this decision
+   intended.
+5. ~~CI isolation: workflows are paths-filtered so Rust CI ignores `go/**` and
+   Go CI runs only on `go/**` (plus shared fixture paths), per #220.~~
+   **Superseded by ADR 0002:** one tree needs no path filter.
+6. ~~Rust freeze enforcement: from the moment the Go scaffold lands (Phase 0),
    the Rust tree accepts security fixes only. Enforced mechanically: a CI
    check fails any pull request touching Rust source paths unless it carries
-   the `rust-security-fix` label.
+   the `rust-security-fix` label.~~
+   **Superseded by ADR 0002:** the Rust tree is not on this branch, so there is
+   nothing on it to freeze.
 
 ## Consequences
 

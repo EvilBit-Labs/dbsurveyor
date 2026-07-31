@@ -41,22 +41,23 @@ Brief description of changes made and why they are needed.
 - [ ] Unit tests added/updated
 - [ ] Integration tests added/updated and verified to run offline in read-only mode
 - [ ] Security tests added/updated
+- [ ] Commit gate passes locally (`just ci-check`)
 - [ ] All tests pass locally (`just test`)
-- [ ] Database-specific tests pass (`just test-postgres`, `just test-mysql`, `just test-sqlite`)
-- [ ] Security validation passes (`just security-full`)
+- [ ] Container-backed adapter tests pass (`just test-integration`, needs Docker)
+- [ ] `govulncheck` reports nothing reachable (`just vuln`)
 - [ ] Offline operation verified
 
 **Integration Test Requirements**: All integration tests must be verified to run offline and execute in read-only mode. Any network-write tests must be opt-in and documented.
 
 ## Code Quality
 
-- [ ] Code follows Rust conventions and project patterns
-- [ ] Zero clippy warnings (`just lint`)
-- [ ] Code formatted with `cargo fmt` (`just format`)
-- [ ] Documentation added/updated for public APIs
-- [ ] Error handling follows project patterns
-- [ ] No `unsafe` code added
-- [ ] Memory usage optimized for large schemas
+- [ ] Code follows the conventions in AGENTS.md and matches the surrounding style
+- [ ] Zero `golangci-lint` issues (`just lint`)
+- [ ] Code formatted (`just format`)
+- [ ] Any `//nolint` names a specific linter and gives a reason
+- [ ] Errors are wrapped with context, not discarded
+- [ ] No new cgo dependency
+- [ ] Source and Markdown are ASCII only
 
 ## Performance Impact
 

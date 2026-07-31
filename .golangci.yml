@@ -1,0 +1,302 @@
+# yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
+#
+# Strict linter set for dbsurveyor, ported from EvilBit-Labs/opnDossier.
+#
+# Load-bearing linters for this codebase specifically:
+#   asciicheck    -- enforces R18 (ASCII-only sources); replaces a bespoke hook
+#   gosec         -- the nearest analogue to Rust's `unsafe_code = "deny"`
+#   errorlint     -- error wrapping discipline across the adapter layer
+#   exhaustive    -- switch coverage over the schema enum types
+#   contextcheck  -- every adapter call takes a context
+#   sqlclosecheck -- rows/stmt leaks in six database adapters
+#   rowserrcheck  -- unchecked rows.Err() after scan loops
+version: "2"
+
+run:
+  # The integration suites sit behind this tag so `go test ./...` never needs a
+  # container runtime. Linting them anyway is deliberate: an untagged file is a
+  # file nothing type-checks, and a stale integration test is discovered at the
+  # worst possible moment.
+  build-tags:
+    - integration
+  concurrency: 8
+  timeout: 30m
+  issues-exit-code: 1
+  tests: true
+  modules-download-mode: readonly
+  allow-parallel-runners: false
+
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - canonicalheader
+    - containedctx
+    - copyloopvar
+    - cyclop
+    - decorder
+    - dupl
+    - durationcheck
+    - embeddedstructfieldcheck
+    - errchkjson
+    - errcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forbidigo
+    - funcorder
+    - funlen
+    - gocheckcompilerdirectives
+    - gochecksumtype
+    - gocognit
+    - goconst
+    - gocritic
+    - godot
+    - gomoddirectives
+    - goprintffuncname
+    - gosec
+    - govet
+    - iface
+    - inamedparam
+    - ineffassign
+    - intrange
+    - loggercheck
+    - makezero
+    - mirror
+    - mnd
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - perfsprint
+    - predeclared
+    - reassign
+    - recvcheck
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - testableexamples
+    - thelper
+    - testifylint
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+  disable:
+    - gomodguard # Not important right now.
+    - gocyclo # Superseded by cyclop (per-package averages).
+    - testpackage # Tests live in-package to exercise unexported helpers.
+    - gochecknoglobals # Conflicts with cobra command declarations.
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+      - std-error-handling
+    rules:
+      # goconst is disabled on _test.go files. Test tables routinely repeat
+      # fixture strings (engine names, column names, canned connection URLs).
+      # Extracting each into a constant hurts test readability -- the case row
+      # stops being self-describing.
+      - path: '_test\.go$'
+        linters: [goconst]
+      # Type-mapping tables are declarative data: the literal engine type name
+      # IS the value being mapped, not an alias for one. A constant whose body
+      # is the same string as its name adds indirection without reducing
+      # duplication risk.
+      - path: 'internal/[a-z]+/types\.go$'
+        linters: [goconst]
+      # Validation catalogs and generated-example fixtures are declarative data
+      # for the same reason. In a catalog the string IS the JSON field name
+      # being checked, and in a fixture it IS the column name the example
+      # illustrates. A constant whose body equals its name adds a level of
+      # indirection between the table and the document it describes, which is
+      # precisely the correspondence a reviewer is checking.
+      - path: '(internal/[a-z]+/validation(_catalog)?\.go|tools/genschema/example\.go)$'
+        linters: [goconst]
+      # A report's table headers are declarative data too: "Columns" is the word
+      # a reader sees at the top of a column, not an alias for one. A constant
+      # would put a name between the header list and the rendered table, which is
+      # the correspondence a reviewer is checking.
+      - path: 'internal/report/markdown\.go$'
+        linters: [goconst]
+      # Integration tests stand up containers and fixture databases; the setup
+      # helpers are long by nature and splitting them hurts readability more
+      # than the length costs.
+      - path: '_integration_test\.go$'
+        linters: [funlen, gocognit, cyclop, dupl]
+      # Fixture and example data is literal by nature: an ordinal position of 3
+      # or a row count of 148231 IS the value, not a threshold hiding behind a
+      # number. Naming each one would make the fixture harder to read against
+      # the document it illustrates.
+      - path: '(_test\.go|tools/genschema/example\.go)$'
+        linters: [mnd]
+      # An adapter's types.go maps engine type names to bit widths. The 32 in
+      # "int4": 32 is the width of the type, not a threshold hiding behind a
+      # number, and naming it would put a constant between the table and the
+      # engine documentation a reviewer checks it against.
+      - path: 'internal/[a-z]+/types\.go$'
+        linters: [mnd]
+      # G115 flags int-to-uint conversions that could overflow. In test fixtures
+      # the size is a literal slice a few entries long, so the conversion cannot
+      # overflow; the guard matters for widths that came from a database.
+      - path: '_test\.go$'
+        text: 'G115'
+        linters: [gosec]
+      # Adapter collect.go files run a fixed sequence of independent metadata
+      # queries. The repetition is structural (one block per object kind), and
+      # collapsing it behind a generic helper obscures which query maps to
+      # which schema field -- exactly the mapping a reviewer needs to check.
+      - path: 'internal/[a-z]+/collect\.go$'
+        linters: [dupl]
+
+  settings:
+    cyclop:
+      max-complexity: 25
+      package-average: 10.0
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - hugeParam
+        - rangeExprCopy
+        - rangeValCopy
+      settings:
+        captLocal:
+          paramsOnly: false
+        underef:
+          skipRecvDeref: false
+    embeddedstructfieldcheck:
+      forbid-mutex: true
+    goconst:
+      ignore-tests: true
+      min-occurrences: 3
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    exhaustive:
+      check:
+        - switch
+        - map
+      default-signifies-exhaustive: true
+    forbidigo:
+      analyze-types: true
+      forbid:
+        # Every schema document that reaches or leaves disk must route through
+        # internal/artifact so the atomic-write contract and the recursive
+        # credential scan are structurally unavoidable (R16). Direct file
+        # creation outside that package bypasses both.
+        - pattern: '^os\.Create$'
+          msg: 'use internal/artifact for schema output: direct os.Create bypasses the atomic-write contract (temp file + fsync + rename). See U6.'
+        - pattern: '^os\.WriteFile$'
+          msg: 'use internal/artifact for schema output: direct os.WriteFile bypasses the atomic-write contract. See U6.'
+    funcorder:
+      struct-method: false
+    funlen:
+      lines: 120
+      statements: 80
+    gochecksumtype:
+      default-signifies-exhaustive: false
+    gocognit:
+      min-complexity: 40
+    gosec:
+      excludes:
+        - G304 # Loading a user-specified artifact path is expected CLI behavior.
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+    inamedparam:
+      skip-single-param: true
+    nestif:
+      min-complexity: 8
+    mnd:
+      ignored-functions:
+        - args.Error
+        - flag.Arg
+        - flag.Duration.*
+        - flag.Float.*
+        - flag.Int.*
+        - flag.Uint.*
+        - os.Chmod
+        - os.Mkdir.*
+        - os.OpenFile
+        - os.WriteFile
+    recvcheck:
+      exclusions:
+        # UnmarshalJSON must take a pointer receiver to assign through it, while
+        # Valid and String are value methods so the enums stay usable as map
+        # keys and struct fields. The mix is required by encoding/json, not a
+        # design slip. recvcheck excludes the Marshal side by default but not
+        # the Unmarshal side.
+        - "*.UnmarshalJSON"
+        # dbadapter.Secret is read through value methods so that formatting,
+        # marshalling, and logging a Secret held by value all redact -- a
+        # pointer receiver there would leave a value copy falling back to the
+        # default rendering of its bytes. Zero must take a pointer to drop the
+        # slice header after wiping it. The mix is the security property, not a
+        # slip.
+        - "*.Zero"
+    nakedret:
+      max-func-lines: 1
+    nolintlint:
+      allow-no-explanation: [funlen, gocognit, golines]
+      require-explanation: true
+      require-specific: true
+    sloglint:
+      no-global: all
+      context: scope
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1016
+        - -QF1008
+    usetesting:
+      os-temp-dir: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+  uniq-by-line: true
+  fix: true
+
+formatters:
+  enable:
+    - golines
+    - gofumpt
+    - goimports
+    - gci
+  settings:
+    gofumpt:
+      extra-rules: true
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/EvilBit-Labs/dbsurveyor)
+    golines:
+      max-len: 120
