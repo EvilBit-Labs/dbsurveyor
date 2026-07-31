@@ -108,9 +108,15 @@ Editor diagnostics go stale after multi-file edits and do not always enable the 
 
 That gap is invisible until something reads the standard library's *patch* version. `govulncheck` does. `audit.yml` was the last workflow still using `setup-go`, and it reported nine stdlib advisories -- fixed across 1.26.2 through 1.26.5 -- against a tree that had none, while the identical `govulncheck ./...` in `security.yml` passed throughout because that workflow installs its toolchain through mise.
 
-Two things made it survive. The failure looked like real vulnerability findings rather than a configuration error. And the check names hid it: the failing job is called `govulncheck`, while the check that reads `audit` in the flat PR list comes from `security.yml`, an unrelated workflow, and was green. Anyone scanning for "did the dependency audit pass" found a passing `audit` and stopped.
+Three things made it survive.
 
-Install the toolchain with `jdx/mise-action` in every workflow. `tools/workflow_test.go` now enforces that, because documentation did not: `ci.yml` already carried this warning in a comment while `audit.yml` sat next to it doing the thing the comment warned against.
+The failure looked like real vulnerability findings rather than a configuration error.
+
+The check names hid it. The failing job was called `govulncheck`, while the check that reads `audit` in the flat PR list comes from `security.yml`, an unrelated workflow, and was green. Anyone scanning for "did the dependency audit pass" found a passing `audit` and stopped. `security.yml`'s job is named `Dependency audit` now.
+
+And the scan was running in three places at once -- `audit.yml`, `security.yml`, and `ci.yml` -- so two of them reported the right answer beside the one reporting the wrong answer. Redundancy of this kind does not add confidence; it supplies a green check to look at instead of the red one. `audit.yml` has been removed as the copy with no unique trigger, leaving a per-change scan in `ci.yml` and a per-change-plus-daily scan in `security.yml`.
+
+Install the toolchain with `jdx/mise-action` in every workflow. `tools/workflow_test.go` enforces that, because documentation did not: `ci.yml` already carried this warning in a comment while `audit.yml` sat next to it doing the thing the comment warned against.
 
 This is a different failure from 4.3, despite both ending in "the pinned version is not the one that ran". 4.3 is a PATH race between two binaries on one machine. This is one tool reading a different file than the other -- no race, nothing unpinned, and `setup-go` behaving exactly as configured. A fix for either does nothing for the other.
 

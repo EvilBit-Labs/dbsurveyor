@@ -92,6 +92,15 @@ jobs:
                   cache: true
                   github_token: ${{ secrets.GITHUB_TOKEN }}
 
+            # This runs ./... , which includes tools/ -- so it is also where
+            # R13 is enforced. That matters on a dependency bump: a new module
+            # can pull CGO into the graph without any local build failing under
+            # CGO_ENABLED=0, because nothing compiles the offending package
+            # until something imports it. tools/nocgo_test.go inspects the
+            # graph itself, so a dependabot PR trips it here.
+            #
+            # This check previously had its own workflow. It was removed as a
+            # strict subset of this job: same test, narrower trigger, one OS.
             - name: Test
               run: just test
               env:
