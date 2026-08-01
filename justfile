@@ -203,7 +203,7 @@ pre-commit:
 
 # Full local gate -- run `just format` first so a whitespace diff is not a lint failure
 [group('quality')]
-check: format-check lint test vuln
+check: format-check lint lint-yaml test vuln
     @echo "check: OK"
 
 # -----------------------------------------------------------------------------
@@ -212,7 +212,7 @@ check: format-check lint test vuln
 
 # Pre-push gate: every CI check that needs no container runtime, plus -race
 [group('ci')]
-ci-check: format-check lint test test-race vuln
+ci-check: format-check lint lint-yaml test test-race vuln
     # `just check` is the everyday gate. This is the one to run before pushing:
     # it adds the race detector, which CI does not run at all, so a data race
     # otherwise reaches main unchallenged.
@@ -236,6 +236,26 @@ ci-full: ci-check test-integration coverage-ci docs-build release-check
 [group('ci')]
 lint-actions:
     {{ mise_exec }} actionlint
+
+# Lint every tracked YAML file
+[group('ci')]
+lint-yaml:
+    #!/usr/bin/env bash
+    # --strict promotes warnings to a non-zero exit. Without it the rules in
+    # .yamllint.yml that are set to `level: warning` would print and pass,
+    # which is a gate that reports success over a problem it just found.
+    #
+    # git ls-files rather than a directory walk, for the reason GOTCHAS 1.3
+    # records: a walk lints whatever is on disk, including scratch files
+    # nobody committed.
+    set -euo pipefail
+    files=$(git ls-files '*.yml' '*.yaml')
+    if [ -z "$files" ]; then
+        echo "no tracked YAML files; the check would pass over nothing" >&2
+        exit 1
+    fi
+    # shellcheck disable=SC2086 # word splitting is how the list is passed
+    {{ mise_exec }} yamllint --strict -c .yamllint.yml $files
 
 # -----------------------------------------------------------------------------
 # Docs
