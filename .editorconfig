@@ -24,8 +24,10 @@ indent_size = 4
 [*.md]
 trim_trailing_whitespace = false
 
-# JSON, YAML, and JSONC files
-[*.json,*.jsonc]
+# JSON and JSONC files. Brace expansion, not a comma list: EditorConfig
+# section headers are globs, so `[*.json,*.jsonc]` matches a file literally
+# named that and therefore nothing at all.
+[*.{json,jsonc}]
 indent_size = 2
 trim_trailing_whitespace = true
 indent_style = space
@@ -37,7 +39,7 @@ insert_final_newline = true
 # said it long enough that no file agreed with it. A handful of small configs
 # (.golangci.yml, .yamllint.yml, ISSUE_TEMPLATE/config.yml) are still two;
 # nothing enforces this, so they are left alone rather than churned.
-[*.yml,*.yaml]
+[*.{yml,yaml}]
 indent_size = 4
 trim_trailing_whitespace = true
 indent_style = space

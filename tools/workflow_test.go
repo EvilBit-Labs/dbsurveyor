@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -20,6 +21,11 @@ import (
 var forbiddenWorkflowUses = []string{
 	"actions/setup-go",
 }
+
+// usesKey matches a step's `uses` key, with or without the list marker and
+// with or without space before the colon. YAML permits `uses : value`, so a
+// plain search for "uses:" is an evasion this check should not have.
+var usesKey = regexp.MustCompile(`^\s*(-\s*)?uses\s*:`)
 
 // TestWorkflowsInstallTheToolchainThroughMise asserts that no workflow installs
 // Go by any route other than mise.
@@ -47,8 +53,12 @@ func TestWorkflowsInstallTheToolchainThroughMise(t *testing.T) {
 				continue
 			}
 
+			if !usesKey.MatchString(line) {
+				continue
+			}
+
 			for _, forbidden := range forbiddenWorkflowUses {
-				if strings.Contains(line, "uses:") && strings.Contains(line, forbidden) {
+				if strings.Contains(line, forbidden) {
 					t.Errorf(
 						"%s installs a toolchain with %s; use jdx/mise-action so the version comes "+
 							"from mise.toml rather than the go directive in go.mod (GOTCHAS 4.5)",
