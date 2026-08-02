@@ -24,10 +24,16 @@ concurrency:
 
 jobs:
     audit:
+        # Named explicitly because the job id alone renders as a bare "audit" in
+        # the PR check list, which is where this went wrong once: the failing
+        # dependency scan was called "govulncheck", and a reviewer looking for
+        # "did the audit pass" found this green "audit" and stopped. Two checks
+        # covering the same ground need names that say which is which.
+        name: Dependency audit
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-            - uses: jdx/mise-action@f10502fc09dadecfefb962fff68ce77213930204 # v4.2.2
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
               with:
                   install: true
                   cache: true
@@ -38,8 +44,13 @@ jobs:
             # calls does not stop a release. The Rust tooling it replaces had no
             # equivalent, which is why that tree carried a hand-maintained list
             # of advisory suppressions in two files that had to be kept in sync.
+            #
+            # Run through the just recipe rather than calling govulncheck
+            # directly, so a contributor reproducing a failure runs what CI ran.
+            # It also picks up the CGO_ENABLED=0 the justfile exports, which a
+            # bare invocation here did not.
             - name: Vulnerability scan
-              run: govulncheck ./...
+              run: just vuln
 
             # go mod tidy leaving the manifest dirty means a dependency was
             # added or dropped without the lock being updated to match.

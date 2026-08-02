@@ -7,13 +7,40 @@
 # # yamllint disable-line                 #
 ###########################################
 extends: default
+
 rules:
   braces:
     max-spaces-inside: 1
+
   new-lines:
     level: warning
     type: unix
+
   line-length:
     max: 500
+
   comments:
-    min-spaces-from-content: 1 # Used to follow prettier standard: https://github.com/prettier/prettier/pull/10926
+    min-spaces-from-content: 1
+
+  # Each file must be internally consistent. The tree is not consistent with
+  # itself -- workflows and most root configs are four, a few small configs are
+  # two -- and normalizing it would churn every workflow against the open pull
+  # requests. .editorconfig records which is the majority.
+  indentation:
+    spaces: consistent
+
+  # A GitHub Actions workflow's `on:` key is read by the YAML 1.1 parser as the
+  # boolean true, so every workflow trips this rule for a key the format
+  # requires. Values are still checked; only keys are exempt.
+  truthy:
+    check-keys: false
+
+  # Off because this repository writes block comments that explain the section
+  # below them, aligned to that section rather than to its content -- the
+  # comment above `jobs:` in ci.yml is the pattern. The rule and the house
+  # style disagree, and the house style is the one in the files.
+  comments-indentation: disable
+
+  # Off because 15 tracked files omit the marker, and adding it to all of them
+  # is churn with no reader benefit against four open pull requests.
+  document-start: disable

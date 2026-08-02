@@ -1,5 +1,8 @@
 # .pre-commit-config.yaml
 
+default_language_version:
+    python: python3.14
+
 repos:
     # 🧼 Standard code cleanup hooks (language agnostic)
     - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -60,6 +63,19 @@ repos:
             files: ".github/workflows/"
             exclude: ^.github/workflows/release.yml$
 
+    # 📄 YAML style and correctness, every tracked YAML file rather than just
+    # the workflows. Rev matches the yamllint pinned in mise.toml so the hook
+    # and `just lint-yaml` cannot disagree about what passes.
+    #
+    # --strict promotes warnings to a non-zero exit; .yamllint.yml sets some
+    # rules to `level: warning`, and without this they would print and pass.
+    - repo: https://github.com/adrienverge/yamllint
+      rev: v1.38.0
+      hooks:
+          - id: yamllint
+            types: [yaml]
+            args: [--strict, -c, .yamllint.yml]
+
     # 🐚 Shell script validation
     - repo: https://github.com/koalaman/shellcheck-precommit
       rev: v0.11.0
@@ -96,7 +112,8 @@ repos:
                 - mdformat-front-matters
             types: [markdown]
 
-    # 🔒 Vulnerability scan for Go dependencies (also runs in CI: audit.yml)
+    # 🔒 Vulnerability scan for Go dependencies. Also runs in CI, in ci.yml
+    # (per change) and security.yml (per change and on a daily schedule).
     - repo: local
       hooks:
           - id: govulncheck
