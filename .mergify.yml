@@ -7,7 +7,7 @@ queue_rules:
       - label != do-not-merge
       - author = dosubot[bot]
     merge_conditions:
-      - check-success = quality
+      - check-success = Lint
 
     # Dependabot: full CI required
   - name: dependabot
@@ -17,16 +17,14 @@ queue_rules:
       - label != do-not-merge
       - author = dependabot[bot]
     merge_conditions:
-      - check-success = quality
-      - check-success = Tests (postgresql)
-      - check-success = Tests (sqlite)
-      - check-success = Tests (mysql)
-      - check-success = Tests (mongodb)
-      - check-success = Tests (mssql)
-      - check-success = Tests (encryption)
-      - check-success = Tests (compression)
-      - check-success = Test Coverage
-      - check-success = Build Binaries
+      - check-success = Lint
+      - check-success = Build and vet
+      - check-success = Test (ubuntu-latest)
+      - check-success = Test (macos-latest)
+      - check-success = Test (windows-latest)
+      - check-success = Integration
+      - check-success = Vulnerabilities
+      - check-success = Coverage
 
     # Release-plz: DCO only (exempt from full CI -- code already tested on main)
   - name: release-plz
@@ -49,16 +47,14 @@ queue_rules:
       - author != dosubot[bot]
       - -head ~= ^release-plz-
     merge_conditions:
-      - check-success = quality
-      - check-success = Tests (postgresql)
-      - check-success = Tests (sqlite)
-      - check-success = Tests (mysql)
-      - check-success = Tests (mongodb)
-      - check-success = Tests (mssql)
-      - check-success = Tests (encryption)
-      - check-success = Tests (compression)
-      - check-success = Test Coverage
-      - check-success = Build Binaries
+      - check-success = Lint
+      - check-success = Build and vet
+      - check-success = Test (ubuntu-latest)
+      - check-success = Test (macos-latest)
+      - check-success = Test (windows-latest)
+      - check-success = Integration
+      - check-success = Vulnerabilities
+      - check-success = Coverage
 
 pull_request_rules:
   - name: Auto-approve dosubot PRs
@@ -100,6 +96,13 @@ merge_protections:
     success_conditions:
       - "title ~= ^(fix|feat|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\\(.+\\))?!?:"
 
+  # Every `check-success` name below must match a job `name:` in
+  # .github/workflows/ exactly. Nothing validates that, and it has already
+  # failed once: these conditions carried the Rust workspace's job names
+  # (quality, Build Binaries, Test Coverage, Tests (postgresql) and its
+  # siblings) after the Go rewrite renamed every job, so this protection could
+  # not be satisfied by any pull request and no signal said why. Renaming a CI
+  # job means editing this file in the same change.
   - name: Full CI must pass
     description: >-
       All CI checks must pass. Release-plz PRs are exempt because they only
@@ -109,16 +112,14 @@ merge_protections:
       - base = main
       - -head ~= ^release-plz-
     success_conditions:
-      - check-success = quality
-      - check-success = Tests (postgresql)
-      - check-success = Tests (sqlite)
-      - check-success = Tests (mysql)
-      - check-success = Tests (mongodb)
-      - check-success = Tests (mssql)
-      - check-success = Tests (encryption)
-      - check-success = Tests (compression)
-      - check-success = Test Coverage
-      - check-success = Build Binaries
+      - check-success = Lint
+      - check-success = Build and vet
+      - check-success = Test (ubuntu-latest)
+      - check-success = Test (macos-latest)
+      - check-success = Test (windows-latest)
+      - check-success = Integration
+      - check-success = Vulnerabilities
+      - check-success = Coverage
 
   - name: Do not merge outdated PRs
     description: Make sure PRs are within 10 commits of the base branch before merging
