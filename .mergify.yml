@@ -1,16 +1,22 @@
-# Every `check-success` name in this file -- in the queue rules below and in
-# the merge protections further down -- must match a job `name:` in
-# .github/workflows/ exactly. Nothing validates that, and it has already
-# failed once: these conditions carried the Rust workspace's job names
-# (quality, Build Binaries, Test Coverage, Tests (postgresql) and its
-# siblings) after the Go rewrite renamed every job, so no pull request could
-# satisfy them and no signal said why. A condition on a check that never
-# reports does not fail, it waits.
+# Every `check-success` name in this file must match a check name GitHub
+# publishes on a pull request. That is not the same as a job `name:` in
+# .github/workflows/, and comparing against the workflow source will mislead
+# you: a matrix job's name is a template, so `Test (${{ matrix.os }})` is
+# published as three separate checks, and `DCO` is a GitHub App that has no
+# workflow at all.
+#
+# Nothing validates these names, and they have already drifted once: the
+# conditions carried the Rust workspace's job names (quality, Build Binaries,
+# Test Coverage, Tests (postgresql) and its siblings) after the Go rewrite
+# renamed every job, so no pull request could satisfy them and no signal said
+# why. A condition on a check that never reports does not fail, it waits.
 #
 # Renaming a CI job means editing this file in the same change, and editing
-# every block that names it -- the same list appears four times. See
-# docs/solutions/workflow-issues/mergify-conditions-named-retired-ci-jobs.md
-# for the verification command.
+# every block that names it. The full CI list appears three times -- the
+# dependabot and default queue rules, and the "Full CI must pass" protection
+# -- while the dosubot and release-plz rules carry their own shorter lists.
+# See docs/solutions/workflow-issues/mergify-conditions-named-retired-ci-jobs.md
+# for the command that checks these names against a live pull request.
 queue_rules:
     # Dosubot: only needs Lint (formatting + golangci-lint) to pass
   - name: dosubot
@@ -110,7 +116,8 @@ merge_protections:
       - "title ~= ^(fix|feat|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\\(.+\\))?!?:"
 
   # The check names below are load-bearing and unvalidated. See the comment at
-  # the top of this file; the queue rules carry this same list.
+  # the top of this file; the dependabot and default queue rules carry this
+  # same list.
   - name: Full CI must pass
     description: >-
       All CI checks must pass. Release-plz PRs are exempt because they only
