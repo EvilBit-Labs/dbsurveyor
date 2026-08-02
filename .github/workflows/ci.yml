@@ -49,9 +49,13 @@ jobs:
               # distinguishable from a lint failure in the job log.
               run: just format-check
             # yamllint is configured in .yamllint.yml and also runs as a
-            # pre-commit hook. It runs here as well because no workflow runs
-            # pre-commit, so a hook on its own gates nothing a contributor
-            # cannot skip with --no-verify.
+            # pre-commit hook. It runs here too because it is cheap and covers
+            # every tracked YAML file rather than only what a commit touched.
+            #
+            # This is not an argument that every pre-commit hook belongs in CI.
+            # actionlint deliberately stays hook-only: its hook excludes
+            # release.yml, which GoReleaser generates, so a bare `actionlint`
+            # here would lint a file the hook is careful not to.
             - name: Lint YAML
               run: just lint-yaml
 
