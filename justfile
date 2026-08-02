@@ -203,7 +203,7 @@ pre-commit:
 
 # Full local gate -- run `just format` first so a whitespace diff is not a lint failure
 [group('quality')]
-check: format-check lint lint-yaml test vuln
+check: format-check lint test vuln
     @echo "check: OK"
 
 # -----------------------------------------------------------------------------
@@ -212,7 +212,7 @@ check: format-check lint lint-yaml test vuln
 
 # Pre-push gate: every CI check that needs no container runtime, plus -race
 [group('ci')]
-ci-check: format-check lint lint-yaml test test-race vuln
+ci-check: format-check lint test test-race vuln
     # `just check` is the everyday gate. This is the one to run before pushing:
     # it adds the race detector, which CI does not run at all, so a data race
     # otherwise reaches main unchallenged.

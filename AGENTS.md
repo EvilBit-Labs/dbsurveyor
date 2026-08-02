@@ -122,9 +122,9 @@ just test-race        # race detector (the one place CGO_ENABLED=1 is allowed)
 just coverage         # coverage report
 just coverage-ci      # fail below the coverage threshold
 just lint             # golangci-lint run
-just lint-yaml        # yamllint --strict over every tracked YAML file
+just lint-yaml        # yamllint --strict over every tracked YAML file (also a pre-commit hook)
 just format           # golangci-lint fmt -- run this BEFORE just check
-just check            # format-check, lint, lint-yaml, test, vuln
+just check            # format-check, lint, test, vuln
 just ci-check         # MANDATORY COMMIT GATE: check plus test-race
 just ci-smoke         # fast build and short tests
 just ci-full          # everything CI gates, container suites included
@@ -141,7 +141,7 @@ just update-deps      # update toolchain, Go modules, and hooks
 
 ### The commit gate
 
-**`just ci-check` is mandatory before every commit.** It is `format-check lint lint-yaml test test-race vuln`. Run `just format` first; a formatting-only failure is otherwise indistinguishable from a lint failure in the log.
+**`just ci-check` is mandatory before every commit.** It is `format-check lint test test-race vuln`. Run `just format` first; a formatting-only failure is otherwise indistinguishable from a lint failure in the log.
 
 `just check` is the everyday loop and is not sufficient on its own: it omits `test-race`, and CI does not run the race detector either. `ci-check` is the only gate in this project that looks for a data race, so skipping it is the one way a race reaches `main` with nothing having tried to catch it.
 
