@@ -16,6 +16,7 @@ just                                                        = "latest"
 python                                                      = "latest"
 "pipx:mdformat"                                             = { version = "1.0.0", uvx_args = "--with mdformat-gfm --with mdformat-config --with mdformat-footnote --with mdformat-front-matters --with mdformat-simple-breaks --with mdformat-web --with mdformat-wikilink --with mdformat-gfm-alerts --with mdformat-toc" }
 actionlint                                                  = "1.7.12"
+yamllint                                                    = "1.38.0"
 markdownlint-cli2                                           = "0.23.2"
 "cargo:git-cliff"                                           = "2.13.1"
 scorecard                                                   = "5.5.0"

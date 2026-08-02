@@ -122,6 +122,7 @@ just test-race        # race detector (the one place CGO_ENABLED=1 is allowed)
 just coverage         # coverage report
 just coverage-ci      # fail below the coverage threshold
 just lint             # golangci-lint run
+just lint-yaml        # yamllint --strict over every tracked YAML file (also a pre-commit hook)
 just format           # golangci-lint fmt -- run this BEFORE just check
 just check            # format-check, lint, test, vuln
 just ci-check         # MANDATORY COMMIT GATE: check plus test-race
